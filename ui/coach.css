@@ -1,0 +1,472 @@
+/* ══════════════════════════════════════════════════════════════
+   Commander AI Lab — Deck Coach Page
+   Page-specific styles only; shared tokens & components in global.css
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Status Bar ────────────────────────────────────────────── */
+.coach-status-bar {
+    padding: var(--sp-3) var(--sp-5);
+}
+
+.coach-status-items {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-6);
+    flex-wrap: wrap;
+}
+
+.coach-status-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: 13px;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-unknown { background: var(--text-tertiary); }
+.status-ok      { background: var(--success); }
+.status-warn    { background: var(--warning); }
+.status-error   { background: var(--error); }
+
+.status-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.status-value {
+    color: var(--text);
+}
+
+.coach-gen-btn {
+    margin-left: auto;
+}
+
+.coach-gen-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ── Config Panel ──────────────────────────────────────────── */
+.coach-config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-4);
+}
+
+.coach-field-wide {
+    grid-column: 1 / -1;
+}
+
+/* ── Slider ────────────────────────────────────────────────── */
+.coach-slider-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.coach-slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 6px;
+    background: var(--surface-3);
+    border-radius: 3px;
+    outline: none;
+}
+
+.coach-slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--surface-1);
+}
+
+.coach-slider-row input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--surface-1);
+}
+
+.coach-slider-value {
+    color: var(--accent);
+    font-size: 20px;
+    font-weight: 700;
+    min-width: 30px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.coach-hint {
+    color: var(--text-tertiary);
+    font-size: 11px;
+}
+
+/* ── Focus Tags ────────────────────────────────────────────── */
+.coach-focus-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+}
+
+.coach-tag {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 5px var(--sp-3);
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+    transition: border-color var(--duration) var(--ease),
+                background var(--duration) var(--ease);
+    text-transform: none;
+    font-weight: 400;
+    letter-spacing: 0;
+}
+
+.coach-tag:hover {
+    border-color: var(--accent);
+}
+
+.coach-tag input[type="checkbox"] {
+    accent-color: var(--accent);
+}
+
+.coach-tag:has(input:checked) {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+
+/* ── Run Button Row ────────────────────────────────────────── */
+.coach-run-row {
+    margin-top: var(--sp-5);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+}
+
+.coach-run-icon {
+    font-size: 16px;
+}
+
+.coach-run-hint {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+/* ── Progress ──────────────────────────────────────────────── */
+.coach-progress {
+    margin-top: var(--sp-4);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--accent-dim);
+    border: 1px solid var(--border-focus);
+    border-radius: var(--radius-sm);
+}
+
+#coach-progress-text {
+    color: var(--accent);
+    font-size: 14px;
+}
+
+/* ── Results ───────────────────────────────────────────────── */
+.coach-results {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    animation: coach-fadeIn 0.3s var(--ease);
+}
+
+@keyframes coach-fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Summary ───────────────────────────────────────────────── */
+.coach-summary-text {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text);
+}
+
+.coach-meta-row {
+    margin-top: var(--sp-3);
+    display: flex;
+    gap: var(--sp-4);
+    flex-wrap: wrap;
+}
+
+.coach-meta-chip {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: var(--sp-1) var(--sp-3);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.coach-meta-chip strong {
+    color: var(--text);
+}
+
+/* ── Badges (cuts/adds counts) ─────────────────────────────── */
+.coach-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--error-dim);
+    color: var(--error);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px var(--sp-2);
+    border-radius: var(--radius-md);
+    min-width: 24px;
+}
+
+.coach-badge-green {
+    background: var(--success-dim);
+    color: var(--success);
+}
+
+.coach-card-hint {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-bottom: var(--sp-3);
+}
+
+/* ── Tables ────────────────────────────────────────────────── */
+.coach-table-wrap {
+    overflow-x: auto;
+}
+
+.coach-th-check {
+    width: 36px;
+}
+
+.coach-table input[type="checkbox"] {
+    accent-color: var(--accent);
+}
+
+.coach-card-name {
+    font-weight: 600;
+    color: #fff;
+}
+
+.coach-replacements {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+}
+
+.coach-replacement-chip {
+    background: var(--success-dim);
+    color: var(--success);
+    font-size: 11px;
+    padding: 2px var(--sp-2);
+    border-radius: var(--radius-md);
+    white-space: nowrap;
+}
+
+.coach-synergy-chip {
+    background: var(--purple-dim);
+    color: var(--purple);
+    font-size: 11px;
+    padding: 2px var(--sp-2);
+    border-radius: var(--radius-md);
+    white-space: nowrap;
+}
+
+.coach-role-badge {
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 11px;
+    padding: 2px var(--sp-2);
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.coach-impact {
+    font-weight: 600;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.coach-impact-negative { color: var(--error); }
+.coach-impact-positive { color: var(--success); }
+.coach-impact-neutral  { color: var(--text-secondary); }
+
+/* ── Hints List ────────────────────────────────────────────── */
+.coach-hints-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.coach-hints-list li {
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-2);
+    border-left: 3px solid var(--purple);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* ── Mana Advice ───────────────────────────────────────────── */
+.coach-mana-text {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text);
+}
+
+/* ── Raw Response ──────────────────────────────────────────── */
+.coach-raw-details {
+    padding: 0;
+}
+
+.coach-raw-details summary {
+    padding: var(--sp-3) var(--sp-5);
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.coach-raw-details summary:hover {
+    color: var(--text);
+}
+
+.coach-raw-text {
+    padding: var(--sp-4);
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* ── Past Sessions ─────────────────────────────────────────── */
+.coach-sessions-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.coach-empty {
+    color: var(--text-tertiary);
+    font-size: 13px;
+    padding: var(--sp-3) 0;
+}
+
+.coach-session-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color var(--duration) var(--ease);
+}
+
+.coach-session-item:hover {
+    border-color: var(--border-focus);
+}
+
+.coach-session-deck {
+    font-weight: 600;
+    color: #fff;
+    min-width: 140px;
+    font-size: 14px;
+}
+
+.coach-session-summary {
+    flex: 1;
+    color: var(--text-secondary);
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.coach-session-meta {
+    display: flex;
+    gap: var(--sp-2);
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.coach-session-cuts {
+    color: var(--error);
+    font-weight: 600;
+}
+
+.coach-session-adds {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.coach-session-time {
+    color: var(--text-tertiary);
+    font-size: 11px;
+}
+
+/* ── Error State ───────────────────────────────────────────── */
+.coach-error {
+    background: var(--error-dim);
+    border: 1px solid var(--error);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-3) var(--sp-4);
+    color: var(--error);
+    font-size: 14px;
+    margin-top: var(--sp-4);
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .coach-config-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .coach-status-items {
+        flex-direction: column;
+        gap: var(--sp-2);
+        align-items: flex-start;
+    }
+
+    .coach-gen-btn {
+        margin-left: 0;
+    }
+
+    .coach-session-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .coach-session-summary {
+        white-space: normal;
+    }
+}

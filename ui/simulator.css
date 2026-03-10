@@ -1,0 +1,308 @@
+/* ══════════════════════════════════════════════════════════════
+   Commander AI Lab — Simulator Page
+   Page-specific styles only; shared tokens & components in global.css
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Config row layout ─────────────────────────────────────── */
+.sim-config-row {
+    display: flex;
+    gap: var(--sp-4);
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.sim-field-grow {
+    flex: 1;
+    min-width: 180px;
+}
+
+.sim-field-auto {
+    flex: 0 0 auto;
+}
+
+.sim-field-end {
+    align-self: flex-end;
+}
+
+.sim-num-input {
+    width: 90px;
+}
+
+/* ── Run button running state ──────────────────────────────── */
+.btn.running {
+    background: var(--warning);
+    color: var(--text-inverse);
+    cursor: wait;
+}
+
+/* ── Paste decklist section ────────────────────────────────── */
+.sim-paste-section {
+    margin-top: var(--sp-4);
+    border-top: 1px solid var(--border);
+    padding-top: var(--sp-3);
+}
+
+.sim-paste-section summary {
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.sim-paste-section summary:hover {
+    color: var(--accent-hover);
+}
+
+.sim-paste-section .form-textarea {
+    margin-top: var(--sp-3);
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+.sim-paste-controls {
+    display: flex;
+    gap: var(--sp-3);
+    margin-top: var(--sp-3);
+    align-items: center;
+}
+
+.sim-paste-controls .form-input {
+    max-width: 250px;
+}
+
+/* ── Results animation ─────────────────────────────────────── */
+#sim-results {
+    animation: sim-fadeIn 0.3s var(--ease);
+}
+
+@keyframes sim-fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Stat card variants (JS-generated classes) ─────────────── */
+.sim-stat-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-5);
+    text-align: center;
+    transition: all var(--duration) var(--ease);
+}
+
+.sim-stat-card:hover {
+    border-color: var(--border-focus);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.sim-stat-card.highlight {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.sim-stat-card.win .sim-stat-value {
+    color: var(--success);
+}
+
+.sim-stat-card.loss .sim-stat-value {
+    color: var(--error);
+}
+
+.sim-stat-card.highlight .sim-stat-value {
+    color: var(--accent);
+}
+
+.sim-stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.1;
+    margin-bottom: var(--sp-1);
+    font-variant-numeric: tabular-nums;
+}
+
+.sim-stat-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ── Games section ─────────────────────────────────────────── */
+.sim-games-section .panel-header {
+    margin-bottom: var(--sp-4);
+}
+
+.sim-games-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+/* ── Individual game row ───────────────────────────────────── */
+.sim-game-row {
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.sim-game-header {
+    display: flex;
+    align-items: center;
+    padding: var(--sp-3) var(--sp-4);
+    cursor: pointer;
+    gap: var(--sp-3);
+    transition: background var(--duration) var(--ease);
+}
+
+.sim-game-header:hover {
+    background: var(--surface-hover);
+}
+
+.sim-game-num {
+    font-size: 12px;
+    color: var(--text-secondary);
+    min-width: 55px;
+    font-weight: 500;
+}
+
+.sim-game-winner {
+    font-size: 13px;
+    font-weight: 600;
+    flex: 1;
+}
+
+.sim-game-winner.win {
+    color: var(--success);
+}
+
+.sim-game-winner.loss {
+    color: var(--error);
+}
+
+.sim-game-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: var(--sp-3);
+}
+
+.sim-game-expand {
+    color: var(--text-tertiary);
+    font-size: 14px;
+    transition: transform 0.2s var(--ease);
+}
+
+.sim-game-row.expanded .sim-game-expand {
+    transform: rotate(90deg);
+}
+
+/* ── Turn log ──────────────────────────────────────────────── */
+.sim-turn-log {
+    display: none;
+    padding: 0 var(--sp-4) var(--sp-4);
+    border-top: 1px solid var(--border);
+    max-height: 500px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-focus) var(--surface-0);
+}
+
+.sim-turn-log::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sim-turn-log::-webkit-scrollbar-track {
+    background: var(--surface-0);
+}
+
+.sim-turn-log::-webkit-scrollbar-thumb {
+    background: var(--border-focus);
+    border-radius: 3px;
+}
+
+.sim-game-row.expanded .sim-turn-log {
+    display: block;
+}
+
+.sim-turn {
+    padding: var(--sp-2) 0;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.sim-turn:last-child {
+    border-bottom: none;
+}
+
+.sim-turn-header {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: var(--sp-1);
+}
+
+.sim-turn-elim {
+    font-size: 12px;
+    color: var(--error);
+    font-weight: 600;
+    margin-top: var(--sp-1);
+}
+
+.sim-phase {
+    margin-left: var(--sp-3);
+    margin-bottom: var(--sp-2);
+}
+
+.sim-phase-player {
+    font-size: 11px;
+    color: var(--purple);
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.sim-phase-event {
+    font-size: 12px;
+    color: var(--text);
+    padding-left: var(--sp-2);
+    line-height: 1.6;
+}
+
+.sim-phase-life {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    padding-left: var(--sp-2);
+}
+
+.sim-phase-board {
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding-left: var(--sp-2);
+}
+
+/* ── No logs message ───────────────────────────────────────── */
+.sim-no-logs {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    text-align: center;
+    padding: var(--sp-5);
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .sim-config-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sim-field-auto {
+        min-width: 100%;
+    }
+
+    .sim-num-input {
+        width: 100%;
+    }
+}

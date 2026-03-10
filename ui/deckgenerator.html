@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Commander AI Lab — Auto Deck Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="global.css" />
+    <link rel="stylesheet" href="deckgenerator.css" />
+</head>
+<body>
+    <script src="nav.js"></script>
+
+    <div id="deckgen-page">
+
+        <!-- MAIN LAYOUT -->
+        <main class="dg-main">
+
+            <!-- LEFT: Configuration -->
+            <section class="dg-col-config">
+
+                <!-- Commander Search -->
+                <div class="dg-panel dg-panel-commander">
+                    <div class="dg-panel-header">
+                        <span class="dg-panel-title">Commander</span>
+                    </div>
+                    <div class="dg-panel-body">
+                        <div class="dg-commander-search-wrap">
+                            <input
+                                type="text"
+                                class="dg-input"
+                                id="dg-commander-input"
+                                placeholder="Search for a legendary creature..."
+                                autocomplete="off"
+                            />
+                            <div class="dg-commander-dropdown" id="dg-commander-dropdown"></div>
+                        </div>
+                        <div class="dg-commander-selected" id="dg-commander-selected" style="display:none">
+                            <div class="dg-commander-card">
+                                <img class="dg-commander-img" id="dg-commander-img" src="" alt="" />
+                                <div class="dg-commander-info">
+                                    <div class="dg-commander-name" id="dg-commander-name"></div>
+                                    <div class="dg-commander-type" id="dg-commander-type"></div>
+                                    <div class="dg-commander-colors" id="dg-commander-colors"></div>
+                                </div>
+                                <button class="dg-commander-clear" id="dg-commander-clear" title="Clear commander">&times;</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Deck Name -->
+                <div class="dg-panel">
+                    <div class="dg-panel-header">
+                        <span class="dg-panel-title">Deck Name</span>
+                    </div>
+                    <div class="dg-panel-body">
+                        <input
+                            type="text"
+                            class="dg-input"
+                            id="dg-deck-name"
+                            placeholder="Auto-generated from commander name"
+                        />
+                    </div>
+                </div>
+
+                <!-- Source Toggles -->
+                <div class="dg-panel">
+                    <div class="dg-panel-header">
+                        <span class="dg-panel-title">Template Sources</span>
+                    </div>
+                    <div class="dg-panel-body">
+                        <div class="dg-source-toggles" id="dg-source-toggles">
+                            <!-- Populated by JS from /api/deck-generator/config -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Type Ratios -->
+                <div class="dg-panel">
+                    <div class="dg-panel-header">
+                        <span class="dg-panel-title">Card Type Targets</span>
+                        <span class="dg-panel-hint" id="dg-total-hint">100 / 100</span>
+                    </div>
+                    <div class="dg-panel-body">
+                        <div class="dg-ratio-list" id="dg-ratio-list">
+                            <!-- Populated by JS from config defaults -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Options -->
+                <div class="dg-panel">
+                    <div class="dg-panel-header">
+                        <span class="dg-panel-title">Options</span>
+                    </div>
+                    <div class="dg-panel-body">
+                        <label class="dg-toggle-row">
+                            <span class="dg-toggle-label">Only cards I own</span>
+                            <input type="checkbox" class="dg-toggle-check" id="dg-only-owned" />
+                            <span class="dg-toggle-track"><span class="dg-toggle-thumb"></span></span>
+                        </label>
+                        <label class="dg-toggle-row">
+                            <span class="dg-toggle-label">Allow proxies (from sources)</span>
+                            <input type="checkbox" class="dg-toggle-check" id="dg-allow-proxies" checked />
+                            <span class="dg-toggle-track"><span class="dg-toggle-thumb"></span></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="dg-actions">
+                    <button class="dg-btn dg-btn-preview" id="dg-preview-btn" disabled>
+                        <span class="dg-btn-icon">👁</span> Preview Deck
+                    </button>
+                </div>
+
+            </section>
+
+            <!-- RIGHT: Preview Results -->
+            <section class="dg-col-results">
+                <!-- Empty State -->
+                <div class="dg-empty-state" id="dg-empty-state">
+                    <div class="dg-empty-icon">⚡</div>
+                    <div class="dg-empty-title">Configure &amp; Preview</div>
+                    <div class="dg-empty-text">Select a commander and click "Preview Deck" to generate a deck from your collection.</div>
+                </div>
+
+                <!-- Loading State -->
+                <div class="dg-loading" id="dg-loading" style="display:none">
+                    <div class="dg-spinner"></div>
+                    <div class="dg-loading-text">Generating deck...</div>
+                </div>
+
+                <!-- Results -->
+                <div class="dg-results" id="dg-results" style="display:none">
+
+                    <!-- Stats Bar -->
+                    <div class="dg-stats-bar" id="dg-stats-bar"></div>
+
+                    <!-- Card Groups -->
+                    <div class="dg-card-groups" id="dg-card-groups"></div>
+
+                    <!-- Save Bar -->
+                    <div class="dg-save-bar" id="dg-save-bar">
+                        <button class="dg-btn dg-btn-save" id="dg-save-btn">
+                            <span class="dg-btn-icon">💾</span> Save to Deck Builder
+                        </button>
+                        <button class="dg-btn dg-btn-ghost" id="dg-regenerate-btn">
+                            <span class="dg-btn-icon">🔄</span> Regenerate
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- TOAST CONTAINER -->
+        <div class="dg-toast-container" id="dg-toast-container"></div>
+
+    </div>
+
+    <script src="deckgenerator.js"></script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.commanderailab</groupId>
+    <artifactId>commander-ai-lab</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>Commander AI Lab</name>
+    <description>Headless batch simulation environment for MTG Commander with 3-AI pods</description>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <gson.version>2.10.1</gson.version>
+        <picocli.version>4.7.5</picocli.version>
+        <!-- Must match the version in YOUR local Forge clone's pom.xml.
+             Find it by running:  mvn help:evaluate -Dexpression=project.version -q -DforceStdout
+             inside your forge/ directory.  Current Card-Forge master is 2.0.12-SNAPSHOT. -->
+        <forge.version>2.0.12-SNAPSHOT</forge.version>
+    </properties>
+
+    <dependencies>
+        <!--
+            Forge engine modules — these must be installed to your local Maven repo FIRST.
+            From your forge/ clone directory run:
+              mvn install -pl forge-core,forge-game,forge-ai -DskipTests -Drevision=2.0.12-SNAPSHOT
+            That puts the JARs into ~/.m2/repository/forge/...
+        -->
+        <dependency>
+            <groupId>forge</groupId>
+            <artifactId>forge-core</artifactId>
+            <version>${forge.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>forge</groupId>
+            <artifactId>forge-game</artifactId>
+            <version>${forge.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>forge</groupId>
+            <artifactId>forge-ai</artifactId>
+            <version>${forge.version}</version>
+        </dependency>
+
+        <!-- JSON -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>${gson.version}</version>
+        </dependency>
+
+        <!-- CLI argument parsing -->
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>${picocli.version}</version>
+        </dependency>
+
+        <!-- SQLite JDBC -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.45.1.0</version>
+        </dependency>
+
+        <!-- Testing -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>commanderailab.cli.LabCli</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>commanderailab.cli.LabCli</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.3</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>
