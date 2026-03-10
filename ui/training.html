@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Commander AI Lab — ML Training</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="global.css" />
+    <link rel="stylesheet" href="training.css" />
+</head>
+<body>
+    <script src="nav.js"></script>
+    <div class="page">
+        <div class="page-header">
+            <h1>ML Training Dashboard</h1>
+            <p>Train, evaluate, and deploy the AI opponent policy network</p>
+        </div>
+
+        <!-- Status Overview Cards -->
+        <div class="status-grid stat-grid">
+            <div class="status-card stat-card" id="card-data">
+                <div class="card-icon">&#128202;</div>
+                <div class="card-label stat-label">Training Data</div>
+                <div class="card-value stat-value" id="val-decisions">--</div>
+                <div class="card-sub stat-sub" id="sub-decisions">decisions available</div>
+            </div>
+            <div class="status-card stat-card" id="card-dataset">
+                <div class="card-icon">&#128451;</div>
+                <div class="card-label stat-label">Dataset</div>
+                <div class="card-value stat-value" id="val-dataset">--</div>
+                <div class="card-sub stat-sub" id="sub-dataset">not built</div>
+            </div>
+            <div class="status-card stat-card" id="card-model">
+                <div class="card-icon">&#129504;</div>
+                <div class="card-label stat-label">Policy Model</div>
+                <div class="card-value stat-value" id="val-model">--</div>
+                <div class="card-sub stat-sub" id="sub-model">no checkpoint</div>
+            </div>
+            <div class="status-card stat-card" id="card-server">
+                <div class="card-icon">&#9889;</div>
+                <div class="card-label stat-label">Inference Server</div>
+                <div class="card-value stat-value" id="val-server">--</div>
+                <div class="card-sub stat-sub" id="sub-server">not loaded</div>
+            </div>
+        </div>
+
+        <!-- Training Control Panel -->
+        <section class="panel" id="train-panel">
+            <div class="panel-header">
+                <h2>Training Pipeline</h2>
+            </div>
+            <div class="train-controls">
+                <div class="param-grid form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="param-epochs">Epochs</label>
+                        <input type="number" id="param-epochs" class="form-input" value="50" min="1" max="500" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="param-lr">Learning Rate</label>
+                        <input type="number" id="param-lr" class="form-input" value="0.001" step="0.0001" min="0.00001" max="0.1" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="param-batch">Batch Size</label>
+                        <input type="number" id="param-batch" class="form-input" value="256" min="16" max="2048" step="16" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="param-patience">Early Stop Patience</label>
+                        <input type="number" id="param-patience" class="form-input" value="10" min="3" max="100" />
+                    </div>
+                </div>
+                <div class="train-options">
+                    <label class="form-checkbox checkbox-label">
+                        <input type="checkbox" id="param-rebuild" checked />
+                        Rebuild dataset from decision logs
+                    </label>
+                </div>
+                <div class="train-actions">
+                    <button id="btn-train" class="btn btn-primary" onclick="startTraining()">
+                        <span class="btn-icon">&#9654;</span> Start Training
+                    </button>
+                    <button id="btn-reload" class="btn btn-secondary" onclick="reloadModel()">
+                        <span class="btn-icon">&#8635;</span> Reload Model
+                    </button>
+                </div>
+            </div>
+
+            <!-- Progress Section (hidden when idle) -->
+            <div id="train-progress" class="train-progress hidden">
+                <div class="progress-header">
+                    <span id="progress-phase" class="phase-badge">BUILDING</span>
+                    <span id="progress-message">Initializing...</span>
+                </div>
+                <div class="progress-bar-container progress-track">
+                    <div class="progress-bar progress-fill" id="progress-bar"></div>
+                </div>
+                <div class="progress-detail" id="progress-detail"></div>
+            </div>
+        </section>
+
+        <!-- Data Files Panel -->
+        <section class="panel" id="data-panel">
+            <div class="panel-header">
+                <h2>Training Data Files</h2>
+            </div>
+            <div id="data-files-list" class="file-list">
+                <div class="empty-state">Loading data status...</div>
+            </div>
+        </section>
+
+        <!-- Evaluation Results Panel -->
+        <section class="panel" id="eval-panel">
+            <div class="panel-header">
+                <h2>Evaluation Results</h2>
+            </div>
+            <div id="eval-results" class="eval-container">
+                <div class="empty-state">No evaluation results yet. Train a model first.</div>
+            </div>
+        </section>
+
+        <!-- PPO Training Panel -->
+        <section class="panel" id="ppo-panel">
+            <div class="panel-header">
+                <h2>PPO Reinforcement Learning</h2>
+            </div>
+            <div class="train-controls">
+                <div class="param-grid form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="ppo-iterations">Iterations</label>
+                        <input type="number" id="ppo-iterations" class="form-input" value="100" min="1" max="1000" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="ppo-episodes">Episodes/Iter</label>
+                        <input type="number" id="ppo-episodes" class="form-input" value="64" min="8" max="512" step="8" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="ppo-lr">Learning Rate</label>
+                        <input type="number" id="ppo-lr" class="form-input" value="0.0003" step="0.0001" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="ppo-opponent">Opponent</label>
+                        <select id="ppo-opponent" class="form-select">
+                            <option value="heuristic">Heuristic</option>
+                            <option value="random">Random</option>
+                            <option value="self">Self-Play</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="train-options">
+                    <label class="form-checkbox checkbox-label">
+                        <input type="checkbox" id="ppo-load-supervised" />
+                        Initialize from supervised checkpoint (warm start)
+                    </label>
+                </div>
+                <div class="train-actions">
+                    <button id="btn-ppo" class="btn btn-purple" onclick="startPPO()">
+                        <span class="btn-icon">&#9654;</span> Start PPO Training
+                    </button>
+                </div>
+            </div>
+            <div id="ppo-progress" class="train-progress hidden">
+                <div class="progress-header">
+                    <span id="ppo-progress-phase" class="phase-badge">TRAINING</span>
+                    <span id="ppo-progress-message">Initializing...</span>
+                </div>
+                <div class="progress-bar-container progress-track">
+                    <div class="progress-bar progress-fill" id="ppo-progress-bar"></div>
+                </div>
+                <div class="progress-detail" id="ppo-progress-detail"></div>
+            </div>
+        </section>
+
+        <!-- Tournament Panel -->
+        <section class="panel" id="tournament-panel">
+            <div class="panel-header">
+                <h2>Tournament Evaluation</h2>
+            </div>
+            <div class="train-controls">
+                <div class="param-grid form-row tourney-param-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="tourney-episodes">Games per Matchup</label>
+                        <input type="number" id="tourney-episodes" class="form-input" value="50" min="10" max="500" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="tourney-style">Playstyle</label>
+                        <select id="tourney-style" class="form-select">
+                            <option value="midrange">Midrange</option>
+                            <option value="aggro">Aggro</option>
+                            <option value="control">Control</option>
+                            <option value="combo">Combo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="train-actions">
+                    <button id="btn-tourney" class="btn btn-success" onclick="startTournament()">
+                        <span class="btn-icon">&#127942;</span> Run Tournament
+                    </button>
+                </div>
+            </div>
+            <div id="tourney-progress" class="train-progress hidden">
+                <div class="progress-header">
+                    <span id="tourney-progress-phase" class="phase-badge running">RUNNING</span>
+                    <span id="tourney-progress-message">Running matches...</span>
+                </div>
+                <div class="progress-bar-container progress-track">
+                    <div class="progress-bar progress-fill" id="tourney-progress-bar"></div>
+                </div>
+            </div>
+            <div id="tourney-results" class="eval-container tourney-results-section">
+            </div>
+        </section>
+
+        <!-- Checkpoint History -->
+        <section class="panel" id="checkpoint-panel">
+            <div class="panel-header">
+                <h2>Model Checkpoints</h2>
+            </div>
+            <div id="checkpoint-list" class="checkpoint-list">
+                <div class="empty-state">No checkpoints found.</div>
+            </div>
+        </section>
+    </div>
+
+    <script src="training.js"></script>
+</body>
+</html>

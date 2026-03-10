@@ -1,0 +1,45 @@
+{
+  "deckId": "Counterpunch",
+  "commander": "Counterpunch",
+  "colorIdentity": [],
+  "meta": {
+    "gamesSimulated": 2,
+    "overallWinRate": 0.0,
+    "avgGameLength": 15.5,
+    "perArchetypeWinRates": {}
+  },
+  "matchups": [
+    {
+      "opponentDeck": "Devour_for_Power_CMD",
+      "opponentCommander": "",
+      "gamesPlayed": 2,
+      "winRate": 0.0
+    },
+    {
+      "opponentDeck": "Heavenly_Inferno_CMD",
+      "opponentCommander": "",
+      "gamesPlayed": 2,
+      "winRate": 0.0
+    }
+  ],
+  "structure": {
+    "landCount": 0,
+    "curveBuckets": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "cardTypeCounts": {},
+    "functionalCounts": {}
+  },
+  "cards": [],
+  "underperformers": [],
+  "overperformers": [],
+  "knownCombos": [],
+  "lastUpdated": "2026-03-10T15:39:39.798151+00:00"
+}

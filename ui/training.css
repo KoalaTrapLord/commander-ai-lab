@@ -1,0 +1,354 @@
+/* ══════════════════════════════════════════════════════════════
+   Commander AI Lab — ML Training Dashboard
+   Page-specific styles only; shared tokens & components in global.css
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Legacy variable aliases (used by training.js inline styles) ── */
+:root {
+    --lab-bg:         var(--bg);
+    --lab-surface:    var(--surface-1);
+    --lab-border:     var(--border);
+    --lab-accent:     var(--accent);
+    --lab-accent-dim: var(--accent-dim);
+    --lab-text:       var(--text);
+    --lab-text-dim:   var(--text-secondary);
+    --lab-success:    var(--success);
+    --lab-success-dim:var(--success-dim);
+    --lab-warning:    var(--warning);
+    --lab-warning-dim:var(--warning-dim);
+    --lab-error:      var(--error);
+    --lab-error-dim:  var(--error-dim);
+    --lab-purple:     var(--purple);
+    --lab-purple-dim: var(--purple-dim);
+}
+
+/* ── Status Cards (extend global .stat-card) ───────────────── */
+.status-grid {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.status-card {
+    text-align: center;
+}
+
+.status-card.active {
+    border-color: var(--accent);
+}
+
+.status-card.success {
+    border-color: var(--success);
+}
+
+.card-icon {
+    font-size: 24px;
+    margin-bottom: var(--sp-2);
+}
+
+/* ── Panel heading with bottom border ──────────────────────── */
+.panel > .panel-header {
+    padding-bottom: var(--sp-3);
+    border-bottom: 1px solid var(--border);
+}
+
+/* ── Training Controls Layout ──────────────────────────────── */
+.train-controls {
+    padding-top: var(--sp-4);
+}
+
+.param-grid {
+    margin-bottom: var(--sp-3);
+}
+
+.train-options {
+    margin-bottom: var(--sp-4);
+}
+
+.train-actions {
+    display: flex;
+    gap: var(--sp-2);
+}
+
+.btn-icon {
+    font-size: 14px;
+}
+
+/* ── Tournament param grid (2 cols) ────────────────────────── */
+.tourney-param-grid {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.tourney-results-section {
+    margin-top: var(--sp-4);
+}
+
+/* ── Progress Sections ─────────────────────────────────────── */
+.train-progress {
+    margin-top: var(--sp-5);
+    padding-top: var(--sp-4);
+    border-top: 1px solid var(--border);
+}
+
+.train-progress.hidden {
+    display: none;
+}
+
+/* ── Phase Badges ──────────────────────────────────────────── */
+.phase-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: var(--radius-md);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.phase-badge.building   { background: var(--warning-dim); color: var(--warning); }
+.phase-badge.training   { background: var(--accent-dim); color: var(--accent); }
+.phase-badge.evaluating { background: var(--purple-dim); color: var(--purple); }
+.phase-badge.done       { background: var(--success-dim); color: var(--success); }
+.phase-badge.error      { background: var(--error-dim); color: var(--error); }
+.phase-badge.starting   { background: var(--accent-dim); color: var(--accent); }
+.phase-badge.running    { background: var(--accent-dim); color: var(--accent); }
+.phase-badge.idle       { background: var(--surface-3); color: var(--text-secondary); }
+
+#progress-message,
+#ppo-progress-message,
+#tourney-progress-message {
+    font-size: 13px;
+    color: var(--text);
+}
+
+/* ── Progress Bar overrides (JS sets width + class) ────────── */
+.progress-bar-container {
+    margin-bottom: var(--sp-2);
+}
+
+.progress-bar {
+    transition: width 0.5s var(--ease);
+}
+
+.progress-bar.done {
+    background: var(--success);
+}
+
+.progress-bar.error {
+    background: var(--error);
+}
+
+/* ── File List ─────────────────────────────────────────────── */
+.file-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.file-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-0);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+}
+
+.file-name {
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.file-meta {
+    display: flex;
+    gap: var(--sp-4);
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.file-meta .badge {
+    display: inline-block;
+    padding: 2px var(--sp-2);
+    border-radius: var(--radius-md);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.badge-train { background: var(--accent-dim); color: var(--accent); }
+.badge-val   { background: var(--purple-dim); color: var(--purple); }
+.badge-test  { background: var(--success-dim); color: var(--success); }
+
+/* ── Evaluation Results ────────────────────────────────────── */
+.eval-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+}
+
+.eval-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-3);
+}
+
+.eval-metric {
+    background: var(--surface-0);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+    text-align: center;
+}
+
+.eval-metric-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: var(--sp-1);
+}
+
+.eval-metric-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+
+.eval-metric-value.good { color: var(--success); }
+.eval-metric-value.ok   { color: var(--warning); }
+.eval-metric-value.bad  { color: var(--error); }
+
+/* ── Per-class Accuracy Table ──────────────────────────────── */
+.class-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.class-table th {
+    text-align: left;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.class-table td {
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.class-table tr:hover {
+    background: var(--surface-2);
+}
+
+.acc-bar-bg {
+    width: 100%;
+    height: 6px;
+    background: var(--surface-3);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.acc-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s var(--ease);
+}
+
+/* ── Confusion Matrix ──────────────────────────────────────── */
+.confusion-matrix {
+    overflow-x: auto;
+}
+
+.confusion-matrix table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.confusion-matrix th,
+.confusion-matrix td {
+    padding: var(--sp-2);
+    text-align: center;
+    border: 1px solid var(--border);
+}
+
+.confusion-matrix th {
+    background: var(--surface-0);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 11px;
+}
+
+.confusion-matrix td {
+    font-variant-numeric: tabular-nums;
+}
+
+.confusion-matrix .row-label {
+    text-align: left;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--surface-0);
+}
+
+/* ── Checkpoint List ───────────────────────────────────────── */
+.checkpoint-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.ckpt-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-3);
+    background: var(--surface-0);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+}
+
+.ckpt-name {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+}
+
+.ckpt-meta {
+    display: flex;
+    gap: var(--sp-4);
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .status-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .param-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .eval-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .tourney-param-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .status-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .param-grid {
+        grid-template-columns: 1fr;
+    }
+}

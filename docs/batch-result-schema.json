@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Commander AI Lab — Batch Result Schema v1",
+  "description": "Output schema for a batch of headless 3-AI Commander simulations.",
+  "type": "object",
+  "required": ["metadata", "decks", "games", "summary"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["schemaVersion", "batchId", "timestamp", "totalGames", "completedGames", "format", "podSize", "engineVersion", "elapsedMs"],
+      "properties": {
+        "schemaVersion": { "type": "string", "const": "1.0.0" },
+        "batchId": { "type": "string", "description": "UUID for this batch run" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "ISO 8601 start time" },
+        "totalGames": { "type": "integer", "minimum": 1 },
+        "completedGames": { "type": "integer", "minimum": 0 },
+        "format": { "type": "string", "const": "commander" },
+        "podSize": { "type": "integer", "const": 3 },
+        "engineVersion": { "type": "string" },
+        "masterSeed": { "type": ["integer", "null"], "description": "Master RNG seed (null if random)" },
+        "threads": { "type": "integer", "minimum": 1 },
+        "elapsedMs": { "type": "integer", "minimum": 0, "description": "Total wall-clock time in milliseconds" }
+      }
+    },
+    "decks": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["seatIndex", "deckName", "commanderName"],
+        "properties": {
+          "seatIndex": { "type": "integer", "minimum": 0, "maximum": 2 },
+          "deckName": { "type": "string" },
+          "commanderName": { "type": "string" },
+          "deckFile": { "type": "string", "description": "Path or filename of the .dck file" },
+          "colorIdentity": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["W", "U", "B", "R", "G"] }
+          },
+          "cardCount": { "type": "integer" }
+        }
+      }
+    },
+    "games": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["gameIndex", "winningSeat", "totalTurns", "winCondition", "gameSeed", "elapsedMs"],
+        "properties": {
+          "gameIndex": { "type": "integer", "minimum": 0 },
+          "winningSeat": { "type": ["integer", "null"], "minimum": 0, "maximum": 2, "description": "null if draw/timeout" },
+          "totalTurns": { "type": "integer", "minimum": 1 },
+          "winCondition": {
+            "type": "string",
+            "enum": ["combat_damage", "commander_damage", "combo_alt_win", "life_drain", "mill", "concession", "timeout", "unknown"]
+          },
+          "gameSeed": { "type": "integer" },
+          "elapsedMs": { "type": "integer", "minimum": 0 },
+          "playerResults": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "required": ["seatIndex", "finalLife", "mulligans", "isWinner"],
+              "properties": {
+                "seatIndex": { "type": "integer" },
+                "finalLife": { "type": "integer" },
+                "mulligans": { "type": "integer", "minimum": 0 },
+                "isWinner": { "type": "boolean" },
+                "commanderDamageDealt": { "type": "integer", "minimum": 0 },
+                "commanderCasts": { "type": "integer", "minimum": 0 },
+                "landsPlayed": { "type": "integer", "minimum": 0 },
+                "spellsCast": { "type": "integer", "minimum": 0 },
+                "creaturesDestroyed": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["perDeck"],
+      "properties": {
+        "perDeck": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["seatIndex", "deckName", "wins", "winRate", "avgTurnsToWin", "avgMulligans"],
+            "properties": {
+              "seatIndex": { "type": "integer" },
+              "deckName": { "type": "string" },
+              "wins": { "type": "integer", "minimum": 0 },
+              "losses": { "type": "integer", "minimum": 0 },
+              "draws": { "type": "integer", "minimum": 0 },
+              "winRate": { "type": "number", "minimum": 0, "maximum": 1 },
+              "avgTurnsToWin": { "type": ["number", "null"] },
+              "avgMulligans": { "type": "number", "minimum": 0 },
+              "avgFinalLife": { "type": "number" },
+              "winConditionBreakdown": {
+                "type": "object",
+                "properties": {
+                  "combat_damage": { "type": "integer" },
+                  "commander_damage": { "type": "integer" },
+                  "combo_alt_win": { "type": "integer" },
+                  "life_drain": { "type": "integer" },
+                  "mill": { "type": "integer" },
+                  "concession": { "type": "integer" },
+                  "timeout": { "type": "integer" },
+                  "unknown": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "avgGameTurns": { "type": "number" },
+        "avgGameTimeMs": { "type": "number" },
+        "simsPerSecond": { "type": "number" }
+      }
+    }
+  }
+}

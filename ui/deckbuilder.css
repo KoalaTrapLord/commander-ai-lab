@@ -1,0 +1,2359 @@
+/* ═══════════════════════════════════════════════════════════
+   Commander AI Lab — Deck Builder Styles
+   Uses deck- prefix to avoid conflicts with lab- / coll- classes
+   Tokens from global.css design system
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── JS Backward-Compat Aliases ─────────────────────────
+   deckbuilder.js uses var(--lab-danger) in template literals.
+   Map it to the global token so inline styles work.
+   ──────────────────────────────────────────────────────── */
+:root {
+    --lab-danger: var(--error);
+}
+
+/* ── Z-INDEX STACK ────────────────────────────────────────
+   10   sticky section headers
+   50   quickadd dropdown
+   60   card preview tooltip
+   100  topbar
+   500  toast container
+   1000 modal overlays
+   ──────────────────────────────────────────────────────── */
+
+/* ── 1. Page Base ───────────────────────────────────────── */
+
+#deck-builder-page {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    isolation: isolate;
+}
+
+/* ── 2. Top Bar ─────────────────────────────────────────── */
+
+.deck-topbar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    position: sticky;
+    top: var(--nav-height);
+    background: rgba(12, 14, 20, 0.97);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    z-index: 100;
+    padding: var(--sp-3) var(--sp-5);
+    min-height: 60px;
+}
+
+.deck-topbar-commander {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+.deck-commander-portrait {
+    width: 44px;
+    height: 60px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    position: relative;
+    cursor: pointer;
+    transition: border-color var(--duration) var(--ease);
+}
+
+.deck-commander-portrait:hover {
+    border-color: var(--accent);
+}
+
+.deck-commander-portrait-placeholder {
+    font-size: 20px;
+    opacity: 0.4;
+    user-select: none;
+}
+
+.deck-commander-portrait-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.deck-name-block {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.deck-name-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid transparent;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: inherit;
+    padding: 2px 4px 2px 0;
+    outline: none;
+    width: 200px;
+    transition: border-color var(--duration) var(--ease);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.deck-name-input:hover {
+    border-bottom-color: var(--border);
+}
+
+.deck-name-input:focus {
+    border-bottom-color: var(--accent);
+}
+
+.deck-name-input::placeholder {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.deck-commander-label {
+    font-size: 11px;
+    color: var(--accent);
+    padding-left: var(--sp-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.deck-color-chips {
+    display: flex;
+    gap: var(--sp-1);
+    flex-shrink: 0;
+}
+
+/* MTG mana color chips — domain-specific colors */
+.deck-color-chip {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: var(--shadow-sm);
+    border: 1.5px solid rgba(0, 0, 0, 0.3);
+    user-select: none;
+}
+
+.deck-chip-W { background: #F9FAF4; color: #333; }
+.deck-chip-U { background: #0E68AB; color: #fff; }
+.deck-chip-B { background: #3a2a1a; color: #c9a060; border-color: #5a3a1a; }
+.deck-chip-R { background: #D3202A; color: #fff; }
+.deck-chip-G { background: #00733E; color: #fff; }
+.deck-chip-C { background: #9a9a9a; color: #fff; }
+
+.deck-topbar-center {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex-grow: 1;
+    justify-content: center;
+    min-width: 0;
+}
+
+.deck-count-display {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.deck-count-num {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+}
+
+.deck-count-num.over-limit {
+    color: var(--error);
+}
+
+.deck-count-num.at-limit {
+    color: var(--success);
+}
+
+.deck-count-sep {
+    font-size: 14px;
+}
+
+.deck-count-target {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.deck-count-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.deck-selector {
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px var(--sp-3);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    max-width: 200px;
+    transition: border-color var(--duration) var(--ease);
+}
+
+.deck-selector:hover,
+.deck-selector:focus {
+    border-color: var(--accent);
+}
+
+.deck-selector-wrap {
+    flex-shrink: 0;
+}
+
+.deck-nav-links {
+    display: flex;
+    gap: var(--sp-2);
+    flex-shrink: 0;
+}
+
+.deck-nav-link {
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-decoration: none;
+    padding: 5px var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    transition: all var(--duration) var(--ease);
+    white-space: nowrap;
+}
+
+.deck-nav-link:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.deck-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-shrink: 0;
+}
+
+/* ── 3. Shared Button Styles ────────────────────────────── */
+
+.deck-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 7px 14px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: all var(--duration) var(--ease);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.deck-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.deck-btn-ghost {
+    background: var(--surface-1);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+.deck-btn-ghost:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.deck-btn-accent {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-color: var(--accent-glow);
+}
+
+.deck-btn-accent:hover:not(:disabled) {
+    background: rgba(91, 158, 240, 0.28);
+    border-color: var(--accent);
+}
+
+.deck-btn-accent-sm {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-color: var(--accent-glow);
+    padding: 5px var(--sp-3);
+    font-size: 12px;
+}
+
+.deck-btn-accent-sm:hover:not(:disabled) {
+    background: rgba(91, 158, 240, 0.28);
+    border-color: var(--accent);
+}
+
+.deck-btn-success {
+    background: var(--success-dim);
+    color: var(--success);
+    border-color: rgba(74, 222, 128, 0.4);
+}
+
+.deck-btn-success:hover:not(:disabled) {
+    background: rgba(74, 222, 128, 0.25);
+    border-color: var(--success);
+}
+
+.deck-btn-danger {
+    background: var(--error-dim);
+    color: var(--error);
+    border-color: rgba(248, 113, 113, 0.3);
+}
+
+.deck-btn-danger:hover:not(:disabled) {
+    background: rgba(248, 113, 113, 0.22);
+    border-color: var(--error);
+}
+
+.deck-btn-import {
+    background: var(--success-dim);
+    color: var(--success);
+    border-color: rgba(74, 222, 128, 0.4);
+    font-weight: 600;
+}
+
+.deck-btn-import:hover:not(:disabled) {
+    background: rgba(74, 222, 128, 0.3);
+    border-color: var(--success);
+    box-shadow: 0 0 10px var(--success-dim);
+}
+
+.deck-btn-sim {
+    background: linear-gradient(135deg, var(--accent-glow), var(--purple-dim));
+    color: var(--accent);
+    border-color: rgba(91, 158, 240, 0.5);
+    font-weight: 600;
+}
+
+.deck-btn-sim:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(91, 158, 240, 0.38), rgba(167, 139, 250, 0.3));
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+}
+
+/* Import modal */
+.deck-import-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: var(--sp-3);
+    border-bottom: 1px solid var(--border);
+}
+
+.deck-import-tab {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: var(--sp-2) var(--sp-4);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all var(--duration) var(--ease);
+}
+
+.deck-import-tab:hover { color: var(--text); }
+
+.deck-import-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+#deck-import-textarea {
+    width: 100%;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    resize: vertical;
+    outline: none;
+}
+
+#deck-import-textarea:focus { border-color: var(--accent); }
+
+.deck-import-dropzone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-8) var(--sp-5);
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+}
+
+.deck-import-dropzone:hover,
+.deck-import-dropzone.dragover {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.deck-import-dropzone-label {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.deck-import-options {
+    display: flex;
+    gap: var(--sp-4);
+    margin-top: var(--sp-3);
+    flex-wrap: wrap;
+}
+
+.deck-import-option-label {
+    font-size: 13px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    cursor: pointer;
+}
+
+.deck-import-option-label input[type="radio"] {
+    accent-color: var(--accent);
+}
+
+.deck-import-name-row {
+    margin-top: var(--sp-3);
+}
+
+.deck-import-name-row label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: block;
+    margin-bottom: var(--sp-1);
+}
+
+.deck-import-name-row input {
+    width: 100%;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    outline: none;
+}
+
+.deck-import-name-row input:focus { border-color: var(--accent); }
+
+/* Import progress (moved from inline styles) */
+.deck-import-progress-wrap {
+    margin-top: var(--sp-3);
+    padding: var(--sp-3);
+    background: var(--surface-0);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+}
+
+.deck-import-progress-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: var(--sp-2);
+}
+
+.deck-import-progress-track {
+    background: var(--surface-3);
+    border-radius: var(--radius-sm);
+    height: 6px;
+    overflow: hidden;
+}
+
+.deck-import-progress-fill {
+    background: var(--accent);
+    height: 100%;
+    width: 0%;
+    border-radius: var(--radius-sm);
+    transition: width 0.3s var(--ease);
+}
+
+/* Import file info (moved from inline style) */
+.deck-import-file-info {
+    margin-top: var(--sp-2);
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.deck-btn-icon {
+    font-size: 11px;
+}
+
+.deck-btn-full {
+    width: 100%;
+    justify-content: center;
+}
+
+.deck-btn-sm {
+    padding: 4px var(--sp-3);
+    font-size: 12px;
+}
+
+.deck-btn-xs {
+    padding: 3px var(--sp-2);
+    font-size: 11px;
+    border-radius: 5px;
+}
+
+/* ── 4. Main 3-Column Layout ────────────────────────────── */
+
+.deck-main {
+    display: flex;
+    flex-direction: row;
+    gap: 0;
+    flex: 1;
+    min-height: 0;
+    align-items: flex-start;
+}
+
+/* LEFT COLUMN */
+.deck-col-left {
+    width: 300px;
+    flex-shrink: 0;
+    position: sticky;
+    top: calc(var(--nav-height) + 60px);
+    height: calc(100vh - var(--nav-height) - 60px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-right: 1px solid var(--border);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.deck-col-left::-webkit-scrollbar { width: 6px; }
+.deck-col-left::-webkit-scrollbar-track { background: transparent; }
+.deck-col-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.deck-col-left::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+/* CENTER COLUMN */
+.deck-col-center {
+    flex: 1;
+    min-width: 0;
+    min-height: calc(100vh - var(--nav-height) - 60px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.deck-col-center::-webkit-scrollbar { width: 6px; }
+.deck-col-center::-webkit-scrollbar-track { background: transparent; }
+.deck-col-center::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* RIGHT COLUMN */
+.deck-col-right {
+    width: 360px;
+    flex-shrink: 0;
+    position: sticky;
+    top: calc(var(--nav-height) + 60px);
+    height: calc(100vh - var(--nav-height) - 60px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-left: 1px solid var(--border);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.deck-col-right::-webkit-scrollbar { width: 6px; }
+.deck-col-right::-webkit-scrollbar-track { background: transparent; }
+.deck-col-right::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.deck-col-right::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+/* ── 5. Panels ──────────────────────────────────────────── */
+
+.deck-panel {
+    background: var(--bg);
+}
+
+.deck-panel + .deck-panel {
+    border-top: 1px solid var(--border);
+}
+
+.deck-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.deck-panel-header-collapsible {
+    cursor: pointer;
+    user-select: none;
+    transition: background var(--duration) var(--ease);
+}
+
+.deck-panel-header-collapsible:hover {
+    background: var(--accent-dim);
+}
+
+.deck-panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text);
+}
+
+.deck-collapse-arrow {
+    font-size: 10px;
+    color: var(--text-secondary);
+    transition: transform 0.2s var(--ease);
+}
+
+.deck-panel-body {
+    padding: var(--sp-3) var(--sp-4);
+    overflow: hidden;
+    transition: max-height 0.25s ease, padding 0.25s ease;
+}
+
+.deck-panel-body.collapsed {
+    max-height: 0 !important;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.deck-collapse-arrow.collapsed {
+    transform: rotate(-90deg);
+}
+
+/* ── 6. Left Column: Search Panel ───────────────────────── */
+
+.deck-panel-search {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.deck-panel-search .deck-panel-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+.deck-search-count {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.deck-search-bar-wrap {
+    position: relative;
+    padding: var(--sp-3) var(--sp-3) var(--sp-2);
+    flex-shrink: 0;
+}
+
+.deck-search-bar {
+    width: 100%;
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 7px 30px 7px var(--sp-3);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+
+.deck-search-bar::placeholder {
+    color: var(--text-secondary);
+}
+
+.deck-search-bar:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.deck-search-icon {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.deck-filter-row {
+    display: flex;
+    gap: var(--sp-2);
+    padding: 0 var(--sp-3) var(--sp-2);
+    flex-shrink: 0;
+}
+
+.deck-filter-select {
+    flex: 1;
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 5px var(--sp-2);
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    min-width: 0;
+    transition: border-color var(--duration) var(--ease);
+}
+
+.deck-filter-select:hover,
+.deck-filter-select:focus {
+    border-color: var(--accent);
+}
+
+.deck-cmc-filter {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    flex-shrink: 0;
+}
+
+.deck-cmc-input {
+    width: 38px;
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 5px var(--sp-1);
+    font-size: 12px;
+    font-family: inherit;
+    text-align: center;
+    outline: none;
+    transition: border-color var(--duration) var(--ease);
+    -moz-appearance: textfield;
+}
+
+.deck-cmc-input::-webkit-outer-spin-button,
+.deck-cmc-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+}
+
+.deck-cmc-input:focus {
+    border-color: var(--accent);
+}
+
+.deck-cmc-sep {
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+/* Color filter row — MTG domain-specific colors */
+.deck-color-filter-row {
+    display: flex;
+    gap: 5px;
+    padding: 0 var(--sp-3) var(--sp-3);
+    flex-shrink: 0;
+}
+
+.deck-color-pip {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    transition: border-color var(--duration) var(--ease), transform var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+    user-select: none;
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    flex-shrink: 0;
+}
+
+.deck-color-pip:hover {
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
+}
+
+.deck-color-pip.active {
+    border-color: #fff;
+    transform: scale(1.1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.deck-color-W { background: #F9FAF4; color: #333; }
+.deck-color-W.active { background: #F9FAF4; }
+.deck-color-U { background: #0E68AB; color: #fff; }
+.deck-color-U.active { background: #1a85d4; }
+.deck-color-B { background: #2a1f1a; color: #c9a060; }
+.deck-color-B.active { background: #3a2a1a; }
+.deck-color-R { background: #D3202A; color: #fff; }
+.deck-color-R.active { background: #e83040; }
+.deck-color-G { background: #00733E; color: #fff; }
+.deck-color-G.active { background: #009950; }
+.deck-color-C { background: #7a7a7a; color: #fff; }
+.deck-color-C.active { background: #9a9a9a; }
+
+/* Search results list */
+.deck-search-results {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2px 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.deck-search-results::-webkit-scrollbar { width: 4px; }
+.deck-search-results::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.deck-search-footer {
+    padding: var(--sp-2) var(--sp-3);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+/* ── 7. Search Result Row ───────────────────────────────── */
+
+.deck-search-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 5px var(--sp-3);
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background 0.1s;
+    min-height: 32px;
+}
+
+.deck-search-row:hover {
+    background: var(--accent-dim);
+}
+
+.deck-search-row.in-deck {
+    opacity: 0.55;
+}
+
+.deck-search-row.in-deck:hover {
+    opacity: 0.75;
+    background: var(--success-dim);
+}
+
+.deck-search-row-name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    min-width: 0;
+}
+
+.deck-search-row-name:hover {
+    color: var(--accent);
+}
+
+.deck-search-row-mana {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.deck-search-row-owned {
+    font-size: 10px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    white-space: nowrap;
+    min-width: 22px;
+    text-align: right;
+}
+
+.deck-search-row-owned.has-owned {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.deck-search-row-add {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    border-radius: 4px;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all var(--duration) var(--ease);
+    padding: 0;
+    line-height: 1;
+}
+
+.deck-search-row-add:hover {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.deck-search-row.in-deck .deck-search-row-add {
+    border-color: rgba(74, 222, 128, 0.4);
+    color: var(--success);
+}
+
+.deck-search-row.in-deck .deck-search-row-add:hover {
+    background: var(--success-dim);
+    border-color: var(--success);
+}
+
+/* Type badges */
+.deck-type-badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+    line-height: 1.4;
+}
+
+.deck-type-Land        { background: var(--warning-dim); color: var(--warning); border: 1px solid rgba(251, 191, 36, 0.3); }
+.deck-type-Creature    { background: var(--success-dim); color: var(--success); border: 1px solid rgba(74, 222, 128, 0.25); }
+.deck-type-Instant     { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(91, 158, 240, 0.25); }
+.deck-type-Sorcery     { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(167, 139, 250, 0.25); }
+.deck-type-Artifact    { background: rgba(139, 148, 158, 0.15); color: var(--text-secondary); border: 1px solid rgba(139, 148, 158, 0.25); }
+.deck-type-Enchantment { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(167, 139, 250, 0.2); }
+.deck-type-Planeswalker { background: var(--warning-dim); color: var(--gold); border: 1px solid rgba(252, 211, 77, 0.25); }
+.deck-type-Other       { background: rgba(139, 148, 158, 0.1); color: var(--text-secondary); border: 1px solid rgba(139, 148, 158, 0.2); }
+
+/* ── 8. Mana Pip Display ────────────────────────────────── */
+
+.deck-mana-cost {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+/* MTG mana pip colors — domain-specific */
+.deck-mana-pip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    font-size: 8px;
+    font-weight: 800;
+    line-height: 1;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    flex-shrink: 0;
+}
+
+.deck-pip-W  { background: #F9FAF4; color: #333; }
+.deck-pip-U  { background: #0E68AB; color: #fff; }
+.deck-pip-B  { background: #2a1f1a; color: #c9a060; border-color: #5a3a1a; }
+.deck-pip-R  { background: #D3202A; color: #fff; }
+.deck-pip-G  { background: #00733E; color: #fff; }
+.deck-pip-C  { background: #9a9a9a; color: #fff; }
+.deck-pip-X  { background: #4a4a4a; color: #fff; }
+.deck-pip-N  { background: var(--surface-1); color: var(--text); border-color: var(--border); }
+
+/* ── 9. Center Column: Card Groups ──────────────────────── */
+
+.deck-panel-cards {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.deck-card-list-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.deck-card-list-meta {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.deck-card-list-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.deck-card-groups {
+    flex: 1;
+    padding: var(--sp-2) 0;
+}
+
+/* Section / group header */
+.deck-section {
+    margin-bottom: 2px;
+}
+
+.deck-section-commander .deck-section-header {
+    background: var(--accent-dim);
+    border-left: 3px solid var(--accent);
+}
+
+.deck-section-commander .deck-section-name {
+    color: var(--accent);
+}
+
+.deck-section-header {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-4);
+    cursor: pointer;
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    position: sticky;
+    top: 40px;
+    z-index: 9;
+    user-select: none;
+    transition: background var(--duration) var(--ease);
+}
+
+.deck-section-header:hover {
+    background: var(--accent-dim);
+}
+
+.deck-section-toggle {
+    font-size: 9px;
+    color: var(--text-secondary);
+    transition: transform 0.2s var(--ease);
+    flex-shrink: 0;
+}
+
+.deck-section-toggle.collapsed {
+    transform: rotate(-90deg);
+}
+
+.deck-section-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+}
+
+.deck-section-count {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.deck-section-progress {
+    flex: 0 0 60px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--bg);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.deck-section-progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+.deck-section-progress-fill.status-ok      { background: var(--success); }
+.deck-section-progress-fill.status-warn    { background: var(--warning); }
+.deck-section-progress-fill.status-low     { background: var(--error); }
+.deck-section-progress-fill.status-over    { background: var(--purple); }
+.deck-section-progress-fill.status-neutral { background: var(--text-secondary); }
+
+/* Section body - card rows */
+.deck-section-body {
+    overflow: hidden;
+    transition: max-height 0.2s ease;
+}
+
+.deck-section-body.collapsed {
+    max-height: 0 !important;
+}
+
+/* Card row in deck */
+.deck-card-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-4);
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background 0.1s;
+    min-height: 28px;
+}
+
+.deck-card-row:hover {
+    background: var(--accent-dim);
+}
+
+.deck-card-row.is-commander {
+    background: rgba(252, 211, 77, 0.04);
+}
+
+.deck-card-row.is-commander .deck-card-row-name {
+    color: var(--gold);
+}
+
+.deck-card-commander-badge {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--gold);
+    border: 1px solid rgba(252, 211, 77, 0.3);
+    border-radius: 3px;
+    padding: 1px 4px;
+    flex-shrink: 0;
+}
+
+.deck-card-row-name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    min-width: 0;
+    transition: color 0.1s;
+}
+
+.deck-card-row-name:hover {
+    color: var(--accent);
+}
+
+.deck-card-row-mana {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.deck-card-role-chip {
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+    background: rgba(139, 148, 158, 0.12);
+    color: var(--text-secondary);
+    border: 1px solid rgba(139, 148, 158, 0.2);
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+}
+
+.deck-card-role-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Quantity controls */
+.deck-qty-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    flex-shrink: 0;
+}
+
+.deck-qty-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    border-radius: 3px;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: all 0.12s;
+    flex-shrink: 0;
+}
+
+.deck-qty-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.deck-qty-num {
+    font-size: 12px;
+    color: var(--text);
+    min-width: 14px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.deck-card-remove-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0 2px;
+    border-radius: 3px;
+    line-height: 1;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.12s, color 0.12s;
+}
+
+.deck-card-row:hover .deck-card-remove-btn {
+    opacity: 1;
+}
+
+.deck-card-remove-btn:hover {
+    color: var(--error);
+}
+
+/* Owned indicator on card rows */
+.deck-card-owned-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--success);
+    opacity: 0.8;
+}
+
+.deck-card-owned-dot.unowned {
+    background: var(--text-secondary);
+    opacity: 0.4;
+}
+
+/* Quick add row */
+.deck-quickadd-row {
+    display: flex;
+    gap: var(--sp-2);
+    align-items: center;
+    padding: var(--sp-3) var(--sp-4);
+    border-top: 1px solid var(--border);
+    background: var(--surface-1);
+    flex-shrink: 0;
+}
+
+.deck-quickadd-wrap {
+    flex: 1;
+    position: relative;
+    min-width: 0;
+}
+
+.deck-quickadd-input {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px var(--sp-3);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+
+.deck-quickadd-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.deck-quickadd-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.deck-quickadd-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    z-index: 50;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+}
+
+.deck-quickadd-item {
+    padding: 7px var(--sp-3);
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background 0.1s;
+}
+
+.deck-quickadd-item:hover,
+.deck-quickadd-item.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+
+.deck-quickadd-item:last-child {
+    border-bottom: none;
+}
+
+.deck-quickadd-item-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.deck-quickadd-item-type {
+    font-size: 10px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+/* Stats footer */
+.deck-stats-footer {
+    display: flex;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-4);
+    border-top: 1px solid var(--border);
+    background: var(--surface-1);
+    flex-shrink: 0;
+}
+
+.deck-stat-pill {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-1);
+    padding: var(--sp-1) var(--sp-3);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.deck-stat-pill-num {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.deck-stat-owned {
+    color: var(--success);
+}
+
+.deck-stat-pill-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    letter-spacing: 0.4px;
+}
+
+/* ── 10. Right Column: Ratio Dashboard ──────────────────── */
+
+.deck-ratio-bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.deck-ratio-placeholder {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: var(--sp-3) 0;
+    font-style: italic;
+}
+
+.deck-ratio-bar-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    padding: var(--sp-1) var(--sp-2);
+    transition: background var(--duration) var(--ease);
+}
+
+.deck-ratio-bar-row:hover {
+    background: var(--accent-dim);
+}
+
+.deck-ratio-bar-row.active-filter {
+    background: var(--accent-dim);
+    outline: 1px solid var(--accent-glow);
+}
+
+.deck-ratio-bar-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    width: 80px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.deck-ratio-bar-track {
+    flex: 1;
+    height: 8px;
+    background: var(--bg);
+    border-radius: 4px;
+    overflow: visible;
+    position: relative;
+}
+
+.deck-ratio-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.35s ease;
+    position: relative;
+}
+
+.deck-ratio-bar-fill.status-ok      { background: var(--success); }
+.deck-ratio-bar-fill.status-warn    { background: var(--warning); }
+.deck-ratio-bar-fill.status-low     { background: var(--error); }
+.deck-ratio-bar-fill.status-over    { background: var(--purple); }
+.deck-ratio-bar-fill.status-neutral { background: var(--text-secondary); }
+
+/* Target range indicator lines */
+.deck-ratio-bar-target-min,
+.deck-ratio-bar-target-max {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.25);
+    z-index: 1;
+}
+
+.deck-ratio-bar-nums {
+    font-size: 11px;
+    color: var(--text-secondary);
+    width: 50px;
+    flex-shrink: 0;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.deck-ratio-bar-nums .deck-ratio-current {
+    font-weight: 700;
+    color: var(--text);
+}
+
+/* ── 11. Fix My Ratios Section ──────────────────────────── */
+
+.deck-shortfalls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    margin-bottom: var(--sp-3);
+}
+
+.deck-shortfall-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 5px var(--sp-2);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    font-size: 12px;
+}
+
+.deck-shortfall-icon {
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.deck-shortfall-text {
+    flex: 1;
+    color: var(--text);
+}
+
+.deck-shortfall-delta {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.deck-shortfall-delta.needs-more {
+    color: var(--warning);
+    background: var(--warning-dim);
+}
+
+.deck-shortfall-delta.over-count {
+    color: var(--error);
+    background: var(--error-dim);
+}
+
+.deck-shortfall-delta.on-target {
+    color: var(--success);
+    background: var(--success-dim);
+}
+
+.deck-fix-suggestions {
+    margin-top: var(--sp-2);
+}
+
+.deck-fix-group {
+    margin-bottom: var(--sp-3);
+}
+
+.deck-fix-group-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-secondary);
+    margin-bottom: var(--sp-1);
+    padding: 0 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.deck-fix-card {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 5px var(--sp-2);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 3px;
+    transition: border-color var(--duration) var(--ease);
+}
+
+.deck-fix-card:hover {
+    border-color: var(--accent);
+}
+
+.deck-fix-card-name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    min-width: 0;
+}
+
+.deck-fix-card-name:hover {
+    color: var(--accent);
+}
+
+.deck-fix-card-owned {
+    font-size: 10px;
+    color: var(--success);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+/* ── 12. EDHREC Recommendations ─────────────────────────── */
+
+.deck-edhrec-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: var(--sp-3);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: var(--sp-3);
+}
+
+.deck-edhrec-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.deck-edhrec-bulk {
+    margin-top: var(--sp-3);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--border);
+}
+
+.deck-edhrec-card {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 5px var(--sp-2);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: border-color var(--duration) var(--ease), background var(--duration) var(--ease);
+}
+
+.deck-edhrec-card:hover {
+    border-color: var(--accent-glow);
+    background: var(--accent-dim);
+}
+
+.deck-edhrec-card.in-deck {
+    opacity: 0.5;
+    border-color: rgba(74, 222, 128, 0.3);
+}
+
+.deck-edhrec-card-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.deck-edhrec-card-name {
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    line-height: 1.3;
+}
+
+.deck-edhrec-card-name:hover {
+    color: var(--accent);
+}
+
+.deck-edhrec-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+    flex-wrap: wrap;
+}
+
+.deck-edhrec-pct {
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.deck-edhrec-pct strong {
+    color: var(--accent);
+}
+
+.deck-edhrec-synergy {
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.deck-edhrec-synergy.positive {
+    color: var(--success);
+}
+
+.deck-owned-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--success-dim);
+    color: var(--success);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* ── 13. Toggle Switch ───────────────────────────────────── */
+
+.deck-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    cursor: pointer;
+    user-select: none;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.deck-toggle-check {
+    display: none;
+}
+
+.deck-toggle-track {
+    width: 32px;
+    height: 18px;
+    background: var(--border);
+    border-radius: 9px;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.deck-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    background: var(--text-secondary);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.deck-toggle-check:checked + .deck-toggle-track {
+    background: var(--accent-glow);
+}
+
+.deck-toggle-check:checked + .deck-toggle-track .deck-toggle-thumb {
+    transform: translateX(14px);
+    background: var(--accent);
+}
+
+/* ── 14. Card Preview Tooltip ───────────────────────────── */
+
+.deck-card-preview {
+    position: fixed;
+    z-index: 60;
+    pointer-events: none;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
+    width: 180px;
+    transition: opacity 0.1s;
+}
+
+.deck-card-preview-img {
+    width: 100%;
+    display: block;
+    border-radius: var(--radius-md);
+}
+
+/* ── 15. Toast Notifications ────────────────────────────── */
+
+.deck-toast-container {
+    position: fixed;
+    bottom: var(--sp-5);
+    right: var(--sp-5);
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    pointer-events: none;
+}
+
+.deck-toast {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3) var(--sp-4);
+    font-size: 13px;
+    color: var(--text);
+    min-width: 240px;
+    max-width: 360px;
+    box-shadow: var(--shadow-lg);
+    animation: deck-toast-in 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    pointer-events: auto;
+    border-left: 3px solid var(--border);
+}
+
+.deck-toast.toast-success { border-left-color: var(--success); }
+.deck-toast.toast-error   { border-left-color: var(--error); }
+.deck-toast.toast-warning { border-left-color: var(--warning); }
+.deck-toast.toast-info    { border-left-color: var(--accent); }
+
+.deck-toast-icon {
+    font-size: 15px;
+    flex-shrink: 0;
+}
+
+.deck-toast-text {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.deck-toast.removing {
+    animation: deck-toast-out 0.2s ease forwards;
+}
+
+@keyframes deck-toast-in {
+    from { opacity: 0; transform: translateX(20px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes deck-toast-out {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(20px); }
+}
+
+/* ── 16. Modal / Dialog ──────────────────────────────────── */
+
+.deck-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: deck-modal-bg-in 0.15s ease;
+}
+
+@keyframes deck-modal-bg-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.deck-modal {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    width: 90%;
+    max-width: 460px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: deck-modal-in 0.2s ease;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8);
+}
+
+.deck-modal-wide {
+    max-width: 600px;
+}
+
+@keyframes deck-modal-in {
+    from { opacity: 0; transform: translateY(-12px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.deck-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-4) var(--sp-5) var(--sp-3);
+    border-bottom: 1px solid var(--border);
+}
+
+.deck-modal-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+}
+
+.deck-modal-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    transition: color var(--duration) var(--ease), background var(--duration) var(--ease);
+    line-height: 1;
+}
+
+.deck-modal-close-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.deck-modal-body {
+    padding: var(--sp-4) var(--sp-5);
+}
+
+.deck-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-5) var(--sp-4);
+    border-top: 1px solid var(--border);
+}
+
+.deck-confirm-message {
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: var(--sp-3);
+    line-height: 1.5;
+}
+
+.deck-confirm-changes {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3) var(--sp-4);
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+}
+
+.deck-confirm-change-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    padding: 2px 0;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.deck-confirm-change-row:last-child {
+    border-bottom: none;
+    font-weight: 600;
+    margin-top: var(--sp-1);
+}
+
+.deck-confirm-change-label {
+    color: var(--text-secondary);
+}
+
+.deck-confirm-change-val {
+    color: var(--text);
+}
+
+.deck-confirm-change-val.positive { color: var(--success); }
+.deck-confirm-change-val.negative { color: var(--error); }
+
+/* ── 17. Form fields (New Deck Modal) ───────────────────── */
+
+.deck-form-field {
+    margin-bottom: var(--sp-4);
+}
+
+.deck-form-label {
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: var(--sp-2);
+}
+
+.deck-form-input {
+    width: 100%;
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 9px var(--sp-4);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+
+.deck-form-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.deck-form-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.deck-commander-search-wrap {
+    position: relative;
+}
+
+.deck-commander-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    z-index: 50;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+}
+
+.deck-commander-option {
+    padding: var(--sp-2) var(--sp-4);
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background 0.1s;
+}
+
+.deck-commander-option:hover,
+.deck-commander-option.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+
+.deck-commander-option:last-child {
+    border-bottom: none;
+}
+
+.deck-commander-option-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.deck-commander-option-color {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.deck-new-commander-selected {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    margin-top: var(--sp-2);
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-glow);
+    border-radius: var(--radius-md);
+}
+
+.deck-selected-commander-name {
+    flex: 1;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.deck-clear-commander-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    line-height: 1;
+    transition: color var(--duration) var(--ease);
+}
+
+.deck-clear-commander-btn:hover {
+    color: var(--error);
+}
+
+/* ── 18. Empty States ────────────────────────────────────── */
+
+.deck-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    padding: var(--sp-8) var(--sp-4);
+    text-align: center;
+}
+
+.deck-empty-state-lg {
+    padding: var(--sp-16) var(--sp-6);
+}
+
+.deck-empty-icon {
+    font-size: 32px;
+    opacity: 0.3;
+    line-height: 1;
+}
+
+.deck-empty-state-lg .deck-empty-icon {
+    font-size: 48px;
+}
+
+.deck-empty-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    max-width: 220px;
+    line-height: 1.5;
+}
+
+/* ── 19. Loading / Skeleton ──────────────────────────────── */
+
+.deck-skeleton {
+    background: linear-gradient(
+        90deg,
+        var(--surface-1) 25%,
+        var(--surface-3) 50%,
+        var(--surface-1) 75%
+    );
+    background-size: 200% 100%;
+    animation: deck-shimmer 1.4s infinite;
+    border-radius: 4px;
+}
+
+@keyframes deck-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.deck-skeleton-row {
+    height: 28px;
+    margin: var(--sp-1) var(--sp-4);
+    border-radius: 4px;
+}
+
+.deck-loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: deck-spin 0.6s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes deck-spin {
+    to { transform: rotate(360deg); }
+}
+
+.deck-loading-inline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    padding: var(--sp-5);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ── 20. Scrollbar thin style for inner lists ───────────── */
+
+.deck-edhrec-list,
+.deck-fix-suggestions {
+    max-height: 260px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.deck-edhrec-list::-webkit-scrollbar,
+.deck-fix-suggestions::-webkit-scrollbar {
+    width: 4px;
+}
+
+.deck-edhrec-list::-webkit-scrollbar-thumb,
+.deck-fix-suggestions::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+}
+
+/* ── 21. Mana curve sparkline ───────────────────────────── */
+
+.deck-mana-curve {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 32px;
+    padding: 0 2px;
+}
+
+.deck-curve-bar {
+    flex: 1;
+    background: var(--accent-glow);
+    border-radius: 2px 2px 0 0;
+    min-height: 2px;
+    transition: height 0.3s ease;
+    position: relative;
+}
+
+.deck-curve-bar:hover {
+    background: var(--accent);
+}
+
+.deck-curve-bar-label {
+    position: absolute;
+    bottom: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+/* ── 22. Import Status ──────────────────────────────────── */
+
+.deck-import-status {
+    margin-top: var(--sp-3);
+    padding: var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+}
+
+/* ── 23. Responsive ──────────────────────────────────────── */
+
+@media (max-width: 1200px) {
+    .deck-col-right {
+        width: 300px;
+    }
+}
+
+@media (max-width: 1000px) {
+    .deck-main {
+        flex-direction: column;
+    }
+
+    .deck-col-left,
+    .deck-col-center,
+    .deck-col-right {
+        width: 100%;
+        position: static;
+        height: auto;
+        border: none;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .deck-col-left {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .deck-col-center {
+        min-height: unset;
+    }
+
+    .deck-col-right {
+        height: auto;
+    }
+
+    .deck-topbar {
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        padding: var(--sp-3);
+    }
+
+    .deck-topbar-center {
+        order: 2;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+    }
+
+    .deck-topbar-actions {
+        order: 3;
+        width: 100%;
+    }
+
+    .deck-name-input {
+        width: 150px;
+    }
+}
+
+@media (max-width: 768px) {
+    .deck-topbar-commander {
+        flex-wrap: wrap;
+    }
+
+    .deck-nav-links {
+        display: none;
+    }
+
+    .deck-color-chips {
+        flex-wrap: wrap;
+    }
+
+    .deck-modal {
+        width: 95%;
+        max-width: none;
+        margin: var(--sp-3);
+    }
+
+    .deck-card-preview {
+        display: none !important;
+    }
+
+    .deck-col-left {
+        max-height: 45vh;
+    }
+}
+
+/* ── 24. Utility ─────────────────────────────────────────── */
+
+.deck-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+}
+
+.deck-divider {
+    height: 1px;
+    background: var(--border);
+    margin: var(--sp-2) 0;
+}
+
+.deck-text-muted {
+    color: var(--text-secondary);
+}
+
+.deck-text-accent {
+    color: var(--accent);
+}
+
+.deck-text-success {
+    color: var(--success);
+}
+
+.deck-text-danger {
+    color: var(--error);
+}
+
+.deck-text-warning {
+    color: var(--warning);
+}

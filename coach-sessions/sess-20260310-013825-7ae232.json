@@ -1,0 +1,43 @@
+{
+  "sessionId": "sess-20260310-013825-7ae232",
+  "deckId": "Angels",
+  "timestamp": "2026-03-10T01:38:25.419019+00:00",
+  "summary": "The Angels deck has a decent win rate overall but struggles significantly against specific decks like those featuring Sonic the Hedgehog and Edgar Markov. While it performs well against Squirrels, it underperforms in matchups with Ashling and Xyris.",
+  "suggestedCuts": [],
+  "suggestedAdds": [
+    {
+      "cardName": "Rampardaptor",
+      "role": "ramp",
+      "reason": "It provides excellent mana acceleration to support the deck's curve and helps against early game threats.",
+      "synergyWith": [
+        "Archdruid of Flourishing",
+        "Oath of the Gatewatch"
+      ],
+      "estimatedManaValue": null
+    },
+    {
+      "cardName": "Tainted Strike",
+      "role": "removal",
+      "reason": "It efficiently removes key threat creatures that the deck often faces, improving its consistency.",
+      "synergyWith": [
+        "Angelic Convergence",
+        "Avacyn, the Purifier"
+      ],
+      "estimatedManaValue": null
+    }
+  ],
+  "heuristicHints": [
+    "Play out your ramp cards early to set up a strong board position."
+  ],
+  "manaBaseAdvice": "Consider including cards like Gaea's Cradle or Wirewood Symbiote for additional mana support.",
+  "rawTextExplanation": "The Angels deck has shown moderate success in most matchups but falters against decks focused on specific synergy or combo strategies, such as those featuring Sonic the Hedgehog. To improve, adding ramp and removal effects can help the deck establish a better board presence early. Cards like Rampardaptor and Tainted Strike can be added to enhance mana acceleration and threat removal respectively, while ensuring that key synergies are utilized effectively.",
+  "modelUsed": "deepseek-r1-distill-llama-8b",
+  "promptTokens": 630,
+  "completionTokens": 927,
+  "goals": {
+    "targetPowerLevel": 7,
+    "metaFocus": null,
+    "budget": null,
+    "focusAreas": []
+  }
+}

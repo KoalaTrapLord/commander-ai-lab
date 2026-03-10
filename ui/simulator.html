@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Commander AI Lab — Simulator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="global.css" />
+    <link rel="stylesheet" href="simulator.css" />
+</head>
+<body>
+    <script src="nav.js"></script>
+    <div class="page">
+        <div class="page-header">
+            <h1>Deck Simulator</h1>
+            <p>Monte Carlo engine &mdash; test your deck against an AI training opponent</p>
+        </div>
+
+        <!-- Config Panel -->
+        <section class="panel">
+            <div class="sim-config-row">
+                <div class="form-group sim-field-grow">
+                    <label class="form-label" for="sim-deck-select">Deck</label>
+                    <select id="sim-deck-select" class="form-select">
+                        <option value="">-- Select a deck --</option>
+                    </select>
+                </div>
+                <div class="form-group sim-field-auto">
+                    <label class="form-label" for="sim-num-games">Games</label>
+                    <input type="number" id="sim-num-games" class="form-input sim-num-input" value="10" min="1" max="1000" />
+                </div>
+                <div class="form-group sim-field-auto sim-field-end">
+                    <label class="form-checkbox">
+                        <input type="checkbox" id="sim-record-logs" checked />
+                        Record turn logs
+                    </label>
+                </div>
+                <div class="form-group sim-field-auto sim-field-end">
+                    <button id="sim-run-btn" class="btn btn-primary" disabled>Run Simulation</button>
+                </div>
+            </div>
+
+            <!-- Or paste decklist -->
+            <details class="sim-paste-section">
+                <summary>Or paste a decklist</summary>
+                <textarea id="sim-paste-decklist" class="form-textarea" rows="8" placeholder="1 Sol Ring&#10;1 Cultivate&#10;37 Forest&#10;..."></textarea>
+                <div class="sim-paste-controls">
+                    <input type="text" id="sim-paste-name" class="form-input" placeholder="Deck name" value="Custom Deck" />
+                    <button id="sim-paste-run-btn" class="btn btn-primary">Run from Paste</button>
+                </div>
+            </details>
+
+            <!-- Progress bar -->
+            <div id="sim-progress" class="progress-container" style="display:none;">
+                <div class="flex justify-between mb-2">
+                    <span id="sim-progress-text" class="progress-label">Running...</span>
+                    <span id="sim-progress-count" class="text-sm text-muted text-mono">0 / 0</span>
+                </div>
+                <div class="progress-track">
+                    <div id="sim-progress-bar" class="progress-fill"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results -->
+        <section id="sim-results" style="display:none;">
+            <!-- Stats Summary -->
+            <div class="sim-stats-grid stat-grid" id="sim-stats-grid"></div>
+
+            <!-- Game List -->
+            <div class="panel sim-games-section">
+                <div class="panel-header">
+                    <h2>Game-by-Game Results</h2>
+                </div>
+                <div id="sim-games-list" class="sim-games-list"></div>
+            </div>
+        </section>
+    </div>
+
+    <script src="simulator.js"></script>
+</body>
+</html>

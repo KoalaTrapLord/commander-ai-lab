@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Commander AI Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="global.css" />
+    <link rel="stylesheet" href="ai-lab.css" />
+    <style>
+        /* ── Dashboard Feature Grid ──────────────────── */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--sp-4);
+            margin-bottom: var(--sp-8);
+        }
+
+        .feature-card {
+            position: relative;
+            background: var(--surface-1);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--sp-6);
+            text-decoration: none;
+            color: inherit;
+            transition: all var(--duration) var(--ease);
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--card-accent, var(--accent));
+            opacity: 0;
+            transition: opacity var(--duration) var(--ease);
+        }
+
+        .feature-card:hover {
+            border-color: var(--border-focus);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .feature-card:hover::before { opacity: 1; }
+
+        .feature-card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: var(--sp-4);
+            background: var(--card-bg, var(--accent-dim));
+        }
+
+        .feature-card-icon svg {
+            width: 20px;
+            height: 20px;
+            stroke: var(--card-accent, var(--accent));
+        }
+
+        .feature-card h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: var(--sp-2);
+        }
+
+        .feature-card p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .feature-card .card-arrow {
+            position: absolute;
+            bottom: var(--sp-5);
+            right: var(--sp-5);
+            color: var(--text-tertiary);
+            transition: all var(--duration) var(--ease);
+        }
+
+        .feature-card:hover .card-arrow {
+            color: var(--card-accent, var(--accent));
+            transform: translateX(3px);
+        }
+
+        /* Card color variants */
+        .feature-card[data-color="blue"]   { --card-accent: var(--accent);  --card-bg: var(--accent-dim); }
+        .feature-card[data-color="green"]  { --card-accent: var(--success); --card-bg: var(--success-dim); }
+        .feature-card[data-color="purple"] { --card-accent: var(--purple);  --card-bg: var(--purple-dim); }
+        .feature-card[data-color="yellow"] { --card-accent: var(--warning); --card-bg: var(--warning-dim); }
+        .feature-card[data-color="red"]    { --card-accent: var(--error);   --card-bg: var(--error-dim); }
+        .feature-card[data-color="gold"]   { --card-accent: var(--gold);    --card-bg: rgba(252,211,77,0.12); }
+
+        /* ── Batch Sim Section ───────────────────────── */
+        .batch-section {
+            margin-top: var(--sp-4);
+        }
+
+        .batch-section h2 {
+            font-size: 18px;
+            margin-bottom: var(--sp-5);
+        }
+
+        @media (max-width: 900px) {
+            .feature-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 560px) {
+            .feature-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <script src="nav.js"></script>
+
+    <div class="page">
+        <div class="page-header">
+            <h1>Commander AI Lab</h1>
+            <p>AI-powered tools for MTG Commander — scanning, deckbuilding, simulation, and training</p>
+        </div>
+
+        <!-- Feature Cards Grid -->
+        <div class="feature-grid">
+            <a href="collection.html" class="feature-card" data-color="blue">
+                <div class="feature-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="6" rx="1"/><rect x="4" y="14" width="16" height="6" rx="1"/></svg>
+                </div>
+                <h3>Card Collection</h3>
+                <p>Scan cards with AI vision, manage your collection, and track inventory with price data.</p>
+                <svg class="card-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+
+            <a href="deckbuilder.html" class="feature-card" data-color="purple">
+                <div class="feature-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="17" rx="2"/><path d="M18 8h2a2 2 0 012 2v10a2 2 0 01-2 2h-2"/></svg>
+                </div>
+                <h3>Deck Builder</h3>
+                <p>Build and refine Commander decks with mana curve analysis and category management.</p>
+                <svg class="card-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+
+            <a href="deckgenerator.html" class="feature-card" data-color="yellow">
+                <div class="feature-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+                </div>
+                <h3>Auto Generator</h3>
+                <p>AI-powered automatic deck generation from your collection or the full card pool.</p>
+                <svg class="card-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+
+            <a href="simulator.html" class="feature-card" data-color="green">
+                <div class="feature-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                </div>
+                <h3>Deck Simulator</h3>
+                <p>Monte Carlo testing engine — simulate games against AI opponents and analyze winrates.</p>
+                <svg class="card-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+
+            <a href="coach.html" class="feature-card" data-color="gold">
+                <div class="feature-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 017-7z"/><path d="M9 21h6"/></svg>
+                </div>
+                <h3>Deck Coach</h3>
+                <p>AI-powered coaching that analyzes your deck, suggests improvements, and explains strategy.</p>
+                <svg class="card-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+
+            <a href="training.html" class="feature-card" data-color="red">
+                <div class="feature-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                </div>
+                <h3>ML Training</h3>
+                <p>Train AI opponents with supervised learning and PPO reinforcement learning pipeline.</p>
+                <svg class="card-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+        </div>
+
+        <!-- Batch Sim Panel -->
+        <div class="batch-section">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Batch Simulation</h2>
+                    <span class="badge-status badge-idle" id="batch-status">Idle</span>
+                </div>
+                <div id="ai-lab-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="ai-lab.js"></script>
+</body>
+</html>

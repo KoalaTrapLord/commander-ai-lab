@@ -1,0 +1,53 @@
+{
+  "sessionId": "sess-20260309-192954-9c7251",
+  "deckId": "Edgar Markov",
+  "timestamp": "2026-03-09T19:29:54.635032+00:00",
+  "summary": "The deck's win rate is mediocre at 48.3%, with inconsistent performance across different match-ups. There are no clear underperforming cards, but the lack of matchup data against certain archetypes suggests room for improvement.",
+  "suggestedCuts": [
+    {
+      "cardName": "Card to remove not available due to missing deck structure data",
+      "reason": "No clear underperformers identified, likely due to inadequate simulation sample size or data quality issues",
+      "replacementOptions": [
+        "Rampant Growth",
+        "Gilt-Leaf Winnower"
+      ],
+      "currentImpactScore": 0.0
+    }
+  ],
+  "suggestedAdds": [
+    {
+      "cardName": "Cultivate",
+      "role": "ramp",
+      "reason": "A versatile ramp spell that provides card advantage and can help the deck develop its mana base more efficiently",
+      "synergyWith": [
+        "Edgar Markov",
+        "Gleeful Wrangler"
+      ],
+      "estimatedManaValue": null
+    },
+    {
+      "cardName": "Serum Apparatus",
+      "role": "removal",
+      "reason": "A cheap, efficient removal spell that can help the deck deal with problematic threats more effectively",
+      "synergyWith": [
+        "Cultivate",
+        "Rampant Growth"
+      ],
+      "estimatedManaValue": null
+    }
+  ],
+  "heuristicHints": [
+    "Focus on developing a robust mana base and ramp package to improve overall consistency."
+  ],
+  "manaBaseAdvice": null,
+  "rawTextExplanation": "Given the lack of information about the deck's structure and performance, it's difficult to provide more specific advice. However, based on general principles, adding cards like Cultivate and Serum Apparatus can help address potential issues with ramp and removal. These suggestions are aimed at improving the deck's overall consistency and flexibility, but further analysis would be needed to fine-tune the build.",
+  "modelUsed": "meta-llama-3.1-8b-instruct",
+  "promptTokens": 547,
+  "completionTokens": 384,
+  "goals": {
+    "targetPowerLevel": 7,
+    "metaFocus": null,
+    "budget": null,
+    "focusAreas": []
+  }
+}

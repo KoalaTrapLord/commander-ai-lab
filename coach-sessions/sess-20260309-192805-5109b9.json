@@ -1,0 +1,63 @@
+{
+  "sessionId": "sess-20260309-192805-5109b9",
+  "deckId": "Angels",
+  "timestamp": "2026-03-09T19:28:05.274335+00:00",
+  "summary": "The Angels Commander deck has a mediocre overall win rate of 39.5% with an average game length of 11.8 turns. The matchup data reveals struggles against Edgar Markov and Ashling 2.0. There are no clear underperforming cards, but the lack of lands in the deck structure is concerning.",
+  "suggestedCuts": [
+    {
+      "cardName": "a card",
+      "reason": "This card has a negative impact score and was not cast at all during simulations.",
+      "replacementOptions": [
+        "Ajani's Pridemate",
+        "Serra Ascendant"
+      ],
+      "currentImpactScore": 0.0
+    }
+  ],
+  "suggestedAdds": [
+    {
+      "cardName": "Llanowar Wastes",
+      "role": "ramp",
+      "reason": "The deck lacks lands, which is a critical component for mana development and consistency.",
+      "synergyWith": [
+        "a card",
+        "another card"
+      ],
+      "estimatedManaValue": null
+    },
+    {
+      "cardName": "Rampant Growth",
+      "role": "draw",
+      "reason": "This card can help the deck find more cards to play, potentially improving its overall win rate.",
+      "synergyWith": [
+        "Ajani's Pridemate",
+        "Serra Ascendant"
+      ],
+      "estimatedManaValue": null
+    },
+    {
+      "cardName": "Path to Exile",
+      "role": "removal",
+      "reason": "The deck may struggle against certain opponents, and this card can provide a necessary removal spell.",
+      "synergyWith": [
+        "Ajani's Pridemate",
+        "Serra Ascendant"
+      ],
+      "estimatedManaValue": null
+    }
+  ],
+  "heuristicHints": [
+    "Consider adding more lands to improve mana development and consistency."
+  ],
+  "manaBaseAdvice": "Add Llanowar Wastes, which provides a crucial land and can help the deck develop its mana base.",
+  "rawTextExplanation": "The Angels Commander deck appears to be struggling due to its lack of lands and inconsistent card draw. By adding more lands and ramp spells, the deck can improve its overall win rate and become more competitive against top opponents. The suggested cuts aim to remove underperforming cards that were not cast during simulations, while the suggested adds focus on improving mana development, card draw, and removal. These changes should help the deck reach a more balanced state and potentially increase its overall win rate.",
+  "modelUsed": "meta-llama-3.1-8b-instruct",
+  "promptTokens": 642,
+  "completionTokens": 495,
+  "goals": {
+    "targetPowerLevel": 7,
+    "metaFocus": null,
+    "budget": null,
+    "focusAreas": []
+  }
+}

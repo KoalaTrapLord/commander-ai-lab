@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "commander-ai-lab"
+version = "1.0.0"
+description = "Commander AI Lab — EDH deck simulation, collection management, and analysis tools"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+commander-sim = "commander_ai_lab.lab.experiments:_cli_main"

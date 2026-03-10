@@ -1,0 +1,2759 @@
+/* ── JS-referenced aliases (collection.js uses these in template literals) ── */
+:root {
+    --lab-purple: var(--purple);
+    --lab-warning: var(--warning);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Commander AI Lab — Collection Management Styles
+   Uses coll- prefix to avoid conflicts with lab- classes
+   Design tokens inherited from ai-lab.css :root variables
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Z-INDEX STACK ────────────────────────────────────────
+   10  table thead (sticky)
+   50  drawer header (sticky inside drawer)
+   100 topbar (sticky)
+   200 drawer backdrop
+   250 drawer panel
+   300 category popover
+   1000 modal overlays (import/export)
+   ──────────────────────────────────────────────────────── */
+
+/* ── 1. Page Layout ──────────────────────────────────────── */
+
+#collection-page {
+    min-height: 100vh;
+    background: var(--bg);
+    padding: 0;
+    font-family: var(--font);
+    color: var(--text);
+    position: relative;
+    isolation: isolate;
+}
+
+.coll-topbar {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: var(--nav-height);
+    background: rgba(12, 14, 20, 0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    z-index: 100;
+    padding: 12px 24px;
+    gap: 12px;
+}
+
+.coll-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.coll-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.coll-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+    line-height: 1;
+}
+
+.coll-count {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.coll-back-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: var(--radius-md);
+    transition: color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.coll-back-btn:hover {
+    color: var(--accent);
+}
+
+.coll-search {
+    width: 240px;
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 14px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.coll-search::placeholder {
+    color: var(--text-secondary);
+}
+
+.coll-search:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.coll-scan-btn,
+.coll-import-btn,
+.coll-export-btn,
+.coll-autoclassify-btn,
+.coll-reenrich-btn {
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 7px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.coll-export-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Scan button has blue/accent styling */
+.coll-scan-btn {
+    background: linear-gradient(135deg, rgba(91, 158, 240, 0.12), rgba(91, 158, 240, 0.18));
+    border-color: rgba(91, 158, 240, 0.4);
+    color: var(--accent);
+}
+
+.coll-scan-btn:hover {
+    background: linear-gradient(135deg, rgba(91, 158, 240, 0.22), rgba(91, 158, 240, 0.28));
+    border-color: var(--accent);
+    color: var(--accent-hover);
+}
+
+/* Import button has green accent like lab-import-submit-btn */
+.coll-import-btn {
+    background: linear-gradient(135deg, rgba(35, 134, 54, 0.15), rgba(46, 160, 67, 0.15));
+    border-color: rgba(46, 160, 67, 0.4);
+    color: var(--success);
+}
+
+.coll-import-btn:hover {
+    background: linear-gradient(135deg, rgba(35, 134, 54, 0.25), rgba(46, 160, 67, 0.25));
+    border-color: var(--success);
+    color: var(--success);
+}
+
+/* Auto-Classify button — amber/orange accent */
+.coll-autoclassify-btn {
+    background: linear-gradient(135deg, rgba(227, 155, 35, 0.12), rgba(227, 155, 35, 0.18));
+    border-color: rgba(227, 155, 35, 0.4);
+    color: var(--warning);
+}
+
+.coll-autoclassify-btn:hover {
+    background: linear-gradient(135deg, rgba(227, 155, 35, 0.22), rgba(227, 155, 35, 0.28));
+    border-color: var(--warning);
+    color: var(--gold);
+}
+
+.coll-autoclassify-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.coll-reenrich-btn {
+    background: linear-gradient(135deg, rgba(136, 98, 235, 0.12), rgba(136, 98, 235, 0.18));
+    border-color: rgba(136, 98, 235, 0.4);
+    color: var(--purple);
+}
+
+.coll-reenrich-btn:hover {
+    background: linear-gradient(135deg, rgba(136, 98, 235, 0.22), rgba(136, 98, 235, 0.28));
+    border-color: var(--purple);
+    color: var(--purple);
+}
+
+.coll-reenrich-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ── Nav Links ──────────────────────────────────────────── */
+
+.coll-nav-link {
+    font-size: 13px;
+    text-decoration: none;
+    padding: 7px 14px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    transition: border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.coll-nav-link:hover {
+    background: rgba(91, 158, 240, 0.06);
+}
+
+/* ── 2. Main Content ─────────────────────────────────────── */
+
+.coll-main {
+    display: flex;
+    gap: 20px;
+    padding: 16px 24px;
+    align-items: flex-start;
+}
+
+/* Table wrapper — fills remaining space */
+.coll-table-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    /* Constrain height so table scrolls independently of page */
+    max-height: calc(100vh - 80px);
+    overflow: hidden;
+}
+
+/* ── 3. Filter Panel ─────────────────────────────────────── */
+
+.coll-filters {
+    width: 240px;
+    flex-shrink: 0;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.coll-filters::-webkit-scrollbar {
+    width: 6px;
+}
+
+.coll-filters::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.coll-filters::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.coll-filters::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+.coll-filter-section {
+    margin-bottom: 16px;
+}
+
+.coll-filter-label {
+    display: block;
+    text-transform: uppercase;
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+/* Color toggles */
+.coll-color-btns {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.coll-color-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    padding: 0;
+}
+
+.coll-color-btn:hover {
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
+}
+
+.coll-color-btn.active {
+    border-color: #fff;
+    transform: scale(1.1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* Type list checkboxes */
+.coll-type-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.coll-check-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text);
+    user-select: none;
+    padding: 2px 0;
+}
+
+.coll-check-label input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.coll-check-label input[type="checkbox"]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.coll-check-label input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 1px;
+    width: 5px;
+    height: 8px;
+    border: 2px solid #000;
+    border-top: none;
+    border-left: none;
+    transform: rotate(45deg);
+}
+
+.coll-check-label:hover {
+    color: var(--text);
+}
+
+.coll-check-label:hover input[type="checkbox"] {
+    border-color: var(--accent);
+}
+
+/* Toggle buttons */
+.coll-toggle-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.coll-toggle-btn {
+    padding: 5px 12px;
+    border-radius: 14px;
+    font-size: 11px;
+    cursor: pointer;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    user-select: none;
+}
+
+.coll-toggle-btn:hover {
+    border-color: var(--text-secondary);
+    color: var(--text);
+}
+
+.coll-toggle-btn.active {
+    background: rgba(91, 158, 240, 0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Finish radios */
+.coll-finish-radios {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* Range inputs */
+.coll-range-inputs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.coll-range-sep {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.coll-range-input {
+    width: 70px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px;
+    font-size: 12px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.coll-range-input:focus {
+    border-color: var(--accent);
+}
+
+/* Category filter chips */
+.coll-cat-filter-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.coll-cat-filter-btn {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    cursor: pointer;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    user-select: none;
+}
+
+.coll-cat-filter-btn:hover {
+    border-color: var(--text-secondary);
+    color: var(--text);
+}
+
+.coll-cat-filter-btn.active {
+    background: rgba(91, 158, 240, 0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Radio labels (shared by filters and import) */
+.coll-radio-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+    user-select: none;
+    padding: 3px 0;
+}
+
+.coll-radio-label input[type="radio"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    background: var(--bg);
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.15s;
+    flex-shrink: 0;
+}
+
+.coll-radio-label input[type="radio"]:checked {
+    border-color: var(--accent);
+}
+
+.coll-radio-label input[type="radio"]:checked::after {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Reset button */
+.coll-reset-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    padding: 7px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    margin-top: 4px;
+}
+
+.coll-reset-btn:hover {
+    border-color: var(--error);
+    color: var(--error);
+}
+
+/* ── 3b. New Filters ────────────────────────────────────────── */
+
+/* Rarity buttons */
+.coll-rarity-btns {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.coll-rarity-btn {
+    width: 36px;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.coll-rarity-btn:hover {
+    border-color: var(--text-secondary);
+}
+
+.coll-rarity-btn.active.coll-rarity-common {
+    background: var(--surface-0);
+    border-color: var(--text-secondary);
+    color: var(--text);
+}
+
+.coll-rarity-btn.active.coll-rarity-uncommon {
+    background: var(--success-dim);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.coll-rarity-btn.active.coll-rarity-rare {
+    background: var(--warning-dim);
+    border-color: var(--warning);
+    color: var(--gold);
+}
+
+.coll-rarity-btn.active.coll-rarity-mythic {
+    background: var(--error-dim);
+    border-color: var(--error);
+    color: var(--error);
+}
+
+/* Power / Toughness range row */
+.coll-range-row {
+    display: flex;
+    gap: 10px;
+}
+
+.coll-range-group {
+    flex: 1;
+}
+
+.coll-range-sublabel {
+    display: block;
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-bottom: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Set filter autocomplete */
+.coll-set-filter,
+.coll-kw-filter {
+    position: relative;
+}
+
+.coll-set-input,
+.coll-kw-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px 8px;
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.coll-set-input:focus,
+.coll-kw-input:focus {
+    border-color: var(--accent);
+}
+
+.coll-set-dropdown,
+.coll-kw-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 180px;
+    overflow-y: auto;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    z-index: 50;
+    box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+
+.coll-set-dd-item,
+.coll-kw-dd-item {
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.coll-set-dd-item:hover,
+.coll-kw-dd-item:hover {
+    background: rgba(91, 158, 240, 0.1);
+}
+
+.coll-set-dd-code {
+    font-weight: 600;
+    color: var(--accent);
+    min-width: 40px;
+}
+
+.coll-set-dd-name {
+    color: var(--text-secondary);
+}
+
+/* Set/Keyword chips */
+.coll-set-chips,
+.coll-kw-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.coll-set-chip,
+.coll-kw-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(91, 158, 240, 0.12);
+    border: 1px solid rgba(91, 158, 240, 0.25);
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--accent);
+}
+
+.coll-set-chip button,
+.coll-kw-chip button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.coll-set-chip button:hover,
+.coll-kw-chip button:hover {
+    color: var(--error);
+}
+
+/* ── 4. Table ─────────────────────────────────────────────── */
+
+.coll-table-container {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+.coll-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+}
+
+.coll-table thead {
+    position: sticky;
+    top: 0;
+    background: var(--surface-1);
+    z-index: 10;
+}
+
+.coll-table th,
+.coll-th {
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.coll-th-sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s;
+}
+
+.coll-th-sortable:hover {
+    color: var(--accent);
+}
+
+.coll-th-active {
+    color: var(--accent);
+}
+
+.coll-table td,
+.coll-td {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+    font-size: 13px;
+    color: var(--text);
+    vertical-align: middle;
+}
+
+.coll-table tbody tr,
+.coll-row {
+    cursor: pointer;
+    transition: background 0.1s;
+    animation: coll-fade-in 0.15s ease;
+}
+
+.coll-table tbody tr:hover,
+.coll-row:hover {
+    background: var(--surface-1);
+}
+
+.coll-table tbody tr.selected {
+    background: rgba(91, 158, 240, 0.08);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Cell-specific styles */
+.coll-card-name,
+.coll-td-name {
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+}
+
+.coll-td-type {
+    color: var(--text-secondary);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.coll-td-oracle {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.coll-td-price {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.coll-td-salt {
+    font-weight: 600;
+    text-align: right;
+}
+
+.coll-td-quantity {
+    text-align: center;
+    font-weight: 600;
+}
+
+.coll-td-cmc {
+    text-align: center;
+}
+
+.coll-td-gc {
+    text-align: center;
+}
+
+.coll-td-mana {
+    white-space: nowrap;
+}
+
+.coll-td-pt {
+    text-align: center;
+    white-space: nowrap;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+}
+
+.coll-td-rarity {
+    text-align: center;
+    font-size: 12px;
+    text-transform: capitalize;
+}
+
+.coll-td-set {
+    color: var(--text-secondary);
+    font-size: 12px;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.coll-td-edhrec {
+    text-align: right;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Rarity colors */
+.coll-rarity-common { color: var(--text-secondary); }
+.coll-rarity-uncommon { color: var(--accent); }
+.coll-rarity-rare { color: var(--gold); }
+.coll-rarity-mythic { color: var(--warning); }
+.coll-rarity-special { color: var(--purple); }
+.coll-rarity-bonus { color: var(--purple); }
+
+/* Salt color classes */
+.salt-green { color: var(--success); }
+.salt-yellow { color: var(--warning); }
+.salt-orange { color: var(--warning); }
+.salt-red { color: var(--error); }
+
+/* Mana pips */
+.coll-mana-pip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.coll-colorless-pip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    font-size: 9px;
+    font-weight: 700;
+    background: var(--text-tertiary);
+    color: #fff;
+}
+
+/* Category chips in table cell */
+.coll-cat-chip {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    margin: 1px 2px;
+}
+
+.coll-cat-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.coll-no-category {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+/* Finish badges */
+.coll-finish-badge {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+.finish-normal,
+.coll-finish-normal {
+    background: rgba(139, 148, 158, 0.15);
+    color: var(--text-secondary);
+}
+
+.finish-foil,
+.coll-finish-foil {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(163, 113, 247, 0.15));
+    color: var(--gold);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.finish-etched,
+.coll-finish-etched {
+    background: rgba(91, 158, 240, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(91, 158, 240, 0.3);
+}
+
+/* Icons */
+.coll-gc-star {
+    color: var(--gold);
+    font-size: 14px;
+}
+
+.coll-legendary-icon {
+    color: var(--gold);
+    font-size: 11px;
+    display: inline-block;
+}
+
+.coll-basic-icon {
+    color: var(--text-secondary);
+    font-size: 11px;
+    display: inline-block;
+}
+
+/* ── 5. Pagination ───────────────────────────────────────── */
+
+.coll-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.coll-page-info {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.coll-total-label {
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin-left: 4px;
+}
+
+.coll-page-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.coll-page-btn {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.coll-page-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.coll-page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.coll-page-size {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.coll-page-size select {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    outline: none;
+}
+
+.coll-page-size select:focus {
+    border-color: var(--accent);
+}
+
+/* ── 6. Detail Drawer ────────────────────────────────────── */
+
+.coll-drawer-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 200;
+    transition: opacity 0.25s ease;
+    opacity: 0;
+}
+
+.coll-drawer-backdrop.open {
+    display: block;
+    opacity: 1;
+}
+
+.coll-drawer {
+    position: fixed;
+    right: 0;
+    top: 0;
+    width: 420px;
+    height: 100vh;
+    height: 100dvh;
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+    z-index: 250;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    overflow-y: auto;
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.coll-drawer::-webkit-scrollbar {
+    width: 6px;
+}
+
+.coll-drawer::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.coll-drawer::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.coll-drawer::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+.coll-drawer.open {
+    transform: translateX(0);
+}
+
+.coll-drawer-inner {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.coll-drawer-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 50;
+}
+
+.coll-drawer-header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.coll-drawer-card-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.3;
+}
+
+.coll-drawer-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: color 0.15s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.coll-drawer-close:hover {
+    color: #fff;
+}
+
+.coll-drawer-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex-wrap: wrap;
+}
+
+.coll-drawer-type {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.coll-drawer-body {
+    padding: 20px;
+    flex: 1;
+}
+
+.coll-drawer-image-wrap {
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.coll-drawer-image {
+    max-width: 100%;
+    width: 280px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.coll-drawer-no-image {
+    width: 280px;
+    height: 200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+/* Loading/error states inside drawer */
+.coll-drawer-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 48px;
+    color: var(--text-secondary);
+}
+
+.coll-drawer-error {
+    padding: 24px;
+    text-align: center;
+    color: var(--error);
+    font-size: 13px;
+}
+
+/* Drawer Tabs */
+.coll-drawer-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+    margin-top: 8px;
+}
+
+.coll-tab-btn {
+    padding: 10px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    background: none;
+    transition: color 0.15s, border-color 0.15s;
+    user-select: none;
+    margin-bottom: -1px;
+}
+
+.coll-tab-btn:hover {
+    color: var(--text);
+}
+
+.coll-tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.coll-drawer-tab-content {
+    min-height: 200px;
+}
+
+/* Overview tab */
+.coll-overview-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 16px;
+}
+
+.coll-overview-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(48, 54, 61, 0.3);
+    font-size: 13px;
+}
+
+.coll-ov-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.coll-oracle-text {
+    font-size: 13px;
+    color: var(--text);
+    padding: 12px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+
+/* Drawer sections */
+.coll-drawer-section {
+    margin-top: 16px;
+}
+
+.coll-drawer-section-label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+/* Finish select in drawer */
+.coll-finish-select {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.15s;
+}
+
+.coll-finish-select:focus {
+    border-color: var(--accent);
+}
+
+/* Category chips in drawer */
+.coll-drawer-cat-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.coll-drawer-cat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    background: rgba(91, 158, 240, 0.12);
+    border: 1px solid rgba(91, 158, 240, 0.3);
+    color: var(--accent);
+}
+
+.coll-chip-remove {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0 2px;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+.coll-chip-remove:hover {
+    opacity: 1;
+}
+
+.coll-cat-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.coll-cat-suggest-btn {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    background: var(--bg);
+    border: 1px dashed var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.coll-cat-suggest-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.coll-cat-add-row,
+.coll-tag-add-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.coll-cat-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 5px 10px;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.coll-cat-input:focus {
+    border-color: var(--accent);
+}
+
+.coll-cat-add-btn {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 5px 12px;
+    font-size: 12px;
+    color: var(--accent);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+}
+
+.coll-cat-add-btn:hover {
+    border-color: var(--accent);
+    background: rgba(91, 158, 240, 0.1);
+}
+
+/* Tags in drawer */
+.coll-drawer-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.coll-drawer-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    background: rgba(139, 148, 158, 0.12);
+    border: 1px solid rgba(139, 148, 158, 0.3);
+    color: var(--text);
+}
+
+/* Notes textarea */
+.coll-notes-textarea {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px;
+    font-size: 13px;
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+    line-height: 1.5;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-sizing: border-box;
+}
+
+.coll-notes-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* Save row in drawer */
+.coll-drawer-save-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.coll-save-btn {
+    background: linear-gradient(135deg, var(--success), var(--success));
+    color: #fff;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 8px 20px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.coll-save-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(46, 160, 67, 0.3);
+}
+
+.coll-save-status {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.coll-save-status.saved {
+    color: var(--success);
+}
+
+.coll-save-status.error {
+    color: var(--error);
+}
+
+/* EDHREC Tab */
+.coll-edhrec-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.coll-edhrec-prompt {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.coll-edhrec-fetch-btn {
+    background: var(--accent);
+    color: #000;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 8px 20px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.15s;
+}
+
+.coll-edhrec-fetch-btn:hover {
+    background: var(--accent-hover);
+}
+
+.coll-edhrec-recs {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.coll-edhrec-rec {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    gap: 8px;
+}
+
+.coll-edhrec-rec:hover {
+    border-color: var(--accent);
+}
+
+.coll-edhrec-rec-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.coll-edhrec-rec-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.coll-edhrec-role {
+    color: var(--text-secondary);
+}
+
+.coll-edhrec-synergy {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.coll-edhrec-inclusion {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.coll-edhrec-empty {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-secondary);
+}
+
+.coll-edhrec-links {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.coll-edhrec-link {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.coll-edhrec-link:hover {
+    background: rgba(91, 158, 240, 0.1);
+    border-color: var(--accent);
+}
+
+/* Decks tab */
+.coll-decks-tab {
+    padding: 8px 0;
+}
+
+.coll-decks-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+
+.coll-decks-links {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.coll-deck-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 13px;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.coll-deck-link:hover {
+    border-color: var(--accent);
+    background: rgba(91, 158, 240, 0.08);
+}
+
+/* ── 7. Modal Overlays (Import / Export) ─────────────────── */
+
+.coll-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.coll-modal-overlay.active {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.coll-modal-content {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 24px;
+    animation: coll-slide-up 0.2s ease;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.coll-modal-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.coll-modal-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.coll-modal-content::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.coll-modal-wide {
+    max-width: 640px;
+}
+
+.coll-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.coll-modal-header h2,
+.coll-modal-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+}
+
+.coll-modal-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: color 0.15s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.coll-modal-close:hover {
+    color: #fff;
+}
+
+.coll-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    gap: 8px;
+}
+
+/* ── 8. Import Modal Internals ───────────────────────────── */
+
+/* Step dots */
+.coll-import-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin-bottom: 16px;
+}
+
+.coll-step-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.coll-step-dot.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+}
+
+.coll-step-dot.done {
+    background: var(--success);
+    color: #000;
+    border-color: var(--success);
+}
+
+.coll-step-sep {
+    color: var(--border);
+    font-size: 12px;
+    padding: 0 2px;
+}
+
+/* Import step content */
+.coll-import-step-content {
+    min-height: 150px;
+}
+
+/* Step 1: Source list */
+.coll-source-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.coll-source-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.coll-source-option:hover {
+    border-color: var(--accent);
+}
+
+.coll-source-option.selected {
+    border-color: var(--accent);
+    background: rgba(91, 158, 240, 0.08);
+}
+
+.coll-source-option input[type="radio"] {
+    flex-shrink: 0;
+}
+
+.coll-source-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.coll-source-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.coll-source-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* Step 2: Content / textarea */
+.coll-import-textarea-wrap,
+.coll-import-file-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.coll-form-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    display: block;
+}
+
+.coll-import-textarea {
+    width: 100%;
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 200px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-sizing: border-box;
+}
+
+.coll-import-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.coll-import-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.coll-import-hint code {
+    background: var(--surface-1);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+/* File drop zone */
+.coll-file-drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.coll-file-drop-zone:hover,
+.coll-file-drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(91, 158, 240, 0.05);
+}
+
+.coll-file-drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.coll-file-drop-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.coll-file-ok {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.coll-file-preview {
+    margin-top: 8px;
+}
+
+.coll-file-preview-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.coll-file-preview-text {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px;
+    font-size: 11px;
+    color: var(--text);
+    overflow-x: auto;
+    white-space: pre;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    margin: 0;
+}
+
+/* Step 3: Mapping */
+.coll-mapping-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.coll-mapping-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.coll-mapping-table th {
+    padding: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+}
+
+.coll-mapping-table td {
+    padding: 6px 8px;
+    vertical-align: middle;
+}
+
+.coll-mapping-row td:first-child {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+
+.coll-mapping-select {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--text);
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s;
+    cursor: pointer;
+}
+
+.coll-mapping-select:focus {
+    border-color: var(--accent);
+}
+
+/* Step 4: Options */
+.coll-import-options {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.coll-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.coll-mode-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: block;
+    margin-top: 2px;
+}
+
+.coll-import-warn {
+    font-size: 13px;
+    color: var(--warning);
+    padding: 10px 14px;
+    background: rgba(210, 153, 34, 0.08);
+    border: 1px solid rgba(210, 153, 34, 0.3);
+    border-radius: var(--radius-md);
+    line-height: 1.5;
+}
+
+/* Import footer buttons */
+.coll-import-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    gap: 8px;
+}
+
+.coll-btn-primary {
+    background: var(--accent);
+    color: #000;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 8px 24px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+}
+
+.coll-btn-primary:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+}
+
+.coll-btn-secondary {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    transition: color 0.15s;
+}
+
+.coll-btn-secondary:hover {
+    color: var(--text);
+}
+
+/* Import result / status */
+.coll-import-status {
+    margin-top: 12px;
+}
+
+.coll-import-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 12px;
+}
+
+.coll-import-result {
+    padding: 16px;
+    text-align: center;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 12px;
+}
+
+.coll-import-result.success {
+    color: var(--success);
+    background: rgba(46, 160, 67, 0.08);
+    border: 1px solid rgba(46, 160, 67, 0.3);
+}
+
+.coll-import-result.error {
+    color: var(--error);
+    background: rgba(248, 81, 73, 0.08);
+    border: 1px solid rgba(248, 81, 73, 0.3);
+}
+
+.coll-import-errors {
+    text-align: left;
+    margin-top: 12px;
+    padding: 10px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.coll-import-errors-label {
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--warning);
+}
+
+.coll-import-errors ul {
+    list-style: disc;
+    margin: 0;
+    padding-left: 16px;
+}
+
+.coll-import-errors li {
+    padding: 2px 0;
+}
+
+/* ── 9. Export Modal Internals ───────────────────────────── */
+
+.coll-export-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.coll-export-select {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.15s;
+}
+
+.coll-export-select:focus {
+    border-color: var(--accent);
+}
+
+.coll-export-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ── 10. Category Popover ────────────────────────────────── */
+
+#coll-cat-popover {
+    position: absolute;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    z-index: 300;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    min-width: 220px;
+    max-width: 320px;
+}
+
+.coll-popover-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.coll-popover-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    line-height: 1;
+    transition: color 0.15s;
+}
+
+.coll-popover-close:hover {
+    color: #fff;
+}
+
+.coll-popover-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.coll-popover-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    background: rgba(91, 158, 240, 0.12);
+    border: 1px solid rgba(91, 158, 240, 0.3);
+    color: var(--accent);
+}
+
+.coll-popover-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.coll-popover-suggest-btn {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    background: var(--bg);
+    border: 1px dashed var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.coll-popover-suggest-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.coll-popover-add-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+/* ── 11. Loading / Spinner / Empty ───────────────────────── */
+
+#coll-loading {
+    position: fixed;
+    inset: 0;
+    background: rgba(12, 14, 20, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+}
+
+.coll-spinner {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 50%;
+    animation: coll-spin 0.8s linear infinite;
+}
+
+.coll-spinner-inline {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top: 2px solid var(--accent);
+    border-radius: 50%;
+    animation: coll-spin 0.8s linear infinite;
+    vertical-align: middle;
+}
+
+.coll-empty {
+    text-align: center;
+    padding: 32px;
+    color: var(--text-secondary);
+}
+
+.coll-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 24px;
+}
+
+.coll-empty-icon {
+    font-size: 48px;
+}
+
+/* ── 12. Responsive ──────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+    .coll-filters {
+        width: 200px;
+    }
+
+    .coll-drawer {
+        width: 360px;
+    }
+}
+
+@media (max-width: 768px) {
+    .coll-main {
+        flex-direction: column;
+    }
+
+    .coll-filters {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        overflow-x: auto;
+        position: static;
+        max-height: none;
+        display: flex;
+        gap: 12px;
+    }
+
+    .coll-filter-section {
+        min-width: 180px;
+        margin-bottom: 0;
+    }
+
+    .coll-drawer {
+        width: 100%;
+    }
+
+    .coll-topbar {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 10px 16px;
+    }
+
+    .coll-search {
+        width: 100%;
+        order: 3;
+    }
+
+    .coll-table-container {
+        overflow-x: auto;
+    }
+
+    .coll-source-list {
+        flex-direction: column;
+    }
+}
+
+/* ── 13. Scrollbar Styling (global for collection page) ──── */
+
+#collection-page ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+#collection-page ::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#collection-page ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+#collection-page ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+/* ── 14. Card Scanner Modal ────────────────────────────── */
+
+.coll-scan-content {
+    padding: 0 4px;
+}
+
+.coll-scan-upload-area {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 8px 0;
+}
+
+.coll-scan-dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    overflow: hidden;
+    position: relative;
+}
+
+.coll-scan-dropzone:hover,
+.coll-scan-dropzone.drag-over {
+    border-color: var(--accent);
+    background: rgba(91, 158, 240, 0.04);
+}
+
+.coll-scan-dropzone-text {
+    color: var(--text-secondary);
+    font-size: 14px;
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.coll-scan-preview-img {
+    max-width: 100%;
+    max-height: 360px;
+    object-fit: contain;
+    border-radius: 4px;
+}
+
+.coll-scan-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.coll-scan-mode {
+    display: flex;
+    gap: 20px;
+}
+
+.coll-radio-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.coll-radio-label input[type="radio"] {
+    accent-color: var(--accent);
+}
+
+.coll-scan-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.coll-scan-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 0 4px;
+    border-top: 1px solid var(--border);
+    margin-top: 12px;
+}
+
+.coll-scan-footer .coll-btn-primary.scanning {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* Scan Results */
+
+.coll-scan-results-wrap {
+    padding: 4px 0;
+}
+
+.coll-scan-results-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.coll-btn-link {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 4px;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    transition: text-decoration-color 0.15s;
+}
+
+.coll-btn-link:hover {
+    text-decoration-color: var(--accent);
+}
+
+.coll-scan-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.coll-scan-result-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: border-color 0.15s;
+}
+
+.coll-scan-result-row:hover {
+    border-color: var(--text-secondary);
+}
+
+.coll-scan-result-row.coll-scan-error {
+    border-color: rgba(248, 81, 73, 0.3);
+    background: rgba(248, 81, 73, 0.06);
+}
+
+.coll-scan-result-check {
+    flex-shrink: 0;
+}
+
+.coll-scan-result-check input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.coll-scan-result-img {
+    width: 56px;
+    height: 78px;
+    object-fit: cover;
+    border-radius: 4px;
+    flex-shrink: 0;
+    background: var(--bg);
+}
+
+.coll-scan-result-img-placeholder {
+    width: 56px;
+    height: 78px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: var(--bg);
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.coll-scan-result-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.coll-scan-result-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.coll-scan-result-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.coll-scan-result-err {
+    font-size: 12px;
+    color: var(--lab-danger, var(--error));
+}
+
+.coll-scan-conf-high   { color: var(--lab-success, var(--success)); font-weight: 500; }
+.coll-scan-conf-medium { color: var(--lab-warning, var(--warning)); font-weight: 500; }
+.coll-scan-conf-low    { color: var(--lab-danger, var(--error));  font-weight: 500; }
+
+.coll-scan-result-qty {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.coll-scan-result-qty label {
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.coll-scan-qty-input {
+    width: 48px;
+    padding: 4px 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 13px;
+    text-align: center;
+}
+
+.coll-scan-qty-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* Scan status messages */
+.coll-scan-status {
+    padding: 0 4px;
+}
+
+.coll-scan-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 8px 0;
+}
+
+.coll-scan-success {
+    color: var(--lab-success, var(--success));
+    font-size: 13px;
+    padding: 8px 0;
+    font-weight: 500;
+}
+
+.coll-scan-error-msg {
+    color: var(--lab-danger, var(--error));
+    font-size: 13px;
+    padding: 8px 0;
+}
+
+/* Manual name entry */
+
+.coll-scan-result-err-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.coll-scan-manual-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.coll-scan-manual-input {
+    flex: 1;
+    padding: 6px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 13px;
+}
+
+.coll-scan-manual-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.coll-scan-manual-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.coll-btn-sm {
+    padding: 5px 12px;
+    font-size: 12px;
+    background: var(--surface-1);
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.coll-btn-sm:hover {
+    border-color: var(--accent);
+    background: rgba(91, 158, 240, 0.08);
+}
+
+.coll-scan-manual-add {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 12px 0 4px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+}
+
+.coll-scan-manual-input-bottom {
+    min-width: 0;
+}
+
+.coll-scan-result-row.coll-scan-manual-added {
+    border-color: rgba(63, 185, 80, 0.3);
+    background: rgba(63, 185, 80, 0.04);
+}
+
+.coll-scan-remove-manual {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    color: var(--text-secondary);
+    border-color: transparent;
+    background: transparent;
+}
+
+.coll-scan-remove-manual:hover {
+    color: var(--lab-danger, var(--error));
+}
+
+/* ── 15. Animations ──────────────────────────────────────── */
+
+@keyframes coll-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes coll-slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes coll-spin {
+    to { transform: rotate(360deg); }
+}

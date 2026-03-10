@@ -1,0 +1,1643 @@
+/* ═══════════════════════════════════════════════════════════
+   Commander AI Lab — AI Lab Panel
+   Page-specific styles only; shared tokens & components in global.css
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Container ─────────────────────────────────────────── */
+
+#ai-lab-panel {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--sp-6);
+    margin: var(--sp-5) 0;
+    color: var(--text);
+}
+
+#ai-lab-panel h2 {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+#ai-lab-panel h2::before {
+    content: '🧪';
+}
+
+.lab-subtitle {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin: 0 0 var(--sp-5) 0;
+}
+
+/* ── Header with Backend Status ────────────────────────── */
+
+.lab-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.lab-backend-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.lab-backend-status .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+}
+
+.lab-backend-status.connected .status-dot {
+    background: var(--success);
+    box-shadow: 0 0 6px var(--success-dim);
+}
+
+.lab-backend-status.connected .status-text {
+    color: var(--success);
+}
+
+.lab-backend-status.disconnected .status-dot {
+    background: var(--warning);
+}
+
+.lab-backend-status.disconnected .status-text {
+    color: var(--warning);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Import Bar
+   ═══════════════════════════════════════════════════════════ */
+
+.lab-import-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--sp-4);
+}
+
+.lab-import-bar-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.lab-import-actions {
+    display: flex;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+}
+
+.lab-import-action-btn {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px var(--sp-4);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lab-import-action-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.lab-import-action-btn .import-icon {
+    font-size: 14px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   URL Import Panel
+   ═══════════════════════════════════════════════════════════ */
+
+.lab-url-import {
+    display: none;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--sp-4);
+    overflow: hidden;
+}
+
+.lab-url-import.active {
+    display: block;
+    animation: labSlideDown 0.2s var(--ease);
+}
+
+@keyframes labSlideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.lab-url-import-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--accent-dim);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.lab-panel-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 6px;
+}
+
+.lab-panel-close:hover {
+    color: #fff;
+}
+
+.lab-url-import-body {
+    display: flex;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-4) var(--sp-2);
+}
+
+.lab-url-import-body input {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-3);
+    font-size: 13px;
+}
+
+.lab-url-import-body input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.lab-url-import-btn {
+    background: var(--accent);
+    color: var(--text-inverse);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-5);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+    white-space: nowrap;
+}
+
+.lab-url-import-btn:hover:not(:disabled) {
+    background: var(--accent-hover);
+}
+
+.lab-url-import-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.lab-import-hint {
+    padding: 6px var(--sp-4) var(--sp-3);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.lab-import-hint strong {
+    color: var(--text);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Import Status Messages
+   ═══════════════════════════════════════════════════════════ */
+
+.lab-import-status {
+    display: none;
+    padding: var(--sp-2) var(--sp-4);
+    font-size: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.lab-import-status.status-loading {
+    color: var(--accent);
+}
+
+.lab-import-status.status-loading::before {
+    content: '⏳ ';
+}
+
+.lab-import-status.status-success {
+    color: var(--success);
+}
+
+.lab-import-status.status-success::before {
+    content: '✓ ';
+}
+
+.lab-import-status.status-error {
+    color: var(--error);
+}
+
+.lab-import-status.status-error::before {
+    content: '✗ ';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Source Badges (deck slots + result cards)
+   ═══════════════════════════════════════════════════════════ */
+
+.lab-deck-source-badge {
+    display: none;
+    margin-top: 6px;
+}
+
+.lab-source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px var(--sp-2);
+    border-radius: var(--radius-md);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.badge-edhrec {
+    background: var(--purple-dim);
+    color: var(--purple);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+}
+
+.badge-archidekt {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(91, 158, 240, 0.3);
+}
+
+.badge-text {
+    background: var(--warning-dim);
+    color: var(--warning);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.badge-default {
+    background: rgba(139, 148, 158, 0.15);
+    color: var(--text-secondary);
+    border: 1px solid rgba(139, 148, 158, 0.3);
+}
+
+.lab-source-badge .source-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.lab-source-badge .source-link:hover {
+    text-decoration: underline;
+}
+
+.lab-result-source {
+    margin-bottom: var(--sp-2);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Modal Overlays (shared)
+   ═══════════════════════════════════════════════════════════ */
+
+.lab-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.lab-modal-overlay.active {
+    display: flex;
+}
+
+.lab-modal-content {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--sp-6);
+    width: 90%;
+    max-width: 500px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.lab-modal-content.lab-modal-wide {
+    max-width: 620px;
+}
+
+.lab-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--sp-4);
+}
+
+.lab-modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #fff;
+}
+
+.lab-modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 2px 6px;
+}
+
+.lab-modal-close:hover {
+    color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Commander Meta Picker
+   ═══════════════════════════════════════════════════════════ */
+
+.lab-meta-search-row {
+    margin-bottom: var(--sp-3);
+}
+
+.lab-meta-search-row input {
+    width: 100%;
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-3) var(--sp-4);
+    font-size: 14px;
+}
+
+.lab-meta-search-row input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.lab-meta-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.lab-meta-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+}
+
+.lab-meta-card:hover {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.meta-card-left {
+    flex: 1;
+    min-width: 0;
+}
+
+.meta-card-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.meta-card-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.mana-pip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: var(--shadow-sm);
+}
+
+.lab-arch-badge {
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: var(--radius-md);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.arch-aggro {
+    background: var(--error-dim);
+    color: var(--error);
+}
+
+.arch-control {
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+
+.arch-combo {
+    background: var(--purple-dim);
+    color: var(--purple);
+}
+
+.arch-midrange {
+    background: var(--success-dim);
+    color: var(--success);
+}
+
+.arch-stax {
+    background: var(--warning-dim);
+    color: var(--warning);
+}
+
+.lab-meta-fetch-btn {
+    background: var(--purple);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 6px var(--sp-4);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+    white-space: nowrap;
+}
+
+.lab-meta-fetch-btn:hover {
+    filter: brightness(1.15);
+    box-shadow: 0 2px 8px var(--purple-dim);
+}
+
+.lab-meta-empty {
+    text-align: center;
+    padding: var(--sp-6);
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Text Import Modal
+   ═══════════════════════════════════════════════════════════ */
+
+.lab-text-import-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+}
+
+.lab-text-import-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.lab-text-import-hint code {
+    background: var(--surface-1);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--accent);
+}
+
+#lab-text-import-area {
+    width: 100%;
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-3);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 180px;
+}
+
+#lab-text-import-area:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.lab-text-import-options {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.lab-text-import-options label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.lab-text-import-options input {
+    flex: 1;
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px var(--sp-3);
+    font-size: 13px;
+}
+
+.lab-text-import-options input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.lab-import-submit-btn {
+    background: var(--success);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: var(--sp-3) var(--sp-6);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+    align-self: flex-end;
+}
+
+.lab-import-submit-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--success-dim);
+}
+
+/* ── Deck Selection Grid ───────────────────────────────── */
+
+.lab-deck-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-5);
+}
+
+.lab-deck-slot {
+    background: var(--surface-1);
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+    text-align: center;
+    transition: all 0.2s var(--ease);
+    cursor: pointer;
+    position: relative;
+}
+
+.lab-deck-slot:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.lab-deck-slot.filled {
+    border-style: solid;
+    border-color: var(--accent);
+}
+
+.lab-deck-slot .seat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: var(--sp-2);
+}
+
+.lab-deck-slot .deck-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.lab-deck-slot .commander-name {
+    font-size: 12px;
+    color: var(--accent);
+    margin-top: 4px;
+}
+
+.lab-deck-slot .empty-text {
+    color: var(--text-secondary);
+    font-style: italic;
+    font-size: 13px;
+}
+
+.lab-deck-slot select {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px var(--sp-2);
+    font-size: 13px;
+    margin-top: var(--sp-2);
+}
+
+/* ── Controls Row ──────────────────────────────────────── */
+
+.lab-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    margin-bottom: var(--sp-5);
+    flex-wrap: wrap;
+}
+
+.lab-control-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lab-control-group label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.lab-control-group input,
+.lab-control-group select {
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px var(--sp-3);
+    font-size: 13px;
+    width: 80px;
+}
+
+.lab-preset-btns {
+    display: flex;
+    gap: 4px;
+}
+
+.lab-preset-btn {
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 4px var(--sp-3);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+}
+
+.lab-preset-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.lab-preset-btn.active {
+    background: var(--accent);
+    color: var(--text-inverse);
+    border-color: var(--accent);
+}
+
+/* ── Run Button ────────────────────────────────────────── */
+
+.lab-run-btn {
+    background: var(--success);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: var(--sp-3) var(--sp-6);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-left: auto;
+}
+
+.lab-run-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px var(--success-dim);
+}
+
+.lab-run-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.lab-run-btn .spinner {
+    display: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: labSpin 0.6s linear infinite;
+}
+
+.lab-run-btn.running .spinner {
+    display: inline-block;
+}
+
+.lab-run-btn.running .run-icon {
+    display: none;
+}
+
+@keyframes labSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Progress Bar ──────────────────────────────────────── */
+
+.lab-progress {
+    display: none;
+    margin-bottom: var(--sp-5);
+}
+
+.lab-progress.active {
+    display: block;
+}
+
+.lab-progress-bar {
+    height: 6px;
+    background: var(--surface-1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.lab-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--success));
+    border-radius: 3px;
+    transition: width 0.3s var(--ease);
+    width: 0%;
+}
+
+.lab-progress-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+}
+
+/* ── Results ───────────────────────────────────────────── */
+
+.lab-results {
+    display: none;
+}
+
+.lab-results.active {
+    display: block;
+}
+
+.lab-results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--sp-3);
+}
+
+.lab-results-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #fff;
+}
+
+.lab-results-actions {
+    display: flex;
+    gap: var(--sp-2);
+}
+
+.lab-export-btn {
+    background: var(--surface-1);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 4px var(--sp-3);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+}
+
+.lab-export-btn:hover {
+    background: var(--accent);
+    color: var(--text-inverse);
+}
+
+.lab-history-btn {
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 4px var(--sp-3);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+}
+
+.lab-history-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+/* ── Stat Cards ────────────────────────────────────────── */
+
+.lab-stats-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+}
+
+.lab-stat-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+    position: relative;
+    overflow: hidden;
+}
+
+.lab-stat-card .rank {
+    position: absolute;
+    top: var(--sp-2);
+    right: var(--sp-3);
+    font-size: 24px;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.1);
+}
+
+.lab-stat-card.winner {
+    border-color: var(--gold);
+    box-shadow: 0 0 12px rgba(252, 211, 77, 0.15);
+}
+
+.lab-stat-card.winner .rank {
+    color: var(--gold);
+}
+
+.lab-stat-card .card-deck-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 2px;
+}
+
+.lab-stat-card .card-commander {
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 4px;
+}
+
+.lab-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 13px;
+}
+
+.lab-stat-row .stat-label {
+    color: var(--text-secondary);
+}
+
+.lab-stat-row .stat-value {
+    font-weight: 600;
+    color: var(--text);
+}
+
+.lab-stat-row .stat-value.highlight {
+    color: var(--success);
+}
+
+/* ── Win Rate Bar ──────────────────────────────────────── */
+
+.lab-winrate-bar {
+    height: 8px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    margin-top: var(--sp-2);
+    overflow: hidden;
+}
+
+.lab-winrate-fill {
+    height: 100%;
+    border-radius: var(--radius-sm);
+    transition: width 0.5s var(--ease);
+}
+
+.seat-0-color { background: var(--accent); }
+.seat-1-color { background: var(--error); }
+.seat-2-color { background: var(--success); }
+
+/* ── Win Condition Breakdown ───────────────────────────── */
+
+.lab-win-conditions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: var(--sp-2);
+}
+
+.lab-wc-chip {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 2px var(--sp-2);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.lab-wc-chip .wc-count {
+    color: #fff;
+    font-weight: 600;
+}
+
+/* ── Global Stats Footer ──────────────────────────────── */
+
+.lab-global-stats {
+    display: flex;
+    gap: var(--sp-6);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface-1);
+    border-radius: var(--radius-md);
+    margin-top: var(--sp-3);
+    font-size: 13px;
+}
+
+.lab-global-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.lab-global-stat .g-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.lab-global-stat .g-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ── Section Divider ───────────────────────────────────── */
+
+.lab-section-divider {
+    border-top: 1px solid var(--border);
+    margin: var(--sp-5) 0 var(--sp-4);
+}
+
+/* ── Tab Navigation ────────────────────────────────────── */
+
+.lab-results-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: var(--sp-4);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+}
+
+.lab-tab {
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: var(--sp-2) var(--sp-4);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+    font-weight: 500;
+}
+
+.lab-tab:hover {
+    color: var(--text);
+}
+
+.lab-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.lab-tab-panel {
+    display: none;
+}
+
+.lab-tab-panel.active {
+    display: block;
+}
+
+/* ── Charts Grid ─────────────────────────────────────── */
+
+.lab-charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-4);
+}
+
+.lab-chart-box {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+}
+
+.lab-chart-box h4 {
+    margin: 0 0 var(--sp-3) 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.lab-chart-box canvas {
+    width: 100%;
+    height: auto;
+}
+
+/* ── Head-to-Head Matrix ──────────────────────────────── */
+
+.lab-h2h-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface-1);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.lab-h2h-table th,
+.lab-h2h-table td {
+    padding: var(--sp-3) var(--sp-4);
+    text-align: center;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+}
+
+.lab-h2h-table th {
+    background: rgba(0, 0, 0, 0.2);
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.lab-h2h-corner {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.lab-h2h-row-label {
+    font-weight: 600;
+    text-align: left !important;
+}
+
+.lab-h2h-self {
+    color: var(--text-secondary);
+    opacity: 0.4;
+}
+
+.lab-h2h-cell {
+    font-weight: 600;
+    color: var(--text);
+    position: relative;
+}
+
+.lab-h2h-winning {
+    color: var(--success);
+}
+
+.lab-h2h-losing {
+    color: var(--error);
+}
+
+.lab-h2h-sub {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.lab-h2h-note {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: var(--sp-3);
+    font-style: italic;
+}
+
+/* ── Combat Stats ────────────────────────────────────── */
+
+.lab-combat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-4);
+}
+
+.lab-combat-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.lab-combat-header {
+    padding: var(--sp-3) var(--sp-4);
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.lab-combat-rows {
+    padding: var(--sp-2) 0;
+}
+
+.lab-combat-row {
+    display: flex;
+    align-items: center;
+    padding: 6px var(--sp-4);
+    font-size: 13px;
+    gap: var(--sp-2);
+}
+
+.lab-combat-row:hover {
+    background: var(--surface-hover);
+}
+
+.lab-combat-icon {
+    font-size: 14px;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.lab-combat-label {
+    color: var(--text-secondary);
+    flex: 1;
+}
+
+.lab-combat-val {
+    font-weight: 700;
+    color: #fff;
+    min-width: 40px;
+    text-align: right;
+}
+
+.lab-combat-max {
+    font-size: 10px;
+    color: var(--text-secondary);
+    min-width: 50px;
+    text-align: right;
+}
+
+/* ── Game Log Table ──────────────────────────────────── */
+
+.lab-gamelog-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-3);
+}
+
+.lab-gamelog-search {
+    flex: 1;
+    max-width: 320px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-3);
+    color: var(--text);
+    font-size: 13px;
+}
+
+.lab-gamelog-search:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.lab-gamelog-search::placeholder {
+    color: var(--text-secondary);
+}
+
+.lab-gamelog-count {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.lab-gamelog-wrapper {
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+.lab-gamelog-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.lab-gamelog-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.lab-gamelog-table th {
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: var(--sp-2) var(--sp-3);
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.lab-gamelog-table td {
+    padding: 6px var(--sp-3);
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text);
+}
+
+.lab-gamelog-table tbody tr:hover {
+    background: var(--surface-hover);
+}
+
+.lab-gl-num {
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.lab-gl-wc {
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.lab-gl-dead {
+    color: var(--error);
+    font-weight: 600;
+}
+
+.lab-gl-alive {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.lab-gl-more {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: var(--sp-3);
+    margin: 0;
+}
+
+.lab-no-data {
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-align: center;
+    padding: var(--sp-6);
+}
+
+/* ── Live Log Panel ───────────────────────────────────── */
+
+.lab-log {
+    display: none;
+    margin-bottom: var(--sp-5);
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.lab-log.active {
+    display: block;
+}
+
+.lab-log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.lab-log-toggle {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 6px;
+}
+
+.lab-log-content {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text);
+    padding: var(--sp-2) var(--sp-3);
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.lab-log.collapsed .lab-log-content {
+    display: none;
+}
+
+/* ── History Items ────────────────────────────────────── */
+
+.lab-history-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.lab-history-item {
+    padding: var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--sp-2);
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+}
+
+.lab-history-item:hover {
+    border-color: var(--accent);
+    background: var(--surface-1);
+}
+
+.lab-history-item .history-batch-id {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    margin-bottom: 4px;
+}
+
+.lab-history-item .history-meta {
+    font-size: 13px;
+    color: var(--text);
+}
+
+.lab-history-item .history-decks {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.lab-history-item .history-decks .hist-src {
+    color: var(--purple);
+    font-size: 10px;
+}
+
+.lab-history-item .history-time {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.lab-history-empty {
+    color: var(--text-secondary);
+    text-align: center;
+    padding: var(--sp-5);
+    font-size: 13px;
+}
+
+/* ── Responsive ────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    .lab-deck-grid,
+    .lab-stats-cards {
+        grid-template-columns: 1fr;
+    }
+    .lab-controls {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .lab-run-btn {
+        margin-left: 0;
+        width: 100%;
+        justify-content: center;
+    }
+    .lab-import-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .lab-import-actions {
+        width: 100%;
+    }
+    .lab-import-action-btn {
+        flex: 1;
+        justify-content: center;
+    }
+    .lab-url-import-body {
+        flex-direction: column;
+    }
+    .lab-modal-content {
+        width: 95%;
+        padding: var(--sp-4);
+    }
+    .lab-combat-grid {
+        grid-template-columns: 1fr;
+    }
+    .lab-charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Precon Decks — Grid + Cards
+   ═══════════════════════════════════════════════════════════ */
+
+.lab-precon-btn {
+    background: linear-gradient(135deg, var(--surface-0), var(--surface-2)) !important;
+    border-color: var(--border) !important;
+}
+
+.lab-precon-btn:hover {
+    background: linear-gradient(135deg, var(--surface-2), var(--surface-3)) !important;
+    border-color: var(--error) !important;
+}
+
+.lab-precon-controls {
+    display: flex;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-5) var(--sp-3);
+    align-items: center;
+}
+
+.lab-precon-controls input {
+    flex: 1;
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+}
+
+.lab-precon-controls input:focus {
+    outline: none;
+    border-color: var(--error);
+}
+
+.lab-precon-install-all-btn {
+    background: var(--surface-3);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: var(--sp-2) var(--sp-4);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+    transition: all var(--duration) var(--ease);
+}
+
+.lab-precon-install-all-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--error);
+}
+
+.lab-precon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--sp-3);
+    padding: 0 var(--sp-5) var(--sp-5);
+    max-height: 55vh;
+    overflow-y: auto;
+}
+
+.lab-precon-card {
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+}
+
+.lab-precon-card:hover {
+    border-color: var(--error);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px var(--error-dim);
+}
+
+.lab-precon-card-installed {
+    border-color: var(--success);
+    opacity: 0.8;
+}
+
+.lab-precon-card-installed .lab-precon-install-btn {
+    background: var(--success);
+    border-color: var(--success);
+    cursor: default;
+}
+
+.precon-card-colors {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 2px;
+}
+
+.precon-card-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.2;
+}
+
+.precon-card-commander {
+    font-size: 12px;
+    color: var(--error);
+    font-style: italic;
+}
+
+.precon-card-set {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.precon-card-theme {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    line-height: 1.3;
+    margin-top: auto;
+}
+
+.lab-precon-install-btn {
+    margin-top: var(--sp-2);
+    width: 100%;
+    background: var(--surface-3);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 6px var(--sp-3);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all var(--duration) var(--ease);
+}
+
+.lab-precon-install-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--error);
+}
+
+.badge-precon {
+    background: var(--surface-3);
+    border-color: var(--border);
+}
