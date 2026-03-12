@@ -746,15 +746,18 @@
 .coll-th-sortable {
     cursor: pointer;
     user-select: none;
-    transition: color 0.15s;
+    transition: color 0.15s, background 0.15s;
+    position: relative;
 }
 
 .coll-th-sortable:hover {
     color: var(--accent);
+    background: rgba(255,255,255,0.06);
 }
 
 .coll-th-active {
     color: var(--accent);
+    background: rgba(255,255,255,0.04);
 }
 
 .coll-table td,
@@ -2737,6 +2740,69 @@
 }
 
 /* ── 15. Animations ──────────────────────────────────────── */
+
+/* ── Sort Bar ─────────────────────────────────────────── */
+
+.coll-sort-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    margin-bottom: 8px;
+    background: var(--card-bg, #1e1e2e);
+    border: 1px solid var(--border, #2a2a3a);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-secondary, #999);
+}
+
+.coll-sort-bar-label {
+    font-weight: 600;
+    color: var(--text-secondary, #999);
+    white-space: nowrap;
+}
+
+.coll-sort-select {
+    background: var(--bg, #121220);
+    color: var(--text, #e0e0e0);
+    border: 1px solid var(--border, #2a2a3a);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+
+.coll-sort-select:hover,
+.coll-sort-select:focus {
+    border-color: var(--accent, #6c63ff);
+    outline: none;
+}
+
+.coll-sort-dir-btn {
+    background: var(--bg, #121220);
+    color: var(--text, #e0e0e0);
+    border: 1px solid var(--border, #2a2a3a);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+}
+
+.coll-sort-dir-btn:hover {
+    border-color: var(--accent, #6c63ff);
+    background: rgba(108, 99, 255, 0.1);
+}
+
+.coll-sort-bar-count {
+    margin-left: auto;
+    font-weight: 500;
+    color: var(--text-secondary, #999);
+    white-space: nowrap;
+}
 
 @keyframes coll-fade-in {
     from { opacity: 0; }

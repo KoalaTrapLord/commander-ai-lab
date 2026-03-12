@@ -352,6 +352,7 @@ const Collection = (() => {
             showLoading(false);
         }
         renderTable();
+        renderSortBar();
         renderPagination();
         renderCountBadge();
     }
@@ -450,6 +451,7 @@ const Collection = (() => {
 
                 <!-- Table Area -->
                 <div class="coll-table-wrap">
+                    ${renderSortBarHtml()}
                     <div class="coll-table-container">
                         <table class="coll-table" id="coll-table">
                             ${renderTableHeaderHtml()}
@@ -489,6 +491,59 @@ const Collection = (() => {
 
         renderTable();
         renderPagination();
+    }
+
+    // ── Sort Bar HTML ───────────────────────────────────────
+
+    function renderSortBarHtml() {
+        const sortOptions = [
+            { value: 'name',       label: 'Name' },
+            { value: 'tcg_price',  label: 'Price' },
+            { value: 'cmc',        label: 'CMC / Mana Value' },
+            { value: 'quantity',   label: 'Quantity' },
+            { value: 'type_line',  label: 'Type' },
+            { value: 'rarity',     label: 'Rarity' },
+            { value: 'edhrec_rank',label: 'EDHREC Rank' },
+            { value: 'salt_score', label: 'Salt Score' },
+            { value: 'set_code',   label: 'Set' },
+            { value: 'finish',     label: 'Finish' },
+        ];
+        const opts = sortOptions.map(o =>
+            `<option value="${o.value}" ${state.sortField === o.value ? 'selected' : ''}>${o.label}</option>`
+        ).join('');
+        const dirLabel = state.sortDir === 'asc' ? '▲ Asc' : '▼ Desc';
+        return `
+        <div class="coll-sort-bar">
+            <span class="coll-sort-bar-label">Sort by</span>
+            <select class="coll-sort-select" id="coll-sort-select" onchange="Collection.setSortFromBar(this.value)">
+                ${opts}
+            </select>
+            <button class="coll-sort-dir-btn" id="coll-sort-dir-btn" onclick="Collection.toggleSortDir()" title="Toggle sort direction">${dirLabel}</button>
+            <span class="coll-sort-bar-count" id="coll-sort-bar-count">${state.total.toLocaleString()} cards</span>
+        </div>`;
+    }
+
+    function renderSortBar() {
+        const bar = document.querySelector('.coll-sort-bar');
+        if (bar) {
+            bar.outerHTML = renderSortBarHtml();
+        }
+    }
+
+    function setSortFromBar(field) {
+        state.sortField = field;
+        state.page = 1;
+        savePreferences();
+        pushUrlState();
+        fetchCollection();
+    }
+
+    function toggleSortDir() {
+        state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+        state.page = 1;
+        savePreferences();
+        pushUrlState();
+        fetchCollection();
     }
 
     // ── Filter Panel HTML ───────────────────────────────────
@@ -724,7 +779,7 @@ const Collection = (() => {
         { key: 'cmc',           label: 'CMC',       sortable: true },
         { key: 'power_toughness',label: 'P/T',      sortable: false },
         { key: 'rarity',        label: 'Rarity',    sortable: true },
-        { key: 'set_name',      label: 'Set',       sortable: true },
+        { key: 'set_code',      label: 'Set',       sortable: true },
         { key: 'tcg_price',     label: 'Price',     sortable: true },
         { key: 'edhrec_rank',   label: 'EDHREC',    sortable: true },
         { key: 'salt_score',    label: 'Salt',      sortable: true },
@@ -2729,6 +2784,8 @@ const Collection = (() => {
         resetFilters,
         // Sort / page
         setSort,
+        setSortFromBar,
+        toggleSortDir,
         setPage,
         setPageSize,
         // Category inline
