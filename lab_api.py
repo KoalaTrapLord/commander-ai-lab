@@ -414,10 +414,24 @@ async def start_batch(req: StartRequest, background_tasks: BackgroundTasks):
 
 
 @app.get("/api/lab/status", response_model=StatusResponse)
-async def get_status(batchId: str):
-    state = active_batches.get(batchId)
+async def get_status(batchId: Optional[str] = None):
+    # If no batchId given, find the most recent active (or last) batch
+    state = None
+    if batchId:
+        state = active_batches.get(batchId)
+    else:
+        # Return the most recently active batch, or any batch
+        for s in active_batches.values():
+            if s.running:
+                state = s
+                break
+        if state is None and active_batches:
+            state = list(active_batches.values())[-1]
     if not state:
-        raise HTTPException(404, f"Batch {batchId} not found")
+        return StatusResponse(
+            batchId="", running=False, completed=0, total=0,
+            threads=0, elapsedMs=0, error=None, simsPerSec=0.0,
+        )
     elapsed = int((datetime.now() - state.start_time).total_seconds() * 1000)
     return StatusResponse(
         batchId=state.batch_id,
@@ -432,10 +446,18 @@ async def get_status(batchId: str):
 
 
 @app.get("/api/lab/result")
-async def get_result(batchId: str):
-    state = active_batches.get(batchId)
+async def get_result(batchId: Optional[str] = None):
+    state = None
+    if batchId:
+        state = active_batches.get(batchId)
+    else:
+        # Find most recent completed batch
+        for s in reversed(list(active_batches.values())):
+            if not s.running and s.result_path:
+                state = s
+                break
     if not state:
-        raise HTTPException(404, f"Batch {batchId} not found")
+        raise HTTPException(404, "No batch result available")
     if state.running:
         raise HTTPException(409, "Batch still running")
     if state.error:
