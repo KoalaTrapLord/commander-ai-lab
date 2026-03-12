@@ -243,9 +243,12 @@ class DeckGeneratorV3:
             )
 
         raw_deck = response.parsed_json
-        logger.info("Deck generated: %d cards, bracket %d",
-                     len(raw_deck.get("cards", [])),
-                     raw_deck.get("bracket", {}).get("level", 0))
+        card_count = len(raw_deck.get("cards", []))
+        truncated = card_count < 90  # Commander decks should have ~100 cards
+        logger.info("Deck generated: %d cards, bracket %d%s",
+                     card_count,
+                     raw_deck.get("bracket", {}).get("level", 0),
+                     " (TRUNCATED — response may have hit token limit)" if truncated else "")
 
         # Step 5: Check ownership and build enriched card list
         cards_with_status = self._check_ownership(raw_deck.get("cards", []))
@@ -270,6 +273,7 @@ class DeckGeneratorV3:
             },
             "model": response.model,
             "citations": response.citations,
+            "truncated": truncated,
         }
 
     # ── Step 5: Ownership Check ──────────────────────────────

@@ -31,4 +31,10 @@ IMPORTANT:
 - Provide realistic USD price estimates
 - The commander MUST be included in the cards list with its real category (Creature, Planeswalker, etc.)
 - Assign the correct bracket level based on the cards chosen and combos present
-- List Game Changer cards explicitly in the bracket section"""
+- List Game Changer cards explicitly in the bracket section
+
+OUTPUT EFFICIENCY (critical):
+- Keep each card's "reason" under 15 words — brief is better
+- Keep "synergy_with" to at most 2-3 card names per card
+- Do not repeat the card's own name in synergy_with
+- Omit estimated_price_usd if you are unsure — 0 is fine"""
