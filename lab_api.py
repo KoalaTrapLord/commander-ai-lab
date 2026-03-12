@@ -6318,6 +6318,73 @@ def _postprocess_deck_cards(cards: list[dict], color_identity: list[str] | None 
     return processed
 
 
+# Color-to-basic-land mapping for deterministic fill
+_COLOR_TO_BASIC = {
+    'W': 'Plains',
+    'U': 'Island',
+    'B': 'Swamp',
+    'R': 'Mountain',
+    'G': 'Forest',
+}
+BASIC_LAND_NAMES = set(_COLOR_TO_BASIC.values()) | {'Wastes'}
+
+
+def _fill_basic_lands(cards: list[dict], color_identity: list[str] | None = None, target_total: int = 100) -> list[dict]:
+    """
+    Deterministically fill basic lands so the deck hits exactly target_total cards.
+
+    The LLM may list basics with wrong counts, duplicates, or omit them.
+    This function:
+      1. Strips all basic-land entries the LLM provided
+      2. Counts remaining cards (non-basics) and their total count
+      3. Computes how many basic land slots are needed
+      4. Distributes basics evenly across the commander's colors
+    """
+    # Separate basics from non-basics
+    non_basics = []
+    for card in cards:
+        name = card.get('name', '').strip()
+        if name not in BASIC_LAND_NAMES:
+            non_basics.append(card)
+
+    # Count total non-basic cards
+    non_basic_total = sum(c.get('count', 1) for c in non_basics)
+
+    # How many basic land copies we need
+    basics_needed = max(0, target_total - non_basic_total)
+
+    if basics_needed == 0:
+        return non_basics
+
+    # Determine which basics to use from color identity
+    ci = [c.upper() for c in (color_identity or [])]
+    basic_names = [_COLOR_TO_BASIC[c] for c in ci if c in _COLOR_TO_BASIC]
+    if not basic_names:
+        # Colorless commander — use Wastes
+        basic_names = ['Wastes']
+
+    # Distribute evenly, then add remainders one-by-one
+    per_color = basics_needed // len(basic_names)
+    remainder = basics_needed % len(basic_names)
+
+    for i, bname in enumerate(basic_names):
+        qty = per_color + (1 if i < remainder else 0)
+        if qty > 0:
+            non_basics.append({
+                'name': bname,
+                'count': qty,
+                'role': 'land',
+                'category': 'Land',
+                'role_tags': [],
+                'reason': 'Basic land for mana fixing',
+                'estimated_price_usd': 0.10,
+                'from_collection': False,
+                'is_basic': True,
+            })
+
+    return non_basics
+
+
 # ── Research Endpoint ─────────────────────────────────────────
 
 @app.post('/api/deck-research')
@@ -6567,6 +6634,8 @@ Build the deck as JSON. Prioritize collection cards when they fit the strategy."
     # Post-process cards
     if 'cards' in result and isinstance(result['cards'], list):
         result['cards'] = _postprocess_deck_cards(result['cards'], color_identity)
+        # Fill basic lands deterministically to hit exactly 100
+        result['cards'] = _fill_basic_lands(result['cards'], color_identity, target_total=100)
 
     # Compute real totals
     real_total = sum(c.get('estimated_price_usd', 0) * c.get('count', 1) for c in result.get('cards', []))
