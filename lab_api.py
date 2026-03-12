@@ -1422,7 +1422,11 @@ def _load_deck_cards_by_name(deck_name: str) -> list[dict]:
                        ce.oracle_text, ce.keywords, ce.mana_cost,
                        ce.color_identity
                 FROM deck_cards dc
-                LEFT JOIN collection_entries ce ON ce.scryfall_id = dc.scryfall_id
+                LEFT JOIN (
+                    SELECT scryfall_id, type_line, cmc, power, toughness,
+                           oracle_text, keywords, mana_cost, color_identity
+                    FROM collection_entries GROUP BY scryfall_id
+                ) ce ON ce.scryfall_id = dc.scryfall_id
                 WHERE dc.deck_id = ?
             """, (deck_id,)).fetchall()
             result = []
@@ -3161,7 +3165,10 @@ def _compute_deck_analysis(deck_id: int) -> dict:
         SELECT dc.id, dc.scryfall_id, dc.card_name, dc.quantity, dc.is_commander, dc.role_tag,
                ce.type_line, ce.oracle_text, ce.keywords, ce.cmc, ce.color_identity
         FROM deck_cards dc
-        LEFT JOIN collection_entries ce ON ce.scryfall_id = dc.scryfall_id
+        LEFT JOIN (
+            SELECT scryfall_id, type_line, oracle_text, keywords, cmc, color_identity
+            FROM collection_entries GROUP BY scryfall_id
+        ) ce ON ce.scryfall_id = dc.scryfall_id
         WHERE dc.deck_id = ?
         """,
         (deck_id,)
@@ -3368,7 +3375,13 @@ async def get_deck_cards(deck_id: int):
             ce.tcg_price, ce.quantity AS owned_qty, ce.is_legendary,
             ce.salt_score, ce.is_game_changer
         FROM deck_cards dc
-        LEFT JOIN collection_entries ce ON ce.scryfall_id = dc.scryfall_id
+        LEFT JOIN (
+            SELECT scryfall_id, type_line, cmc, mana_cost, color_identity,
+                   oracle_text, keywords, tcg_price, quantity, is_legendary,
+                   salt_score, is_game_changer
+            FROM collection_entries
+            GROUP BY scryfall_id
+        ) ce ON ce.scryfall_id = dc.scryfall_id
         WHERE dc.deck_id = ?
         ORDER BY dc.is_commander DESC, dc.card_name ASC
         """,
@@ -5070,7 +5083,11 @@ async def sim_run_from_deck(request: FastAPIRequest):
                ce.type_line, ce.cmc, ce.power, ce.toughness,
                ce.oracle_text, ce.keywords, ce.mana_cost
         FROM deck_cards dc
-        LEFT JOIN collection_entries ce ON ce.scryfall_id = dc.scryfall_id
+        LEFT JOIN (
+            SELECT scryfall_id, type_line, cmc, power, toughness,
+                   oracle_text, keywords, mana_cost
+            FROM collection_entries GROUP BY scryfall_id
+        ) ce ON ce.scryfall_id = dc.scryfall_id
         WHERE dc.deck_id = ?
     """, (deck_id,))
     card_data = []
@@ -5433,7 +5450,11 @@ async def sim_run_deepseek(request: FastAPIRequest):
                ce.type_line, ce.cmc, ce.power, ce.toughness,
                ce.oracle_text, ce.keywords, ce.mana_cost
         FROM deck_cards dc
-        LEFT JOIN collection_entries ce ON ce.scryfall_id = dc.scryfall_id
+        LEFT JOIN (
+            SELECT scryfall_id, type_line, cmc, power, toughness,
+                   oracle_text, keywords, mana_cost
+            FROM collection_entries GROUP BY scryfall_id
+        ) ce ON ce.scryfall_id = dc.scryfall_id
         WHERE dc.deck_id = ?
     """, (deck_id,))
     card_data = []
@@ -6410,7 +6431,10 @@ async def deck_research(req: DeckResearchRequest):
         SELECT dc.card_name, dc.quantity, dc.is_commander,
                ce.type_line, ce.cmc, ce.oracle_text, ce.tcg_price
         FROM deck_cards dc
-        LEFT JOIN collection_entries ce ON ce.scryfall_id = dc.scryfall_id
+        LEFT JOIN (
+            SELECT scryfall_id, type_line, cmc, oracle_text, tcg_price
+            FROM collection_entries GROUP BY scryfall_id
+        ) ce ON ce.scryfall_id = dc.scryfall_id
         WHERE dc.deck_id = ?
         ORDER BY dc.is_commander DESC, dc.card_name ASC
     """, (req.deck_id,)).fetchall()
