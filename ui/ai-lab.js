@@ -226,6 +226,8 @@ const AiLab = (() => {
                     <button class="lab-tab" data-tab="tab-h2h" onclick="AiLab.switchTab('tab-h2h')">Head-to-Head</button>
                     <button class="lab-tab" data-tab="tab-combat" onclick="AiLab.switchTab('tab-combat')">Combat Stats</button>
                     <button class="lab-tab" data-tab="tab-gamelog" onclick="AiLab.switchTab('tab-gamelog')">Game Log</button>
+                    <button class="lab-tab" data-tab="tab-analytics" onclick="AiLab.switchTab('tab-analytics')">Analytics</button>
+                    <button class="lab-tab" data-tab="tab-trends" onclick="AiLab.switchTab('tab-trends')">Trends</button>
                 </div>
 
                 <!-- Tab: Charts -->
@@ -267,6 +269,21 @@ const AiLab = (() => {
                         <span class="lab-gamelog-count" id="lab-gamelog-count"></span>
                     </div>
                     <div class="lab-gamelog-wrapper" id="lab-gamelog-wrapper"></div>
+                </div>
+
+                <!-- Tab: Analytics -->
+                <div class="lab-tab-panel" id="tab-analytics">
+                    <div class="lab-analytics-content" id="lab-analytics-content">
+                        <p class="lab-empty-hint">Select decks and run a batch to see per-deck analytics.</p>
+                    </div>
+                </div>
+
+                <!-- Tab: Trends -->
+                <div class="lab-tab-panel" id="tab-trends">
+                    <div class="lab-trends-content" id="lab-trends-content">
+                        <p class="lab-empty-hint">Run multiple batches to track win rate trends over time.</p>
+                    </div>
+                    <canvas id="lab-chart-trends" width="700" height="300" style="display:none;margin-top:16px;"></canvas>
                 </div>
             </div>
 
@@ -310,6 +327,10 @@ const AiLab = (() => {
                         <button class="lab-precon-install-all-btn" onclick="AiLab.installAllPrecons()"
                                 title="Install all precon decks to Forge">
                             Install All
+                        </button>
+                        <button class="lab-precon-refresh-btn" onclick="AiLab.refreshPrecons()"
+                                title="Re-download precon database from GitHub">
+                            Refresh Index
                         </button>
                     </div>
                     <div class="lab-precon-grid" id="lab-precon-grid">Loading...</div>
@@ -1472,13 +1493,273 @@ const AiLab = (() => {
 
     // ── Tab Switching ──────────────────────────────────────
 
-    function switchTab(tabId) {
+    // ── Analytics & Trends ─────────────────────────────────
+
+    async function loadAnalytics() {
+        const contentEl = document.getElementById('lab-analytics-content');
+        if (!contentEl) return;
+
+        const filledDecks = selectedDecks.filter(d => d);
+        if (filledDecks.length === 0) {
+            contentEl.innerHTML = '<p class="lab-empty-hint">Select decks to see analytics.</p>';
+            return;
+        }
+
+        contentEl.innerHTML = '<div class="lab-loading-hint"><div class="spinner"></div> Loading analytics...</div>';
+
+        try {
+            const results = await Promise.all(
+                filledDecks.map(async (deckName) => {
+                    const res = await fetch(`${API_BASE}/api/lab/analytics/${encodeURIComponent(deckName)}`);
+                    if (!res.ok) return { deckName, error: true };
+                    return await res.json();
+                })
+            );
+
+            let html = '<div class="lab-analytics-grid">';
+            for (const data of results) {
+                if (data.error) {
+                    html += `<div class="lab-analytics-card lab-analytics-error">
+                        <div class="lab-analytics-name">${escapeHtml(data.deckName)}</div>
+                        <div class="lab-analytics-err-msg">Analytics unavailable</div>
+                    </div>`;
+                    continue;
+                }
+
+                // Count cards by section
+                const sections = {};
+                for (const card of (data.cards || [])) {
+                    const sec = card.section || 'Main';
+                    sections[sec] = (sections[sec] || 0) + card.quantity;
+                }
+
+                html += `<div class="lab-analytics-card">
+                    <div class="lab-analytics-name">${escapeHtml(data.deckName)}</div>
+                    <div class="lab-analytics-commander">${escapeHtml(data.commanderName || 'Unknown')}</div>
+                    <div class="lab-analytics-stat">
+                        <span class="lab-analytics-label">Total Cards</span>
+                        <span class="lab-analytics-value">${data.totalCards || 0}</span>
+                    </div>
+                    <div class="lab-analytics-stat">
+                        <span class="lab-analytics-label">Unique Cards</span>
+                        <span class="lab-analytics-value">${data.cardCount || 0}</span>
+                    </div>
+                    <div class="lab-analytics-sections">
+                        ${Object.entries(sections).map(([sec, count]) =>
+                            `<span class="lab-analytics-section-pill">${escapeHtml(sec)}: ${count}</span>`
+                        ).join('')}
+                    </div>
+                </div>`;
+            }
+            html += '</div>';
+            contentEl.innerHTML = html;
+
+        } catch (err) {
+            contentEl.innerHTML = '<div class="lab-empty-hint">Error loading analytics: ' + escapeHtml(err.message) + '</div>';
+        }
+    }
+
+    async function loadTrends() {
+        const contentEl = document.getElementById('lab-trends-content');
+        const canvas = document.getElementById('lab-chart-trends');
+        if (!contentEl) return;
+
+        const filledDecks = selectedDecks.filter(d => d);
+        if (filledDecks.length === 0) {
+            contentEl.innerHTML = '<p class="lab-empty-hint">Select decks to see trends.</p>';
+            if (canvas) canvas.style.display = 'none';
+            return;
+        }
+
+        contentEl.innerHTML = '<div class="lab-loading-hint"><div class="spinner"></div> Loading trends...</div>';
+
+        try {
+            const results = await Promise.all(
+                filledDecks.map(async (deckName) => {
+                    const res = await fetch(`${API_BASE}/api/lab/trends/${encodeURIComponent(deckName)}`);
+                    if (!res.ok) return { deckName, history: [] };
+                    return await res.json();
+                })
+            );
+
+            // Check if any deck has history
+            const anyHistory = results.some(r => (r.history || []).length > 0);
+            if (!anyHistory) {
+                contentEl.innerHTML = '<p class="lab-empty-hint">No batch history found. Run multiple batches to track trends.</p>';
+                if (canvas) canvas.style.display = 'none';
+                return;
+            }
+
+            // Build summary cards
+            let html = '<div class="lab-trends-summary">';
+            for (const data of results) {
+                const history = data.history || [];
+                if (history.length === 0) continue;
+                const latest = history[history.length - 1];
+                const best = Math.max(...history.map(h => h.winRate));
+                const avg = history.reduce((a, h) => a + h.winRate, 0) / history.length;
+
+                html += `<div class="lab-trends-card">
+                    <div class="lab-trends-deck-name">${escapeHtml(data.deckName)}</div>
+                    <div class="lab-trends-stats">
+                        <div class="lab-trends-stat">
+                            <span class="lab-trends-stat-label">Latest</span>
+                            <span class="lab-trends-stat-value">${latest.winRate.toFixed(1)}%</span>
+                        </div>
+                        <div class="lab-trends-stat">
+                            <span class="lab-trends-stat-label">Best</span>
+                            <span class="lab-trends-stat-value">${best.toFixed(1)}%</span>
+                        </div>
+                        <div class="lab-trends-stat">
+                            <span class="lab-trends-stat-label">Average</span>
+                            <span class="lab-trends-stat-value">${avg.toFixed(1)}%</span>
+                        </div>
+                        <div class="lab-trends-stat">
+                            <span class="lab-trends-stat-label">Batches</span>
+                            <span class="lab-trends-stat-value">${history.length}</span>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            html += '</div>';
+            contentEl.innerHTML = html;
+
+            // Draw trends chart if canvas available
+            if (canvas && typeof Chart !== 'undefined') {
+                canvas.style.display = 'block';
+                drawTrendsChart(results, canvas);
+            }
+
+        } catch (err) {
+            contentEl.innerHTML = '<div class="lab-empty-hint">Error loading trends: ' + escapeHtml(err.message) + '</div>';
+        }
+    }
+
+    function drawTrendsChart(results, canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const colors = ['#58a6ff', '#f85149', '#3fb950', '#a78bfa', '#fbbf24'];
+        const padding = { top: 30, right: 20, bottom: 40, left: 50 };
+        const w = canvas.width - padding.left - padding.right;
+        const h = canvas.height - padding.top - padding.bottom;
+
+        // Find max data points
+        let maxPoints = 0;
+        for (const r of results) {
+            maxPoints = Math.max(maxPoints, (r.history || []).length);
+        }
+        if (maxPoints < 2) return;
+
+        // Draw axes
+        ctx.strokeStyle = '#2a2d3a';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, padding.top);
+        ctx.lineTo(padding.left, canvas.height - padding.bottom);
+        ctx.lineTo(canvas.width - padding.right, canvas.height - padding.bottom);
+        ctx.stroke();
+
+        // Y-axis labels (0-100%)
+        ctx.fillStyle = '#8b90a0';
+        ctx.font = '11px Inter, sans-serif';
+        ctx.textAlign = 'right';
+        for (let pct = 0; pct <= 100; pct += 25) {
+            const y = canvas.height - padding.bottom - (pct / 100) * h;
+            ctx.fillText(pct + '%', padding.left - 8, y + 4);
+            // Grid line
+            ctx.strokeStyle = '#1e2130';
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(canvas.width - padding.right, y);
+            ctx.stroke();
+        }
+
+        // Draw lines for each deck
+        results.forEach((data, di) => {
+            const history = data.history || [];
+            if (history.length < 2) return;
+
+            ctx.strokeStyle = colors[di % colors.length];
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            history.forEach((point, i) => {
+                const x = padding.left + (i / (maxPoints - 1)) * w;
+                const y = canvas.height - padding.bottom - (point.winRate / 100) * h;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Draw points
+            ctx.fillStyle = colors[di % colors.length];
+            history.forEach((point, i) => {
+                const x = padding.left + (i / (maxPoints - 1)) * w;
+                const y = canvas.height - padding.bottom - (point.winRate / 100) * h;
+                ctx.beginPath();
+                ctx.arc(x, y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Label
+            const lastPt = history[history.length - 1];
+            const lx = padding.left + ((history.length - 1) / (maxPoints - 1)) * w;
+            const ly = canvas.height - padding.bottom - (lastPt.winRate / 100) * h;
+            ctx.fillStyle = colors[di % colors.length];
+            ctx.textAlign = 'left';
+            ctx.font = '11px Inter, sans-serif';
+            ctx.fillText(data.deckName, lx + 6, ly + 4);
+        });
+    }
+
+    // ── Precon Refresh ──────────────────────────────────────
+
+    async function refreshPrecons() {
+        const statusEl = document.getElementById('lab-precon-status');
+
+        if (!backendAvailable) {
+            showImportStatus(statusEl, 'Precon refresh requires a running backend.', 'error');
+            return;
+        }
+
+        showImportStatus(statusEl, 'Refreshing precon database from GitHub...', 'loading');
+
+        try {
+            const res = await fetch(`${API_BASE}/api/lab/precons/refresh`, {
+                method: 'POST',
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.detail || 'Refresh failed');
+            }
+
+            showImportStatus(statusEl,
+                data.message || ('Downloaded ' + data.total + ' precon decks'),
+                'success'
+            );
+
+            // Reload precon list
+            await loadPrecons();
+            renderPreconGrid(preconDecks);
+
+        } catch (err) {
+            showImportStatus(statusEl, 'Error: ' + err.message, 'error');
+        }
+    }
+
+        function switchTab(tabId) {
         document.querySelectorAll('.lab-tab').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tab === tabId);
         });
         document.querySelectorAll('.lab-tab-panel').forEach(panel => {
             panel.classList.toggle('active', panel.id === tabId);
         });
+
+        // Load data for analytics/trends tabs on demand
+        if (tabId === 'tab-analytics') loadAnalytics();
+        if (tabId === 'tab-trends') loadTrends();
     }
 
     // ── Charts & Visualizations ────────────────────────────
@@ -2234,6 +2515,10 @@ const AiLab = (() => {
         installAllPrecons,
         // v4 — enhanced results
         switchTab,
+        // v5 — analytics, trends, precon refresh
+        loadAnalytics,
+        loadTrends,
+        refreshPrecons,
     };
 
 })();

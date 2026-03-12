@@ -410,6 +410,7 @@ const DeckBuilder = {
         qs('#deck-empty-new-btn').addEventListener('click', () => this._openNewDeckModal());
 
         qs('#deck-export-btn').addEventListener('click', () => this._exportDck());
+        qs('#deck-export-sim-btn').addEventListener('click', () => this._exportDckToSim());
         qs('#deck-sim-btn').addEventListener('click', () => this._exportToSim());
         qs('#deck-import-btn').addEventListener('click', () => this._openImportModal());
         qs('#deck-delete-btn').addEventListener('click', () => this._deleteDeck());
@@ -2054,6 +2055,45 @@ const DeckBuilder = {
     },
 
     /* ── AI Panels (Perplexity) ──────────────────────────── */
+
+
+    /* ── Export Deck to Forge Sim Folder ────────────────── */
+
+    async _exportDckToSim() {
+        if (!this.deckId) {
+            ToastManager.show('Load a deck first.', 'warning');
+            return;
+        }
+        const btn = qs('#deck-export-sim-btn');
+        btn.disabled = true;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<div class="deck-loading-spinner"></div> Exporting...';
+
+        try {
+            const res = await fetch('/api/decks/' + this.deckId + '/export-to-sim', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
+            const ct = res.headers.get('content-type') || '';
+            if (!ct.includes('application/json')) {
+                const txt = await res.text();
+                throw new Error('Server returned non-JSON (HTTP ' + res.status + '): ' + txt.substring(0, 120));
+            }
+            const data = await res.json();
+            if (!data.success) throw new Error(data.detail || 'Export failed');
+
+            ToastManager.show(
+                'Exported "' + data.deckName + '" (' + data.totalCards + ' cards) to Forge sim folder',
+                'success',
+                5000
+            );
+        } catch (err) {
+            ToastManager.show('Export failed: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    },
 
     async _checkPplxStatus() {
         try {
