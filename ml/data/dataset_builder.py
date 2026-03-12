@@ -61,8 +61,12 @@ def build_dataset(
     if not card_index.load():
         logger.error("Cannot build dataset without card embeddings.")
         logger.error("Start the lab server first to auto-download embeddings,")
-        logger.error("or manually download mtg_embeddings.npz to embeddings/")
-        return {}
+        logger.error("or manually download mtg_embeddings.npz to embeddings/ or data/")
+        raise RuntimeError(
+            "Card embeddings not found. The coach must download them first — "
+            "open the Coach tab and ensure embeddings are loaded, or place "
+            "mtg-embeddings.npz in the data/ folder."
+        )
 
     encoder = StateEncoder(card_index)
 
@@ -72,7 +76,10 @@ def build_dataset(
     if not jsonl_files:
         logger.error("No ML decision files found in %s", results_dir)
         logger.error("Run batch simulations with --ml-log or enable ML logging in the UI first.")
-        return {}
+        raise RuntimeError(
+            f"No ml-decisions-*.jsonl files found in {results_dir}. "
+            "Run batch simulations with ML logging enabled first."
+        )
 
     logger.info("Found %d ML decision files", len(jsonl_files))
 

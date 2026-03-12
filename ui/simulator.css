@@ -306,3 +306,100 @@
         width: 100%;
     }
 }
+
+/* ── DeepSeek Panel ──────────────────────────────────────── */
+.deepseek-panel {
+    margin-top: var(--sp-4);
+    padding: var(--sp-4);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+}
+
+.deepseek-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--sp-3);
+}
+
+.deepseek-title {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.deepseek-icon {
+    font-size: 18px;
+}
+
+.ds-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.03em;
+}
+
+.ds-badge-off {
+    background: rgba(248, 81, 73, 0.15);
+    color: #f85149;
+}
+
+.ds-badge-on {
+    background: rgba(63, 185, 80, 0.15);
+    color: #3fb950;
+}
+
+.ds-badge-pending {
+    background: rgba(210, 153, 34, 0.15);
+    color: #d29922;
+}
+
+.deepseek-config-row {
+    display: flex;
+    gap: var(--sp-3);
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.deepseek-stats-row {
+    display: flex;
+    gap: var(--sp-4);
+    margin-top: var(--sp-3);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+
+.ds-stat {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+}
+
+.btn-sm {
+    font-size: 12px;
+    padding: 4px 12px;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+}
+
+.btn-outline:hover {
+    background: var(--accent);
+    color: var(--bg);
+}
+
+.ds-opponent-card {
+    border-left: 3px solid var(--accent);
+}

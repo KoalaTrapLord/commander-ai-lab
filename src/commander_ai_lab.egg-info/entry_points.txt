@@ -1,2 +1,0 @@
-[console_scripts]
-commander-sim = commander_ai_lab.lab.experiments:_cli_main

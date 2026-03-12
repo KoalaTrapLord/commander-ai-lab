@@ -57,6 +57,7 @@ class Config:
     results_dir: str = "results"
     port: int = 8080
     ximilar_api_key: str = ""
+    pplx_api_key: str = ""  # Perplexity API key for deck research/generation
 
 CFG = Config()
 
@@ -231,6 +232,26 @@ class GeneratedDeckCard(BaseModel):
     image_url: str = ""
     owned_qty: int = 0
     is_proxy: bool = False
+
+
+# ── V3 Deck Generation (Perplexity Structured Output) ────────
+class DeckGenV3Request(BaseModel):
+    commander_name: str = ""
+    strategy: str = ""                          # e.g. "zombie tokens", "voltron"
+    target_bracket: int = 3                     # 1-4 per Commander Rules Committee
+    budget_usd: Optional[float] = None          # None = no budget
+    budget_mode: str = "total"                  # "total" or "per_card"
+    omit_cards: list[str] = []                  # Cards to exclude
+    use_collection: bool = True                 # Cross-ref with collection DB
+    run_substitution: bool = True               # Enable Smart Substitution Engine
+    model: Optional[str] = None                 # Override: sonar, sonar-pro
+    deck_name: Optional[str] = ""               # Custom deck name for commit
+
+
+class DeckGenV3SubstituteRequest(BaseModel):
+    """Request to manually pick a substitute for a card."""
+    card_name: str
+    substitute_name: str
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1316,6 +1337,406 @@ def _run_process_blocking(state: BatchState, cmd: list[str]):
                 dbg.write(f"EXCEPTION: {e}\n")
         except Exception:
             pass
+
+
+# ══════════════════════════════════════════════════════════════
+# DeepSeek Batch Sim (Python engine + LLM opponent)
+# ══════════════════════════════════════════════════════════════
+
+def _load_deck_cards_by_name(deck_name: str) -> list[dict]:
+    """Load card data for a deck by name. Checks DB first, then .dck files.
+    Each card dict includes 'is_commander' flag (0 or 1) when available."""
+    # 1. Try deck builder DB
+    try:
+        conn = _get_db_conn()
+        row = conn.execute(
+            "SELECT id, commander_name FROM decks WHERE name = ? COLLATE NOCASE", (deck_name,)
+        ).fetchone()
+        if row:
+            deck_id = row["id"]
+            db_commander_name = row["commander_name"] or ""
+            cards = conn.execute("""
+                SELECT dc.card_name, dc.quantity, dc.is_commander,
+                       ce.type_line, ce.cmc, ce.power, ce.toughness,
+                       ce.oracle_text, ce.keywords, ce.mana_cost,
+                       ce.color_identity
+                FROM deck_cards dc
+                LEFT JOIN collection_entries ce ON ce.scryfall_id = dc.scryfall_id
+                WHERE dc.deck_id = ?
+            """, (deck_id,)).fetchall()
+            result = []
+            for r in cards:
+                is_cmdr = r["is_commander"] or 0
+                # Also detect by deck-level commander_name match
+                if not is_cmdr and db_commander_name and r["card_name"].lower() == db_commander_name.lower():
+                    is_cmdr = 1
+                for _ in range(r["quantity"] or 1):
+                    result.append({
+                        'name': r["card_name"],
+                        'type_line': r["type_line"] or '',
+                        'cmc': r["cmc"] or 0,
+                        'power': r["power"] or '',
+                        'toughness': r["toughness"] or '',
+                        'oracle_text': r["oracle_text"] or '',
+                        'keywords': r["keywords"] or '',
+                        'mana_cost': r["mana_cost"] or '',
+                        'is_commander': is_cmdr,
+                        'color_identity': r["color_identity"] or '',
+                    })
+            if result:
+                return result
+    except Exception as e:
+        print(f"[DeepSeek Batch] DB lookup failed for '{deck_name}': {e}")
+
+    # 2. Try .dck file
+    if CFG.forge_decks_dir and os.path.isdir(CFG.forge_decks_dir):
+        dck_path = Path(CFG.forge_decks_dir) / f"{deck_name}.dck"
+        if dck_path.exists():
+            cards = []
+            in_cards = False  # True when inside [Main], [Deck], or [Commander]
+            with open(dck_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    low = line.lower()
+                    if low in ('[main]', '[deck]', '[commander]'):
+                        in_cards = True
+                        continue
+                    if line.startswith('['):
+                        in_cards = False
+                        continue
+                    if in_cards and line:
+                        parts = line.split(' ', 1)
+                        if len(parts) == 2:
+                            try:
+                                qty = int(parts[0])
+                                name = parts[1].strip()
+                                for _ in range(qty):
+                                    cards.append({'name': name, 'type_line': '', 'cmc': 0})
+                            except ValueError:
+                                pass
+            if cards:
+                return cards
+
+    return []
+
+
+def _run_deepseek_batch_thread(
+    state: BatchState,
+    deck_names: list[str],
+    num_games: int,
+    output_path: str,
+):
+    """Run batch simulation using Python sim engine + DeepSeek AI opponent."""
+    try:
+        import sys as _s, os as _o, time as _t
+        src_dir = _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), 'src')
+        if src_dir not in _s.path:
+            _s.path.insert(0, src_dir)
+
+        from commander_ai_lab.sim.models import Card
+        from commander_ai_lab.sim.deepseek_engine import DeepSeekGameEngine
+        from commander_ai_lab.sim.rules import enrich_card
+
+        state.log_lines.append('[DeepSeek Batch] Initializing DeepSeek brain...')
+        brain = _get_deepseek_brain()
+        if brain and not brain._connected:
+            brain.check_connection()
+        if not brain or not brain._connected:
+            state.error = 'DeepSeek LLM not connected. Go to Simulator > DeepSeek and connect first.'
+            state.running = False
+            return
+
+        state.log_lines.append(f'[DeepSeek Batch] Connected to {brain.config.model}')
+
+        # Load all decks
+        # ── Look up historical win rates from past batch results ──
+        deck_win_rates = {}  # deck_name -> float (0-100)
+        try:
+            results_dir = CFG.results_dir
+            if _o.path.isdir(results_dir):
+                for fname in sorted(_o.listdir(results_dir), reverse=True):
+                    if fname.startswith('batch-') and fname.endswith('.json'):
+                        try:
+                            with open(_o.path.join(results_dir, fname), 'r') as rf:
+                                past = json.loads(rf.read())
+                            for dd in past.get('decks', []):
+                                dname = dd.get('deckName', '')
+                                wr = dd.get('winRate')
+                                if dname and wr is not None and dname not in deck_win_rates:
+                                    deck_win_rates[dname] = float(wr)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        loaded_decks = {}
+        deck_meta = {}  # deck_name -> {commander_name, color_identity, archetype}
+        for dn in deck_names:
+            raw_cards = _load_deck_cards_by_name(dn)
+            if not raw_cards:
+                state.log_lines.append(f'[DeepSeek Batch] WARNING: Could not load deck "{dn}", skipping.')
+                continue
+
+            # Detect commander and color identity from card data
+            commander_name = ''
+            color_identity_set = set()
+            deck_objs = []
+            for cd in raw_cards:
+                c = Card(name=cd['name'])
+                if cd.get('type_line'): c.type_line = cd['type_line']
+                if cd.get('cmc'): c.cmc = float(cd['cmc'])
+                if cd.get('power') and cd.get('toughness'):
+                    c.power = str(cd['power'])
+                    c.toughness = str(cd['toughness'])
+                    c.pt = c.power + '/' + c.toughness
+                if cd.get('oracle_text'): c.oracle_text = cd['oracle_text']
+                if cd.get('mana_cost'): c.mana_cost = cd['mana_cost']
+                if cd.get('keywords'):
+                    kw = cd['keywords']
+                    if isinstance(kw, str):
+                        try: kw = json.loads(kw)
+                        except Exception: kw = []
+                    if isinstance(kw, list): c.keywords = kw
+                # Set is_commander flag from DB data
+                if cd.get('is_commander'):
+                    c.is_commander = True
+                    commander_name = cd['name']
+                # Collect color identity
+                ci_str = cd.get('color_identity', '')
+                if ci_str:
+                    try:
+                        ci_parsed = json.loads(ci_str) if isinstance(ci_str, str) else ci_str
+                        if isinstance(ci_parsed, list):
+                            for color in ci_parsed:
+                                color_identity_set.add(color)
+                    except Exception:
+                        pass
+                enrich_card(c)
+                deck_objs.append(c)
+
+            # Infer archetype from deck composition
+            creature_count = sum(1 for c in deck_objs if c.is_creature())
+            removal_count = sum(1 for c in deck_objs if c.is_removal)
+            ramp_count = sum(1 for c in deck_objs if c.is_ramp)
+            avg_cmc = sum(c.cmc or 0 for c in deck_objs if not c.is_land()) / max(sum(1 for c in deck_objs if not c.is_land()), 1)
+            oracle_all = ' '.join((c.oracle_text or '').lower() for c in deck_objs)
+            has_combo_text = any(kw in oracle_all for kw in ['you win the game', 'infinite', 'extra turn'])
+
+            if has_combo_text:
+                archetype = 'combo'
+            elif creature_count >= 30 and avg_cmc <= 2.8:
+                archetype = 'aggro'
+            elif removal_count >= 10 or (creature_count <= 18 and avg_cmc >= 3.2):
+                archetype = 'control'
+            else:
+                archetype = 'midrange'
+
+            color_identity_list = sorted(list(color_identity_set))
+            deck_meta[dn] = {
+                'commander_name': commander_name,
+                'color_identity': color_identity_list,
+                'archetype': archetype,
+                'win_rate': deck_win_rates.get(dn),
+            }
+
+            loaded_decks[dn] = deck_objs
+            cmdr_info = f' (Commander: {commander_name})' if commander_name else ''
+            wr_info = f' [History: {deck_win_rates[dn]:.0f}% WR]' if dn in deck_win_rates else ''
+            state.log_lines.append(f'[DeepSeek Batch] Loaded deck "{dn}" ({len(deck_objs)} cards, {archetype}){cmdr_info}{wr_info}')
+
+        if not loaded_decks:
+            state.error = 'No decks could be loaded.'
+            state.running = False
+            return
+
+        # Build matchup schedule: each deck plays num_games vs DeepSeek AI
+        deck_list = list(loaded_decks.keys())
+        games_per_deck = max(1, num_games // len(deck_list))
+        total_games = games_per_deck * len(deck_list)
+        state.total_games = total_games
+
+        state.log_lines.append(f'[DeepSeek Batch] Running {games_per_deck} games per deck × {len(deck_list)} decks = {total_games} total')
+
+        engine = DeepSeekGameEngine(
+            brain=brain,
+            ai_player_index=0,  # AI pilots deck_a (user's deck) with full intelligence
+            max_turns=25,
+            record_log=True,
+            ml_log=True,
+        )
+
+        start_time = _t.time()
+        all_deck_results = []
+        completed = 0
+
+        for deck_name in deck_list:
+            deck_a = loaded_decks[deck_name]
+            # Generate a training opponent for each game
+            from commander_ai_lab.lab.experiments import _generate_training_deck
+
+            deck_stats = {
+                'deckName': deck_name,
+                'wins': 0, 'losses': 0, 'totalGames': games_per_deck,
+                'totalTurns': 0, 'totalDamageDealt': 0, 'totalDamageReceived': 0,
+                'totalSpellsCast': 0, 'totalCreaturesPlayed': 0,
+                'games': [],
+            }
+
+            meta = deck_meta.get(deck_name, {})
+            dk_archetype = meta.get('archetype', 'midrange')
+            dk_commander = meta.get('commander_name', '')
+            dk_colors = meta.get('color_identity', [])
+            dk_win_rate = meta.get('win_rate')
+
+            for g in range(games_per_deck):
+                try:
+                    deck_b = _generate_training_deck()
+                    game_id = f'ds-{state.batch_id}-{deck_name[:12]}-g{g+1}'
+                    result = engine.run(
+                        deck_a, deck_b,
+                        name_a=deck_name + ' (AI)',
+                        name_b='Training Opponent',
+                        game_id=game_id, archetype=dk_archetype,
+                        commander_name=dk_commander,
+                        color_identity=dk_colors,
+                        win_rate=dk_win_rate,
+                    )
+                    gd = result.to_dict()
+                    gd['gameNumber'] = g + 1
+                    deck_stats['games'].append(gd)
+
+                    if result.winner == 0:
+                        deck_stats['wins'] += 1
+                    else:
+                        deck_stats['losses'] += 1
+                    deck_stats['totalTurns'] += result.turns
+                    if result.player_a_stats:
+                        deck_stats['totalDamageDealt'] += result.player_a_stats.damage_dealt
+                        deck_stats['totalDamageReceived'] += result.player_a_stats.damage_received
+                        deck_stats['totalSpellsCast'] += result.player_a_stats.spells_cast
+                        deck_stats['totalCreaturesPlayed'] += result.player_a_stats.creatures_played
+
+                    state.log_lines.append(
+                        f'[Game {completed + 1}/{total_games}] {deck_name} (AI-piloted) → '
+                        f'{"WIN" if result.winner == 0 else "LOSS"} (turn {result.turns})'
+                    )
+                except Exception as ge:
+                    state.log_lines.append(f'[Game {completed + 1}/{total_games}] ERROR: {ge}')
+                    deck_stats['games'].append({'error': str(ge), 'gameNumber': g + 1})
+
+                completed += 1
+                state.completed_games = completed
+
+            n = deck_stats['totalGames']
+            deck_stats['winRate'] = round(deck_stats['wins'] / n * 100, 1) if n > 0 else 0.0
+            deck_stats['avgTurns'] = round(deck_stats['totalTurns'] / n, 1) if n > 0 else 0.0
+            deck_stats['avgDamageDealt'] = round(deck_stats['totalDamageDealt'] / n, 1) if n > 0 else 0.0
+            deck_stats['avgDamageReceived'] = round(deck_stats['totalDamageReceived'] / n, 1) if n > 0 else 0.0
+            deck_stats['avgSpellsCast'] = round(deck_stats['totalSpellsCast'] / n, 1) if n > 0 else 0.0
+            deck_stats['avgCreaturesPlayed'] = round(deck_stats['totalCreaturesPlayed'] / n, 1) if n > 0 else 0.0
+            # Include deck intelligence metadata
+            deck_stats['archetype'] = dk_archetype
+            deck_stats['commander'] = dk_commander
+            deck_stats['colorIdentity'] = dk_colors
+            if dk_win_rate is not None:
+                deck_stats['priorWinRate'] = dk_win_rate
+            all_deck_results.append(deck_stats)
+
+        elapsed = _t.time() - start_time
+        ds_stats = brain.get_stats() if brain else {}
+
+        # Build result in compatible format
+        batch_result = {
+            'metadata': {
+                'batchId': state.batch_id,
+                'timestamp': datetime.now().isoformat(),
+                'completedGames': completed,
+                'threads': 1,
+                'elapsedMs': int(elapsed * 1000),
+                'engine': 'deepseek',
+                'model': brain.config.model if brain else 'unknown',
+            },
+            'decks': all_deck_results,
+            'deepseekStats': ds_stats,
+        }
+
+        # Write ML decision JSONL for the training pipeline
+        ml_decisions = engine.flush_ml_decisions()
+        if ml_decisions:
+            ml_jsonl_path = os.path.join(CFG.results_dir, f'ml-decisions-ds-{state.batch_id}.jsonl')
+            os.makedirs(os.path.dirname(ml_jsonl_path) or '.', exist_ok=True)
+            with open(ml_jsonl_path, 'w', encoding='utf-8') as mf:
+                for dec in ml_decisions:
+                    mf.write(json.dumps(dec) + '\n')
+            state.log_lines.append(f'[ML Data] Wrote {len(ml_decisions)} decision snapshots to {os.path.basename(ml_jsonl_path)}')
+        else:
+            state.log_lines.append('[ML Data] No decision snapshots captured (0 decisions)')
+
+        # Save to results dir
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(batch_result, f, indent=2, default=str)
+
+        state.result_path = output_path
+        elapsed_ms = int(elapsed * 1000)
+        state.elapsed_ms = elapsed_ms
+        state.running = False
+        state.completed_games = total_games
+
+        state.log_lines.append(f'[DeepSeek Batch] Complete: {completed} games in {elapsed:.1f}s')
+        for ds in all_deck_results:
+            state.log_lines.append(f'  {ds["deckName"]}: {ds["wins"]}W-{ds["losses"]}L ({ds["winRate"]}% WR)')
+
+        print(f'[DeepSeek Batch] Batch {state.batch_id} complete: {completed} games in {elapsed:.1f}s')
+
+    except Exception as e:
+        import traceback
+        state.error = str(e)
+        state.running = False
+        state.log_lines.append(f'[DeepSeek Batch] FATAL: {e}')
+        traceback.print_exc()
+
+
+@app.post('/api/lab/start-deepseek')
+async def start_batch_deepseek(request: FastAPIRequest, background_tasks: BackgroundTasks):
+    """Start a batch simulation using the Python sim engine + DeepSeek LLM opponent."""
+    body = await request.json()
+    decks = body.get('decks', [])
+    num_games = body.get('numGames', 30)
+    # Note: threads not applicable for Python sim (single-threaded LLM calls)
+
+    if not decks or len(decks) < 1:
+        raise HTTPException(400, 'At least 1 deck required')
+    if num_games < 1 or num_games > 500:
+        raise HTTPException(400, 'numGames must be 1-500')
+
+    # Filter empty deck slots
+    decks = [d for d in decks if d]
+    if not decks:
+        raise HTTPException(400, 'No valid decks provided')
+
+    batch_id = str(uuid.uuid4())[:12]
+    state = BatchState(batch_id, num_games, 1)
+    active_batches[batch_id] = state
+
+    os.makedirs(CFG.results_dir, exist_ok=True)
+    output_path = os.path.join(CFG.results_dir, f'batch-{batch_id}.json')
+    state.result_path = output_path
+
+    # Use threading instead of BackgroundTasks to avoid async issues with DB
+    t = threading.Thread(
+        target=_run_deepseek_batch_thread,
+        args=(state, decks, num_games, output_path),
+        daemon=True,
+    )
+    t.start()
+
+    return JSONResponse({
+        'batchId': batch_id,
+        'status': 'started',
+        'message': f'Running {num_games} games across {len(decks)} decks with DeepSeek AI',
+        'engine': 'deepseek',
+    })
 
 
 # Global ML logging toggle (can be enabled via API)
@@ -2848,6 +3269,17 @@ async def delete_deck(deck_id: int):
     return {"deleted": True, "deck_id": deck_id}
 
 
+@app.delete("/api/decks")
+async def delete_all_decks():
+    """Delete ALL decks and their cards."""
+    conn = _get_db_conn()
+    conn.execute("DELETE FROM deck_cards")
+    count = conn.execute("SELECT COUNT(*) FROM decks").fetchone()[0]
+    conn.execute("DELETE FROM decks")
+    conn.commit()
+    return {"deleted": True, "count": count}
+
+
 # ── 2.2 Deck Card Manipulation ───────────────────────────────
 
 @app.get("/api/decks/{deck_id}/cards")
@@ -2860,7 +3292,7 @@ async def get_deck_cards(deck_id: int):
         SELECT
             dc.id, dc.deck_id, dc.scryfall_id, dc.card_name, dc.quantity,
             dc.is_commander, dc.role_tag,
-            ce.type_line, ce.cmc, ce.color_identity, ce.oracle_text, ce.keywords,
+            ce.type_line, ce.cmc, ce.mana_cost, ce.color_identity, ce.oracle_text, ce.keywords,
             ce.tcg_price, ce.quantity AS owned_qty, ce.is_legendary,
             ce.salt_score, ce.is_game_changer
         FROM deck_cards dc
@@ -3620,7 +4052,22 @@ async def import_decklist(deck_id: int, request: FastAPIRequest):
         added += 1
         results.append({'name': resolved_name, 'qty': qty, 'status': 'added', 'isCommander': is_cmd})
 
-    conn.execute("UPDATE decks SET updated_at = datetime('now') WHERE id = ?", (deck_id,))
+    # Update commander on deck record if we found one
+    cmd_entries = [r for r in results if r.get('isCommander')]
+    if cmd_entries:
+        cmd_name = cmd_entries[0]['name']
+        # Look up scryfall_id from the deck_cards we just inserted
+        cmd_row = conn.execute(
+            'SELECT scryfall_id FROM deck_cards WHERE deck_id = ? AND is_commander = 1 LIMIT 1',
+            (deck_id,)
+        ).fetchone()
+        cmd_sf_id = cmd_row['scryfall_id'] if cmd_row else ''
+        conn.execute(
+            'UPDATE decks SET commander_name = ?, commander_scryfall_id = ?, updated_at = datetime(\'now\') WHERE id = ?',
+            (cmd_name, cmd_sf_id, deck_id)
+        )
+    else:
+        conn.execute("UPDATE decks SET updated_at = datetime('now') WHERE id = ?", (deck_id,))
     conn.commit()
 
     return {
@@ -3703,7 +4150,7 @@ async def import_decklist_new(request: FastAPIRequest):
     # Update commander on deck record
     if first_cmd_scryfall:
         conn.execute(
-            'UPDATE decks SET commander = ?, commander_scryfall_id = ? WHERE id = ?',
+            'UPDATE decks SET commander_name = ?, commander_scryfall_id = ? WHERE id = ?',
             (first_cmd_name, first_cmd_scryfall, new_deck_id)
         )
         conn.commit()
@@ -4239,6 +4686,133 @@ _sim_runs = {}  # sim_id -> { status, result, error }
 _sim_lock = _threading.Lock()
 
 
+def _run_sim_thread_v2(sim_id: str, card_data: list[dict], num_games: int, deck_name: str, record_logs: bool):
+    """Background thread for simulations with full card data from the DB."""
+    try:
+        import sys, os
+        src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+
+        from commander_ai_lab.sim.models import Card
+        from commander_ai_lab.sim.engine import GameEngine
+        from commander_ai_lab.sim.rules import enrich_card
+        from commander_ai_lab.lab.experiments import _generate_training_deck
+
+        with _sim_lock:
+            _sim_runs[sim_id]['status'] = 'running'
+
+        # Build deck with real card data from DB
+        deck_a = []
+        for cd in card_data:
+            c = Card(name=cd['name'])
+            if cd.get('type_line'):
+                c.type_line = cd['type_line']
+            if cd.get('cmc'):
+                c.cmc = float(cd['cmc'])
+            if cd.get('power') and cd.get('toughness'):
+                c.power = str(cd['power'])
+                c.toughness = str(cd['toughness'])
+                c.pt = c.power + '/' + c.toughness
+            if cd.get('oracle_text'):
+                c.oracle_text = cd['oracle_text']
+            if cd.get('mana_cost'):
+                c.mana_cost = cd['mana_cost']
+            if cd.get('keywords'):
+                kw = cd['keywords']
+                if isinstance(kw, str):
+                    try:
+                        import json as _json
+                        kw = _json.loads(kw)
+                    except Exception:
+                        kw = []
+                if isinstance(kw, list):
+                    c.keywords = kw
+            # Enrich fills in flags like is_removal, is_ramp, is_board_wipe
+            enrich_card(c)
+            deck_a.append(c)
+
+        deck_b = _generate_training_deck()
+
+        engine = GameEngine(max_turns=25, record_log=record_logs)
+        import time
+        start = time.time()
+
+        wins = 0
+        losses = 0
+        total_turns = 0
+        total_damage_dealt = 0
+        total_damage_received = 0
+        total_spells_cast = 0
+        total_creatures_played = 0
+        total_removal_used = 0
+        total_ramp_played = 0
+        total_cards_drawn = 0
+        total_max_board = 0
+        game_results = []
+
+        for i in range(num_games):
+            result = engine.run(deck_a, deck_b, name_a=deck_name, name_b="Training Deck")
+
+            game_data = result.to_dict()
+            game_data['gameNumber'] = i + 1
+            game_results.append(game_data)
+
+            if result.winner == 0:
+                wins += 1
+            else:
+                losses += 1
+
+            total_turns += result.turns
+            if result.player_a_stats:
+                total_damage_dealt += result.player_a_stats.damage_dealt
+                total_damage_received += result.player_a_stats.damage_received
+                total_spells_cast += result.player_a_stats.spells_cast
+                total_creatures_played += result.player_a_stats.creatures_played
+                total_removal_used += result.player_a_stats.removal_used
+                total_ramp_played += result.player_a_stats.ramp_played
+                total_cards_drawn += result.player_a_stats.cards_drawn
+                total_max_board += result.player_a_stats.max_board_size
+
+            with _sim_lock:
+                _sim_runs[sim_id]['completed'] = i + 1
+
+        elapsed = time.time() - start
+        n = num_games
+
+        summary = {
+            'deckName': deck_name,
+            'opponentName': 'Training Deck',
+            'totalGames': n,
+            'wins': wins,
+            'losses': losses,
+            'winRate': round(wins / n * 100, 1) if n > 0 else 0.0,
+            'avgTurns': round(total_turns / n, 1) if n > 0 else 0.0,
+            'avgDamageDealt': round(total_damage_dealt / n, 1) if n > 0 else 0.0,
+            'avgDamageReceived': round(total_damage_received / n, 1) if n > 0 else 0.0,
+            'avgSpellsCast': round(total_spells_cast / n, 1) if n > 0 else 0.0,
+            'avgCreaturesPlayed': round(total_creatures_played / n, 1) if n > 0 else 0.0,
+            'avgRemovalUsed': round(total_removal_used / n, 1) if n > 0 else 0.0,
+            'avgRampPlayed': round(total_ramp_played / n, 1) if n > 0 else 0.0,
+            'avgCardsDrawn': round(total_cards_drawn / n, 1) if n > 0 else 0.0,
+            'avgMaxBoardSize': round(total_max_board / n, 1) if n > 0 else 0.0,
+            'elapsedSeconds': round(elapsed, 3),
+        }
+
+        with _sim_lock:
+            _sim_runs[sim_id]['status'] = 'complete'
+            _sim_runs[sim_id]['result'] = {
+                'summary': summary,
+                'games': game_results,
+            }
+    except Exception as e:
+        import traceback
+        with _sim_lock:
+            _sim_runs[sim_id]['status'] = 'error'
+            _sim_runs[sim_id]['error'] = str(e)
+        traceback.print_exc()
+
+
 def _run_sim_thread(sim_id: str, decklist: list, num_games: int, deck_name: str, record_logs: bool):
     """Background thread for running Monte Carlo simulations."""
     try:
@@ -4418,11 +4992,29 @@ async def sim_run_from_deck(request: FastAPIRequest):
         return JSONResponse({'error': 'deck not found'}, status_code=404)
     deck_name = row[0]
 
-    cur.execute('SELECT card_name, quantity FROM deck_cards WHERE deck_id = ?', (deck_id,))
-    cards = []
+    # Pull full card data from collection join so the sim engine has real types/stats
+    cur.execute("""
+        SELECT dc.card_name, dc.quantity,
+               ce.type_line, ce.cmc, ce.power, ce.toughness,
+               ce.oracle_text, ce.keywords, ce.mana_cost
+        FROM deck_cards dc
+        LEFT JOIN collection_entries ce ON ce.scryfall_id = dc.scryfall_id
+        WHERE dc.deck_id = ?
+    """, (deck_id,))
+    card_data = []
     for r in cur.fetchall():
-        cards.extend([r[0]] * (r[1] or 1))
-    if not cards:
+        for _ in range(r[1] or 1):
+            card_data.append({
+                'name': r[0],
+                'type_line': r[2] or '',
+                'cmc': r[3] or 0,
+                'power': r[4] or '',
+                'toughness': r[5] or '',
+                'oracle_text': r[6] or '',
+                'keywords': r[7] or '',
+                'mana_cost': r[8] or '',
+            })
+    if not card_data:
         return JSONResponse({'error': 'deck has no cards'}, status_code=400)
 
     sim_id = str(_uuid.uuid4())[:8]
@@ -4436,10 +5028,383 @@ async def sim_run_from_deck(request: FastAPIRequest):
             'error': None,
         }
 
-    t = _threading.Thread(target=_run_sim_thread, args=(sim_id, cards, num_games, deck_name, record_logs), daemon=True)
+    t = _threading.Thread(target=_run_sim_thread_v2, args=(sim_id, card_data, num_games, deck_name, record_logs), daemon=True)
     t.start()
 
     return JSONResponse({'simId': sim_id, 'status': 'queued', 'total': num_games, 'deckName': deck_name})
+
+
+# ══════════════════════════════════════════════════════════════
+# DeepSeek AI Opponent Brain
+# ══════════════════════════════════════════════════════════════
+
+# Global DeepSeek brain instance (lazy-initialized)
+_deepseek_brain = None
+_deepseek_lock = _threading.Lock()
+
+def _get_deepseek_brain():
+    """Get or create the global DeepSeek brain instance."""
+    global _deepseek_brain
+    if _deepseek_brain is None:
+        with _deepseek_lock:
+            if _deepseek_brain is None:
+                try:
+                    import sys as _sys2, os as _os2
+                    src_dir = _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)), 'src')
+                    if src_dir not in _sys2.path:
+                        _sys2.path.insert(0, src_dir)
+                    from commander_ai_lab.sim.deepseek_brain import DeepSeekBrain, DeepSeekConfig
+                    cfg = DeepSeekConfig()
+                    # Allow env var overrides
+                    if _os2.environ.get('DEEPSEEK_API_BASE'):
+                        cfg.api_base = _os2.environ['DEEPSEEK_API_BASE']
+                    if _os2.environ.get('DEEPSEEK_MODEL'):
+                        cfg.model = _os2.environ['DEEPSEEK_MODEL']
+                    cfg.log_dir = _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)), 'logs', 'decisions')
+                    _deepseek_brain = DeepSeekBrain(cfg)
+                except Exception as e:
+                    print(f'[DeepSeek] Failed to initialize brain: {e}')
+                    return None
+    return _deepseek_brain
+
+
+@app.post('/api/deepseek/connect')
+async def deepseek_connect(request: FastAPIRequest):
+    """Test connection to the DeepSeek LLM endpoint and auto-detect model."""
+    body = await request.json() if await request.body() else {}
+    api_base = body.get('apiBase', None)
+    model = body.get('model', None)
+
+    brain = _get_deepseek_brain()
+    if brain is None:
+        return JSONResponse({'error': 'DeepSeek brain failed to initialize'}, status_code=500)
+
+    # Allow runtime reconfiguration
+    if api_base:
+        brain.config.api_base = api_base
+    if model:
+        brain.config.model = model
+
+    connected = brain.check_connection()
+    return JSONResponse({
+        'connected': connected,
+        'apiBase': brain.config.api_base,
+        'model': brain.config.model,
+        'stats': brain.get_stats(),
+    })
+
+
+@app.get('/api/deepseek/status')
+async def deepseek_status():
+    """Get DeepSeek brain status and performance stats."""
+    brain = _get_deepseek_brain()
+    if brain is None:
+        return JSONResponse({'connected': False, 'error': 'Brain not initialized'})
+    return JSONResponse(brain.get_stats())
+
+
+@app.post('/api/deepseek/configure')
+async def deepseek_configure(request: FastAPIRequest):
+    """Update DeepSeek configuration at runtime."""
+    body = await request.json()
+    brain = _get_deepseek_brain()
+    if brain is None:
+        return JSONResponse({'error': 'Brain not initialized'}, status_code=500)
+
+    if 'apiBase' in body:
+        brain.config.api_base = body['apiBase']
+    if 'model' in body:
+        brain.config.model = body['model']
+    if 'temperature' in body:
+        brain.config.temperature = float(body['temperature'])
+    if 'maxTokens' in body:
+        brain.config.max_tokens = int(body['maxTokens'])
+    if 'timeout' in body:
+        brain.config.request_timeout = float(body['timeout'])
+    if 'cacheEnabled' in body:
+        brain.config.cache_enabled = bool(body['cacheEnabled'])
+    if 'logDecisions' in body:
+        brain.config.log_decisions = bool(body['logDecisions'])
+    if 'fallbackOnTimeout' in body:
+        brain.config.fallback_on_timeout = bool(body['fallbackOnTimeout'])
+
+    # Re-test connection with new settings
+    connected = brain.check_connection()
+
+    return JSONResponse({
+        'connected': connected,
+        'config': {
+            'apiBase': brain.config.api_base,
+            'model': brain.config.model,
+            'temperature': brain.config.temperature,
+            'maxTokens': brain.config.max_tokens,
+            'timeout': brain.config.request_timeout,
+            'cacheEnabled': brain.config.cache_enabled,
+            'logDecisions': brain.config.log_decisions,
+            'fallbackOnTimeout': brain.config.fallback_on_timeout,
+        },
+    })
+
+
+@app.get('/api/deepseek/logs')
+async def deepseek_logs():
+    """Get decision log stats and flush pending entries."""
+    brain = _get_deepseek_brain()
+    if brain is None:
+        return JSONResponse({'error': 'Brain not initialized'}, status_code=500)
+
+    pending = len(brain._decision_log)
+    flushed_path = None
+    if pending > 0:
+        try:
+            flushed_path = brain.flush_log()
+        except Exception as e:
+            return JSONResponse({'error': f'Failed to flush: {e}'}, status_code=500)
+
+    # List existing log files
+    import glob as _glob
+    log_dir = brain.config.log_dir
+    log_files = []
+    if log_dir and os.path.isdir(log_dir):
+        for f in sorted(_glob.glob(os.path.join(log_dir, 'decisions_*.jsonl'))):
+            stat = os.stat(f)
+            log_files.append({
+                'filename': os.path.basename(f),
+                'size_bytes': stat.st_size,
+                'modified': stat.st_mtime,
+            })
+
+    return JSONResponse({
+        'flushed': pending,
+        'flushedPath': flushed_path,
+        'logFiles': log_files[-20:],  # last 20
+    })
+
+
+def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict], num_games: int, deck_name: str, record_logs: bool):
+    """Background thread for simulations using DeepSeek AI opponent."""
+    try:
+        import sys, os
+        src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+
+        from commander_ai_lab.sim.models import Card
+        from commander_ai_lab.sim.deepseek_engine import DeepSeekGameEngine
+        from commander_ai_lab.sim.rules import enrich_card
+        from commander_ai_lab.lab.experiments import _generate_training_deck
+
+        with _sim_lock:
+            _sim_runs[sim_id]['status'] = 'running'
+
+        # Build player's deck with real card data
+        deck_a = []
+        for cd in card_data:
+            c = Card(name=cd['name'])
+            if cd.get('type_line'):
+                c.type_line = cd['type_line']
+            if cd.get('cmc'):
+                c.cmc = float(cd['cmc'])
+            if cd.get('power') and cd.get('toughness'):
+                c.power = str(cd['power'])
+                c.toughness = str(cd['toughness'])
+                c.pt = c.power + '/' + c.toughness
+            if cd.get('oracle_text'):
+                c.oracle_text = cd['oracle_text']
+            if cd.get('mana_cost'):
+                c.mana_cost = cd['mana_cost']
+            if cd.get('keywords'):
+                kw = cd['keywords']
+                if isinstance(kw, str):
+                    try:
+                        import json as _json
+                        kw = _json.loads(kw)
+                    except Exception:
+                        kw = []
+                if isinstance(kw, list):
+                    c.keywords = kw
+            enrich_card(c)
+            deck_a.append(c)
+
+        deck_b = _generate_training_deck()
+
+        # Get DeepSeek brain
+        brain = _get_deepseek_brain()
+        if brain and not brain._connected:
+            brain.check_connection()
+
+        engine = DeepSeekGameEngine(
+            brain=brain,
+            ai_player_index=1,  # Training deck is player B (index 1)
+            max_turns=25,
+            record_log=record_logs,
+        )
+
+        import time
+        start = time.time()
+
+        wins = 0
+        losses = 0
+        total_turns = 0
+        total_damage_dealt = 0
+        total_damage_received = 0
+        total_spells_cast = 0
+        total_creatures_played = 0
+        total_removal_used = 0
+        total_ramp_played = 0
+        total_cards_drawn = 0
+        total_max_board = 0
+        game_results = []
+
+        for i in range(num_games):
+            game_id = f'ds-sim-{sim_id[:8]}-g{i+1}'
+            result = engine.run(deck_a, deck_b, name_a=deck_name, name_b='DeepSeek AI',
+                               game_id=game_id, archetype='midrange')
+
+            game_data = result.to_dict()
+            game_data['gameNumber'] = i + 1
+            game_results.append(game_data)
+
+            if result.winner == 0:
+                wins += 1
+            else:
+                losses += 1
+
+            total_turns += result.turns
+            if result.player_a_stats:
+                total_damage_dealt += result.player_a_stats.damage_dealt
+                total_damage_received += result.player_a_stats.damage_received
+                total_spells_cast += result.player_a_stats.spells_cast
+                total_creatures_played += result.player_a_stats.creatures_played
+                total_removal_used += result.player_a_stats.removal_used
+                total_ramp_played += result.player_a_stats.ramp_played
+                total_cards_drawn += result.player_a_stats.cards_drawn
+                total_max_board += result.player_a_stats.max_board_size
+
+            with _sim_lock:
+                _sim_runs[sim_id]['completed'] = i + 1
+
+        elapsed = time.time() - start
+        n = num_games
+
+        # Write ML decision JSONL for training pipeline
+        ml_decisions = engine.flush_ml_decisions()
+        if ml_decisions:
+            ml_jsonl_path = os.path.join('results', f'ml-decisions-sim-{sim_id[:8]}.jsonl')
+            os.makedirs('results', exist_ok=True)
+            with open(ml_jsonl_path, 'w', encoding='utf-8') as mf:
+                import json as _mljson
+                for dec in ml_decisions:
+                    mf.write(_mljson.dumps(dec) + '\n')
+
+        # Get DeepSeek stats for the summary
+        ds_stats = brain.get_stats() if brain else {}
+
+        summary = {
+            'deckName': deck_name,
+            'opponentName': 'DeepSeek AI',
+            'opponentType': 'deepseek',
+            'totalGames': n,
+            'wins': wins,
+            'losses': losses,
+            'winRate': round(wins / n * 100, 1) if n > 0 else 0.0,
+            'avgTurns': round(total_turns / n, 1) if n > 0 else 0.0,
+            'avgDamageDealt': round(total_damage_dealt / n, 1) if n > 0 else 0.0,
+            'avgDamageReceived': round(total_damage_received / n, 1) if n > 0 else 0.0,
+            'avgSpellsCast': round(total_spells_cast / n, 1) if n > 0 else 0.0,
+            'avgCreaturesPlayed': round(total_creatures_played / n, 1) if n > 0 else 0.0,
+            'avgRemovalUsed': round(total_removal_used / n, 1) if n > 0 else 0.0,
+            'avgRampPlayed': round(total_ramp_played / n, 1) if n > 0 else 0.0,
+            'avgCardsDrawn': round(total_cards_drawn / n, 1) if n > 0 else 0.0,
+            'avgMaxBoardSize': round(total_max_board / n, 1) if n > 0 else 0.0,
+            'elapsedSeconds': round(elapsed, 3),
+            'deepseekStats': ds_stats,
+        }
+
+        with _sim_lock:
+            _sim_runs[sim_id]['status'] = 'complete'
+            _sim_runs[sim_id]['result'] = {
+                'summary': summary,
+                'games': game_results,
+            }
+    except Exception as e:
+        import traceback
+        with _sim_lock:
+            _sim_runs[sim_id]['status'] = 'error'
+            _sim_runs[sim_id]['error'] = str(e)
+        traceback.print_exc()
+
+
+@app.post('/api/sim/run-deepseek')
+async def sim_run_deepseek(request: FastAPIRequest):
+    """Start simulation using DeepSeek AI as the opponent brain."""
+    body = await request.json()
+    deck_id = body.get('deckId')
+    num_games = body.get('numGames', 5)  # Default 5 (LLM is slower)
+    record_logs = body.get('recordLogs', True)
+
+    if not deck_id:
+        return JSONResponse({'error': 'deckId required'}, status_code=400)
+    if num_games < 1 or num_games > 50:
+        return JSONResponse({'error': 'numGames must be 1-50 for DeepSeek mode'}, status_code=400)
+
+    conn = _get_db_conn()
+    cur = conn.cursor()
+    cur.execute('SELECT name FROM decks WHERE id = ?', (deck_id,))
+    row = cur.fetchone()
+    if not row:
+        return JSONResponse({'error': 'deck not found'}, status_code=404)
+    deck_name = row[0]
+
+    cur.execute("""
+        SELECT dc.card_name, dc.quantity,
+               ce.type_line, ce.cmc, ce.power, ce.toughness,
+               ce.oracle_text, ce.keywords, ce.mana_cost
+        FROM deck_cards dc
+        LEFT JOIN collection_entries ce ON ce.scryfall_id = dc.scryfall_id
+        WHERE dc.deck_id = ?
+    """, (deck_id,))
+    card_data = []
+    for r in cur.fetchall():
+        for _ in range(r[1] or 1):
+            card_data.append({
+                'name': r[0],
+                'type_line': r[2] or '',
+                'cmc': r[3] or 0,
+                'power': r[4] or '',
+                'toughness': r[5] or '',
+                'oracle_text': r[6] or '',
+                'keywords': r[7] or '',
+                'mana_cost': r[8] or '',
+            })
+    if not card_data:
+        return JSONResponse({'error': 'deck has no cards'}, status_code=400)
+
+    sim_id = str(_uuid.uuid4())[:8]
+    with _sim_lock:
+        _sim_runs[sim_id] = {
+            'status': 'queued',
+            'completed': 0,
+            'total': num_games,
+            'deckName': deck_name,
+            'result': None,
+            'error': None,
+        }
+
+    t = _threading.Thread(
+        target=_run_sim_thread_deepseek,
+        args=(sim_id, card_data, num_games, deck_name, record_logs),
+        daemon=True,
+    )
+    t.start()
+
+    return JSONResponse({
+        'simId': sim_id,
+        'status': 'queued',
+        'total': num_games,
+        'deckName': deck_name,
+        'opponentType': 'deepseek',
+    })
 
 
 # ══════════════════════════════════════════════════════════════
@@ -5046,6 +6011,883 @@ async def deck_generator_commander_search(q: str = ""):
 
 
 # ══════════════════════════════════════════════════════════════
+# Perplexity API — AI Deck Research & Generation
+# ══════════════════════════════════════════════════════════════
+
+
+class DeckResearchRequest(BaseModel):
+    deck_id: int  # Deck to research
+    goal: Optional[str] = "Identify weaknesses and suggest upgrades"
+    budget_usd: Optional[float] = None
+    omit_cards: Optional[list[str]] = []
+    use_collection: bool = True
+
+
+class DeckGenerateAIRequest(BaseModel):
+    commander: str
+    budget_usd: Optional[float] = None
+    budget_mode: str = "total"  # "total" or "per_card"
+    omit_cards: Optional[list[str]] = []
+    use_collection: bool = True
+
+
+def _build_collection_summary(color_identity: list[str] | None = None) -> dict:
+    """Build a compact collection summary for the AI, optionally filtered by color identity."""
+    conn = _get_db_conn()
+
+    # Base query: all collection entries with oracle text
+    where = "WHERE quantity > 0"
+    params = []
+
+    # Filter by color identity if provided
+    if color_identity:
+        # Cards must only contain colors in the commander's identity (+ colorless)
+        ci_set = set(c.upper() for c in color_identity)
+        # We'll do a post-filter since color_identity is JSON in the DB
+        pass  # filter in Python after fetch
+
+    rows = conn.execute(f"""
+        SELECT name, type_line, cmc, oracle_text, keywords, tcg_price, quantity,
+               color_identity, category, is_game_changer, salt_score
+        FROM collection_entries {where}
+        ORDER BY edhrec_rank ASC, tcg_price DESC
+    """, params).fetchall()
+
+    # Color identity filter
+    def card_fits_identity(card_ci_str, ci_set):
+        if not ci_set:
+            return True
+        try:
+            card_ci = json.loads(card_ci_str) if card_ci_str else []
+            if not isinstance(card_ci, list):
+                return True
+            return all(c.upper() in ci_set for c in card_ci if c.upper() not in ('', 'C'))
+        except Exception:
+            return True
+
+    # Role detection from type_line, oracle_text, and category
+    def detect_role(row):
+        tl = (row['type_line'] or '').lower()
+        oracle = (row['oracle_text'] or '').lower()
+        cat = (row['category'] or '').lower()
+        kw = (row['keywords'] or '').lower()
+
+        # Priority order
+        if 'land' in tl:
+            return 'lands'
+        if any(w in cat for w in ['ramp', 'mana']):
+            return 'ramp'
+        if any(w in oracle for w in ['add {', 'add one mana', 'search your library for a basic land', 'search your library for a land']):
+            return 'ramp'
+        if 'mana' in cat or ('artifact' in tl and ('add' in oracle and '{' in oracle)):
+            return 'ramp'
+        if any(w in cat for w in ['draw', 'card advantage']):
+            return 'card_draw'
+        if 'draw' in oracle and 'card' in oracle:
+            return 'card_draw'
+        if any(w in cat for w in ['removal', 'targeted removal']):
+            return 'removal'
+        if 'destroy target' in oracle or 'exile target' in oracle or 'deals' in oracle:
+            return 'removal'
+        if any(w in cat for w in ['board wipe', 'boardwipe', 'wrath']):
+            return 'board_wipes'
+        if 'destroy all' in oracle or 'exile all' in oracle:
+            return 'board_wipes'
+        if any(w in cat for w in ['win', 'finisher', 'combo']):
+            return 'win_conditions'
+        if 'you win the game' in oracle or 'extra turn' in oracle or 'infinite' in oracle:
+            return 'win_conditions'
+        if 'creature' in tl:
+            return 'creatures'
+        return 'utility'
+
+    # Group cards by role
+    groups: dict[str, list] = {
+        'ramp': [], 'card_draw': [], 'removal': [], 'board_wipes': [],
+        'lands': [], 'win_conditions': [], 'creatures': [], 'utility': []
+    }
+    filtered_count = 0
+
+    for r in rows:
+        if color_identity and not card_fits_identity(r['color_identity'], ci_set):
+            continue
+        filtered_count += 1
+        role = detect_role(r)
+        groups[role].append({
+            'name': r['name'],
+            'count': r['quantity'],
+            'price': round(r['tcg_price'] or 0, 2),
+            'cmc': r['cmc'] or 0,
+        })
+
+    # Limit each group to top 30
+    group_descriptions = {
+        'ramp': 'Mana rocks and land ramp in deck colors',
+        'card_draw': 'Card draw and card advantage engines',
+        'removal': 'Targeted removal spells (destroy, exile, bounce)',
+        'board_wipes': 'Board wipes and mass removal',
+        'lands': 'Non-basic lands that fit the color identity',
+        'win_conditions': 'Win conditions, combo pieces, and finishers',
+        'creatures': 'Creatures (non-commander)',
+        'utility': 'Utility spells, enchantments, artifacts, and planeswalkers',
+    }
+
+    result_groups = []
+    for gid, cards in groups.items():
+        if not cards:
+            continue
+        result_groups.append({
+            'group_id': gid,
+            'description': group_descriptions.get(gid, ''),
+            'cards': cards[:30],
+        })
+
+    return {
+        'total_cards': len(rows),
+        'filtered_cards': filtered_count,
+        'groups': result_groups,
+    }
+
+
+def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperature: float = 0.2) -> str:
+    """Call Perplexity API chat/completions endpoint. Returns the assistant message content."""
+    if not CFG.pplx_api_key:
+        raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var or --pplx-key.')
+
+    payload = {
+        'model': 'sonar',
+        'messages': messages,
+        'max_tokens': max_tokens,
+        'temperature': temperature,
+        'return_related_questions': False,
+    }
+
+    req_data = json.dumps(payload).encode('utf-8')
+    req = Request('https://api.perplexity.ai/chat/completions', data=req_data, method='POST')
+    req.add_header('Content-Type', 'application/json')
+    req.add_header('Authorization', f'Bearer {CFG.pplx_api_key}')
+
+    try:
+        with urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read())
+        choices = data.get('choices', [])
+        if not choices:
+            raise ValueError('Empty response from Perplexity API')
+        content = choices[0].get('message', {}).get('content', '')
+        usage = data.get('usage', {})
+        print(f'[pplx-api] tokens: prompt={usage.get("prompt_tokens","?")}, '
+              f'completion={usage.get("completion_tokens","?")}, '
+              f'model={data.get("model","?")}')
+        return content
+    except URLError as e:
+        raise HTTPException(502, f'Perplexity API call failed: {e}')
+    except json.JSONDecodeError as e:
+        raise HTTPException(502, f'Perplexity API returned invalid JSON: {e}')
+
+
+def _extract_json_from_response(text: str) -> dict:
+    """Extract JSON object from LLM response, handling markdown fences and extra text."""
+    # Strip markdown code fences
+    cleaned = re.sub(r'^```(?:json)?\s*', '', text.strip())
+    cleaned = re.sub(r'\s*```$', '', cleaned.strip())
+
+    # Try direct parse
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Try to find JSON object in the text
+    match = re.search(r'\{[\s\S]*\}', text)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(f'Could not extract JSON from response: {text[:300]}')
+
+
+def _postprocess_deck_cards(cards: list[dict], color_identity: list[str] | None = None) -> list[dict]:
+    """
+    Post-process AI-suggested cards:
+    - Validate names against collection DB
+    - Attach real prices
+    - Set from_collection flag
+    """
+    conn = _get_db_conn()
+    processed = []
+    for card in cards:
+        name = card.get('name', '')
+        if not name:
+            continue
+
+        # Look up in collection
+        row = conn.execute(
+            "SELECT name, tcg_price, quantity, scryfall_id, type_line, cmc, oracle_text "
+            "FROM collection_entries WHERE name = ? COLLATE NOCASE LIMIT 1",
+            (name,)
+        ).fetchone()
+
+        entry = {
+            'name': row['name'] if row else name,
+            'count': card.get('count', 1),
+            'role': card.get('role', ''),
+            'from_collection': bool(row and row['quantity'] and row['quantity'] > 0),
+            'estimated_price_usd': round(row['tcg_price'], 2) if row and row['tcg_price'] else card.get('estimated_price_usd', 0),
+            'scryfall_id': row['scryfall_id'] if row else '',
+        }
+        # Preserve extra fields from AI response
+        for extra_key in ('reason', 'synergy_with', 'priority', 'severity'):
+            if extra_key in card:
+                entry[extra_key] = card[extra_key]
+        processed.append(entry)
+
+    return processed
+
+
+# ── Research Endpoint ─────────────────────────────────────────
+
+@app.post('/api/deck-research')
+async def deck_research(req: DeckResearchRequest):
+    """Analyze an existing deck using Perplexity AI and suggest improvements."""
+    conn = _get_db_conn()
+
+    # Load deck info
+    deck = conn.execute('SELECT * FROM decks WHERE id = ?', (req.deck_id,)).fetchone()
+    if not deck:
+        raise HTTPException(404, f'Deck {req.deck_id} not found')
+
+    deck_name = deck['name']
+    commander_name = deck['commander_name'] or 'Unknown'
+    color_identity_str = deck['color_identity'] or '[]'
+    try:
+        color_identity = json.loads(color_identity_str)
+    except Exception:
+        color_identity = []
+
+    # Load deck cards
+    card_rows = conn.execute("""
+        SELECT dc.card_name, dc.quantity, dc.is_commander,
+               ce.type_line, ce.cmc, ce.oracle_text, ce.tcg_price
+        FROM deck_cards dc
+        LEFT JOIN collection_entries ce ON ce.scryfall_id = dc.scryfall_id
+        WHERE dc.deck_id = ?
+        ORDER BY dc.is_commander DESC, dc.card_name ASC
+    """, (req.deck_id,)).fetchall()
+
+    if not card_rows:
+        raise HTTPException(400, 'Deck has no cards')
+
+    # Build decklist text
+    decklist_lines = []
+    total_price = 0.0
+    for r in card_rows:
+        price = r['tcg_price'] or 0
+        total_price += price * (r['quantity'] or 1)
+        cmdr_tag = ' [COMMANDER]' if r['is_commander'] else ''
+        decklist_lines.append(f"{r['quantity'] or 1}x {r['card_name']}{cmdr_tag}")
+
+    decklist_text = '\n'.join(decklist_lines)
+
+    # Build collection summary if requested
+    collection_block = ''
+    if req.use_collection:
+        summary = _build_collection_summary(color_identity)
+        if summary['filtered_cards'] > 0:
+            coll_lines = [f'\nCOLLECTION SUMMARY ({summary["filtered_cards"]} cards in deck colors):']
+            for grp in summary['groups']:
+                card_names = [f"{c['name']} (${c['price']})" for c in grp['cards'][:15]]
+                coll_lines.append(f"  {grp['group_id'].upper()} ({grp['description']}): {', '.join(card_names)}")
+            collection_block = '\n'.join(coll_lines)
+
+    omit_block = ''
+    if req.omit_cards:
+        omit_block = f'\nDO NOT suggest these cards: {", ".join(req.omit_cards)}'
+
+    budget_block = ''
+    if req.budget_usd:
+        budget_block = f'\nBUDGET: ${req.budget_usd} total for upgrades. Current deck value: ~${total_price:.0f}'
+
+    # Build messages
+    system_msg = """You are an elite Magic: The Gathering Commander analyst with encyclopedic knowledge of the format, metagame, and every card ever printed. Provide a DEEP, COMPREHENSIVE analysis.
+Always respond with ONLY a JSON object, no markdown fences, no extra text.
+
+JSON schema:
+{
+  "overall_rating": "1-10 integer",
+  "rating_explanation": "2-3 sentence explanation of the rating",
+  "deck_description": "3-5 sentence overview of what this deck does, its game plan, and how it wins",
+  "archetype": "aggro|midrange|control|combo|stax|voltron|aristocrats|spellslinger|tokens|tribal|group_hug|lands|reanimator|other",
+  "bracket_level": {
+    "level": 1-4,
+    "reasoning": "why this bracket",
+    "power_ceiling": "what power level this deck could reach with upgrades"
+  },
+  "win_conditions": [
+    {"name": "Win condition name", "cards_involved": ["card1", "card2"], "description": "How this wins the game", "reliability": "high|medium|low"}
+  ],
+  "synergy_packages": [
+    {"package_name": "Package Name (e.g. Sacrifice Engine, Blink Package)", "cards": ["card1", "card2", "card3"], "description": "How these cards work together", "strength": "strong|moderate|weak"}
+  ],
+  "strengths": ["strength 1", "strength 2"],
+  "weaknesses": ["weakness 1", "weakness 2"],
+  "threat_assessment": {
+    "early_game": "1-2 sentences on turns 1-3 plan",
+    "mid_game": "1-2 sentences on turns 4-7 plan",
+    "late_game": "1-2 sentences on turns 8+ plan",
+    "vulnerability": "What shuts this deck down (e.g. graveyard hate, board wipes)"
+  },
+  "mana_analysis": {
+    "land_count": "current land count assessment",
+    "color_fixing": "assessment of color fixing quality",
+    "ramp_package": "assessment of ramp quantity and quality",
+    "curve_assessment": "is the mana curve appropriate for the strategy",
+    "problem_cards": ["cards that are hard to cast or mana-inefficient"]
+  },
+  "cuts": [{"name": "card to remove", "reason": "why", "severity": "must_cut|should_cut|consider_cutting"}],
+  "adds": [{"name": "card to add", "count": 1, "role": "ramp|removal|draw|creature|utility|land|combo_piece|protection|finisher", "estimated_price_usd": 2.5, "reason": "why this card", "synergy_with": ["existing card it synergizes with"], "priority": "critical|high|medium|nice_to_have"}],
+  "role_gaps": {
+    "ramp": {"current": 8, "recommended": 10, "note": "needs 2 more ramp sources"},
+    "card_draw": {"current": 5, "recommended": 10, "note": ""},
+    "removal": {"current": 6, "recommended": 8, "note": ""},
+    "board_wipes": {"current": 2, "recommended": 3, "note": ""},
+    "protection": {"current": 1, "recommended": 3, "note": ""},
+    "lands": {"current": 35, "recommended": 36, "note": ""}
+  },
+  "strategy_notes": "detailed strategic advice for piloting this deck"
+}"""
+
+    user_msg = f"""Provide a DEEP, COMPREHENSIVE analysis of this Commander deck.
+
+DECK NAME: {deck_name}
+COMMANDER: {commander_name}
+COLOR IDENTITY: {', '.join(color_identity) if color_identity else 'Unknown'}
+CURRENT DECK VALUE: ~${total_price:.0f}
+GOAL: {req.goal}
+
+DECKLIST ({len(card_rows)} cards):
+{decklist_text}
+{budget_block}{omit_block}{collection_block}
+
+Analyze EVERYTHING: the deck's identity, strategy, archetype, bracket level (1-4 per Commander Rules Committee), ALL synergy packages between cards, ALL win conditions, game plan by phase (early/mid/late), mana base health, every role gap. Suggest specific cuts with severity and specific adds with priority and synergy tags. For adds, prioritize cards from the COLLECTION SUMMARY when available."""
+
+    content = _call_pplx_api([
+        {'role': 'system', 'content': system_msg},
+        {'role': 'user', 'content': user_msg},
+    ], max_tokens=8192)
+
+    try:
+        analysis = _extract_json_from_response(content)
+    except ValueError as e:
+        return JSONResponse({'error': str(e), 'raw_response': content[:500]}, status_code=422)
+
+    # Post-process "adds" — validate against DB
+    if 'adds' in analysis and isinstance(analysis['adds'], list):
+        analysis['adds'] = _postprocess_deck_cards(analysis['adds'], color_identity)
+
+    # Compute real total cost of adds
+    adds_total = sum(c.get('estimated_price_usd', 0) * c.get('count', 1) for c in analysis.get('adds', []))
+    analysis['adds_total_usd'] = round(adds_total, 2)
+    analysis['deck_name'] = deck_name
+    analysis['commander'] = commander_name
+    analysis['color_identity'] = color_identity
+    analysis['card_count'] = len(card_rows)
+    analysis['deck_value_usd'] = round(total_price, 2)
+
+    return analysis
+
+
+# ── Generate Endpoint ─────────────────────────────────────────
+
+@app.post('/api/deck-generate')
+async def deck_generate_ai(req: DeckGenerateAIRequest):
+    """Generate a full 100-card Commander deck using Perplexity AI."""
+    commander = req.commander.strip()
+    if not commander:
+        raise HTTPException(400, 'Commander name is required')
+
+    # Look up commander on Scryfall for color identity
+    color_identity = []
+    commander_type = ''
+    try:
+        scry_url = f'https://api.scryfall.com/cards/named?fuzzy={commander.replace(" ", "+")}'
+        scry_req = Request(scry_url)
+        scry_req.add_header('User-Agent', 'CommanderAILab/1.0')
+        with urlopen(scry_req, timeout=10) as resp:
+            scry_data = json.loads(resp.read())
+        color_identity = scry_data.get('color_identity', [])
+        commander = scry_data.get('name', commander)  # Use canonical name
+        commander_type = scry_data.get('type_line', '')
+    except Exception as e:
+        print(f'[pplx-gen] Scryfall lookup failed for "{commander}": {e}')
+
+    # Build collection summary
+    collection_block = ''
+    if req.use_collection:
+        summary = _build_collection_summary(color_identity or None)
+        if summary['filtered_cards'] > 0:
+            coll_lines = [f'\nCOLLECTION SUMMARY ({summary["filtered_cards"]} cards available):']
+            for grp in summary['groups']:
+                card_names = [f"{c['name']} (${c['price']})" for c in grp['cards'][:20]]
+                coll_lines.append(f"  {grp['group_id'].upper()}: {', '.join(card_names)}")
+            collection_block = '\n'.join(coll_lines)
+
+    omit_block = ''
+    if req.omit_cards:
+        omit_block = f'\nOMIT LIST (do NOT include): {", ".join(req.omit_cards)}'
+
+    budget_block = ''
+    if req.budget_usd:
+        mode_desc = 'total deck cost' if req.budget_mode == 'total' else 'per card'
+        budget_block = f'\nBUDGET: ${req.budget_usd} {mode_desc}. Stay within budget.'
+
+    system_msg = """You are an expert Magic: The Gathering Commander deck builder.
+Build a complete, legal 100-card Commander deck (1 commander + 99 other cards).
+Prefer cards from the player's collection when available.
+Respect the budget and omit list.
+Always respond with ONLY a JSON object, no markdown fences, no extra text.
+
+JSON schema:
+{
+  "commander": "Commander Name",
+  "strategy": "1-2 sentence strategy description",
+  "cards": [
+    {"name": "Card Name", "count": 1, "role": "ramp|removal|draw|creature|land|utility|win_condition", "estimated_price_usd": 2.5}
+  ],
+  "reasoning": {
+    "strategy": "detailed strategy explanation",
+    "mana_curve": "mana curve reasoning",
+    "key_synergies": "key synergies and combos",
+    "budget_notes": "how budget was managed",
+    "collection_usage_notes": "which collection cards were used and why"
+  },
+  "estimated_total_usd": 187.5
+}
+
+Deck building rules:
+- Exactly 100 cards total (commander + 99)
+- No more than 1 copy of any card (except basic lands)
+- 36-38 lands including commander-colored basics and utility lands
+- ~10 ramp sources, ~10 card draw, ~8-10 removal, ~2-3 board wipes
+- Include the commander in the cards list with role "commander"
+- All cards must be legal in Commander format"""
+
+    user_msg = f"""Build a complete 100-card Commander deck for:
+
+COMMANDER: {commander}
+TYPE: {commander_type}
+COLOR IDENTITY: {', '.join(color_identity) if color_identity else 'Unknown'}
+{budget_block}{omit_block}{collection_block}
+
+Build the deck as JSON. Prioritize collection cards when they fit the strategy."""
+
+    content = _call_pplx_api([
+        {'role': 'system', 'content': system_msg},
+        {'role': 'user', 'content': user_msg},
+    ], max_tokens=8192, temperature=0.3)
+
+    try:
+        result = _extract_json_from_response(content)
+    except ValueError as e:
+        return JSONResponse({'error': str(e), 'raw_response': content[:500]}, status_code=422)
+
+    # Post-process cards
+    if 'cards' in result and isinstance(result['cards'], list):
+        result['cards'] = _postprocess_deck_cards(result['cards'], color_identity)
+
+    # Compute real totals
+    real_total = sum(c.get('estimated_price_usd', 0) * c.get('count', 1) for c in result.get('cards', []))
+    from_collection_count = sum(1 for c in result.get('cards', []) if c.get('from_collection'))
+    result['real_total_usd'] = round(real_total, 2)
+    result['from_collection_count'] = from_collection_count
+    result['total_cards'] = sum(c.get('count', 1) for c in result.get('cards', []))
+    result['color_identity'] = color_identity
+
+    return result
+
+
+@app.get('/api/pplx/status')
+async def pplx_status():
+    """Check if Perplexity API is configured."""
+    return {
+        'configured': bool(CFG.pplx_api_key),
+        'key_prefix': CFG.pplx_api_key[:8] + '...' if CFG.pplx_api_key else '',
+    }
+
+
+# ══════════════════════════════════════════════════════════════
+# V3 Deck Generator (Perplexity Structured Output)
+# ══════════════════════════════════════════════════════════════
+
+@app.get('/api/deck/v3/status')
+async def deck_gen_v3_status():
+    """Check V3 deck generator status."""
+    return {
+        'initialized': _deck_gen_v3 is not None,
+        'pplx_configured': bool(CFG.pplx_api_key),
+        'model': _deck_gen_v3.pplx.model if _deck_gen_v3 else None,
+        'embeddings_loaded': (
+            _coach_embeddings.loaded if _coach_embeddings else False
+        ),
+        'embedding_cards': (
+            _coach_embeddings.card_count if _coach_embeddings else 0
+        ),
+        'error': _deck_gen_v3_error,
+    }
+
+
+@app.post('/api/deck/v3/generate')
+async def deck_gen_v3_generate(req: DeckGenV3Request):
+    """
+    V3 Deck Generation — Perplexity structured output with Smart Substitution.
+
+    Pipeline:
+      1. Resolve commander via Scryfall
+      2. Build collection summary from DB
+      3. Call Perplexity Sonar with JSON schema enforcement
+      4. Cross-reference cards with collection for ownership
+      5. Run Smart Substitution (embedding + Perplexity fallback)
+      6. Return complete deck with substitution data
+    """
+    if _deck_gen_v3 is None:
+        raise HTTPException(503, 'V3 Deck Generator not initialized. Check PPLX_API_KEY.')
+
+    if not req.commander_name or len(req.commander_name.strip()) < 2:
+        raise HTTPException(400, 'Commander name is required (min 2 chars)')
+
+    try:
+        # Generate deck
+        result = _deck_gen_v3.generate_deck(
+            commander_name=req.commander_name.strip(),
+            strategy=req.strategy,
+            target_bracket=req.target_bracket,
+            budget_usd=req.budget_usd,
+            budget_mode=req.budget_mode,
+            omit_cards=req.omit_cards,
+            use_collection=req.use_collection,
+            model=req.model,
+        )
+
+        # Run substitution if requested
+        if req.run_substitution and result.get('cards'):
+            from coach.schemas.substitution_schema import DeckCardWithStatus
+            cards = [DeckCardWithStatus(**c) for c in result['cards']]
+            sub_result = _deck_gen_v3.run_substitution(
+                cards=cards,
+                commander=result['commander'],
+                strategy=req.strategy,
+            )
+            result['cards'] = [c.model_dump() for c in sub_result.cards]
+            result['substitution_stats'] = {
+                'owned': sub_result.owned_count,
+                'substituted': sub_result.substituted_count,
+                'missing': sub_result.missing_count,
+            }
+            # Recompute stats with updated cards
+            from coach.services.deck_generator import DeckGeneratorV3
+            result['stats'] = DeckGeneratorV3._compute_stats(sub_result.cards)
+
+        return result
+
+    except ValueError as e:
+        return JSONResponse({'error': str(e)}, status_code=422)
+    except Exception as e:
+        print(f'[deck-gen-v3] Error: {e}')
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f'Deck generation failed: {str(e)}')
+
+
+@app.post('/api/deck/v3/commit')
+async def deck_gen_v3_commit(req: DeckGenV3Request):
+    """
+    V3 Generate + Commit — generates the deck and saves it to the Deck Builder DB.
+    Also exports a .dck file for Forge Sim Lab.
+    """
+    if _deck_gen_v3 is None:
+        raise HTTPException(503, 'V3 Deck Generator not initialized.')
+
+    if not req.commander_name or len(req.commander_name.strip()) < 2:
+        raise HTTPException(400, 'Commander name is required')
+
+    try:
+        # Generate deck (same as preview)
+        result = _deck_gen_v3.generate_deck(
+            commander_name=req.commander_name.strip(),
+            strategy=req.strategy,
+            target_bracket=req.target_bracket,
+            budget_usd=req.budget_usd,
+            budget_mode=req.budget_mode,
+            omit_cards=req.omit_cards,
+            use_collection=req.use_collection,
+            model=req.model,
+        )
+
+        # Run substitution
+        if req.run_substitution and result.get('cards'):
+            from coach.schemas.substitution_schema import DeckCardWithStatus
+            cards = [DeckCardWithStatus(**c) for c in result['cards']]
+            sub_result = _deck_gen_v3.run_substitution(
+                cards=cards,
+                commander=result['commander'],
+                strategy=req.strategy,
+            )
+            result['cards'] = [c.model_dump() for c in sub_result.cards]
+
+        # Save to DB
+        commander = result['commander']
+        color_identity = result.get('color_identity', [])
+        cards = result.get('cards', [])
+        strategy = result.get('strategy_summary', '')
+        bracket = result.get('bracket', {}).get('level', 0)
+
+        deck_name = (
+            req.deck_name
+            or f"V3 - {commander['name']} - B{bracket} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        )
+
+        conn = _get_db_conn()
+        cur = conn.execute(
+            "INSERT INTO decks (name, commander_scryfall_id, commander_name, color_identity, strategy_tag) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (deck_name, commander.get('scryfall_id', ''),
+             commander.get('name', ''), json.dumps(color_identity),
+             f"v3-auto|B{bracket}|{strategy[:60]}")
+        )
+        conn.commit()
+        deck_id = cur.lastrowid
+
+        # Insert commander
+        conn.execute(
+            "INSERT INTO deck_cards (deck_id, scryfall_id, card_name, quantity, is_commander, role_tag) "
+            "VALUES (?, ?, ?, 1, 1, 'Commander')",
+            (deck_id, commander.get('scryfall_id', ''), commander.get('name', ''))
+        )
+
+        # Insert the 99
+        for card in cards:
+            card_name = card.get('name', '')
+            if not card_name or card_name == commander.get('name', ''):
+                continue  # Skip commander (already inserted)
+            scryfall_id = card.get('scryfall_id', '')
+            # Use substitute name if substituted
+            if card.get('status') == 'substituted' and card.get('selected_substitute'):
+                card_name = card['selected_substitute']
+            conn.execute(
+                "INSERT INTO deck_cards (deck_id, scryfall_id, card_name, quantity, is_commander, role_tag) "
+                "VALUES (?, ?, ?, ?, 0, ?)",
+                (deck_id, scryfall_id, card_name,
+                 card.get('count', 1), card.get('category', ''))
+            )
+        conn.commit()
+
+        # Export .dck for Forge
+        try:
+            decks_dir = CFG.forge_decks_dir
+            if decks_dir and os.path.isdir(decks_dir):
+                safe_name = re.sub(r'[^a-zA-Z0-9_\-\s]', '', deck_name).strip().replace(' ', '_')
+                if not safe_name:
+                    safe_name = f"V3Deck_{deck_id}"
+                dck_path = os.path.join(decks_dir, f"{safe_name}.dck")
+                dck_lines = ["[metadata]", f"Name={deck_name}", "",
+                             "[Commander]", f"1 {commander['name']}", "", "[Main]"]
+                for card in cards:
+                    cname = card.get('name', '')
+                    if card.get('status') == 'substituted' and card.get('selected_substitute'):
+                        cname = card['selected_substitute']
+                    if cname and cname != commander.get('name', ''):
+                        dck_lines.append(f"{card.get('count', 1)} {cname}")
+                with open(dck_path, 'w', encoding='utf-8') as f:
+                    f.write('\n'.join(dck_lines))
+                print(f"  [DeckGenV3] Exported .dck: {dck_path}")
+        except Exception as e:
+            print(f"  [DeckGenV3] .dck export failed: {e}")
+
+        result['deck_id'] = deck_id
+        result['deck_name'] = deck_name
+        print(f"  [DeckGenV3] Committed deck '{deck_name}' (ID: {deck_id})")
+        return result
+
+    except ValueError as e:
+        return JSONResponse({'error': str(e)}, status_code=422)
+    except Exception as e:
+        print(f'[deck-gen-v3] Commit error: {e}')
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f'Deck generation/commit failed: {str(e)}')
+
+
+@app.post('/api/deck/v3/export/csv')
+async def deck_gen_v3_export_csv(req: DeckGenV3Request):
+    """Generate a deck and return as CSV."""
+    if _deck_gen_v3 is None:
+        raise HTTPException(503, 'V3 Deck Generator not initialized.')
+
+    result = _deck_gen_v3.generate_deck(
+        commander_name=req.commander_name.strip(),
+        strategy=req.strategy,
+        target_bracket=req.target_bracket,
+        budget_usd=req.budget_usd,
+        budget_mode=req.budget_mode,
+        omit_cards=req.omit_cards,
+        use_collection=req.use_collection,
+        model=req.model,
+    )
+
+    cards = result.get('cards', [])
+    commander = result.get('commander', {})
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Count', 'Name', 'Category', 'Roles', 'Status', 'Price_USD', 'Reason'])
+    # Commander row
+    writer.writerow([1, commander.get('name', ''), 'Commander', '', 'owned', '', 'Commander'])
+    for card in cards:
+        if card.get('name') == commander.get('name', ''):
+            continue
+        writer.writerow([
+            card.get('count', 1),
+            card.get('name', ''),
+            card.get('category', ''),
+            '; '.join(card.get('role_tags', [])),
+            card.get('status', 'unknown'),
+            card.get('estimated_price_usd', 0),
+            card.get('reason', ''),
+        ])
+
+    csv_content = output.getvalue()
+    safe_name = re.sub(r'[^a-zA-Z0-9_\-\s]', '', commander.get('name', 'deck')).strip().replace(' ', '_')
+    return StreamingResponse(
+        io.BytesIO(csv_content.encode('utf-8')),
+        media_type='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{safe_name}_deck.csv"'},
+    )
+
+
+@app.post('/api/deck/v3/export/dck')
+async def deck_gen_v3_export_dck(req: DeckGenV3Request):
+    """Generate a deck and return as Forge .dck format."""
+    if _deck_gen_v3 is None:
+        raise HTTPException(503, 'V3 Deck Generator not initialized.')
+
+    result = _deck_gen_v3.generate_deck(
+        commander_name=req.commander_name.strip(),
+        strategy=req.strategy,
+        target_bracket=req.target_bracket,
+        budget_usd=req.budget_usd,
+        budget_mode=req.budget_mode,
+        omit_cards=req.omit_cards,
+        use_collection=req.use_collection,
+        model=req.model,
+    )
+
+    cards = result.get('cards', [])
+    commander = result.get('commander', {})
+
+    lines = [
+        '[metadata]',
+        f'Name={commander.get("name", "Deck")} - V3 Auto',
+        '',
+        '[Commander]',
+        f'1 {commander.get("name", "")}',
+        '',
+        '[Main]',
+    ]
+    for card in cards:
+        cname = card.get('name', '')
+        if card.get('status') == 'substituted' and card.get('selected_substitute'):
+            cname = card['selected_substitute']
+        if cname and cname != commander.get('name', ''):
+            lines.append(f"{card.get('count', 1)} {cname}")
+
+    dck_content = '\n'.join(lines)
+    safe_name = re.sub(r'[^a-zA-Z0-9_\-\s]', '', commander.get('name', 'deck')).strip().replace(' ', '_')
+    return StreamingResponse(
+        io.BytesIO(dck_content.encode('utf-8')),
+        media_type='text/plain',
+        headers={'Content-Disposition': f'attachment; filename="{safe_name}.dck"'},
+    )
+
+
+@app.post('/api/deck/v3/export/moxfield')
+async def deck_gen_v3_export_moxfield(req: DeckGenV3Request):
+    """Generate a deck and return in Moxfield paste format."""
+    if _deck_gen_v3 is None:
+        raise HTTPException(503, 'V3 Deck Generator not initialized.')
+
+    result = _deck_gen_v3.generate_deck(
+        commander_name=req.commander_name.strip(),
+        strategy=req.strategy,
+        target_bracket=req.target_bracket,
+        budget_usd=req.budget_usd,
+        budget_mode=req.budget_mode,
+        omit_cards=req.omit_cards,
+        use_collection=req.use_collection,
+        model=req.model,
+    )
+
+    cards = result.get('cards', [])
+    commander = result.get('commander', {})
+
+    # Moxfield format: card lines in main, commander in dedicated section
+    lines = []
+    lines.append('// Commander')
+    lines.append(f'1 {commander.get("name", "")}')
+    lines.append('')
+    lines.append('// Deck')
+    for card in cards:
+        cname = card.get('name', '')
+        if card.get('status') == 'substituted' and card.get('selected_substitute'):
+            cname = card['selected_substitute']
+        if cname and cname != commander.get('name', ''):
+            lines.append(f"{card.get('count', 1)} {cname}")
+
+    txt = '\n'.join(lines)
+    return {'format': 'moxfield', 'content': txt, 'commander': commander.get('name', '')}
+
+
+@app.post('/api/deck/v3/export/shopping')
+async def deck_gen_v3_export_shopping(req: DeckGenV3Request):
+    """Generate a deck and return a shopping list of cards not owned."""
+    if _deck_gen_v3 is None:
+        raise HTTPException(503, 'V3 Deck Generator not initialized.')
+
+    result = _deck_gen_v3.generate_deck(
+        commander_name=req.commander_name.strip(),
+        strategy=req.strategy,
+        target_bracket=req.target_bracket,
+        budget_usd=req.budget_usd,
+        budget_mode=req.budget_mode,
+        omit_cards=req.omit_cards,
+        use_collection=req.use_collection,
+        model=req.model,
+    )
+
+    cards = result.get('cards', [])
+    shopping = []
+    total = 0.0
+    for card in cards:
+        if not card.get('owned', True) and card.get('status') != 'substituted':
+            price = card.get('estimated_price_usd', 0)
+            shopping.append({
+                'name': card.get('name', ''),
+                'count': card.get('count', 1),
+                'category': card.get('category', ''),
+                'estimated_price_usd': price,
+                'reason': card.get('reason', ''),
+            })
+            total += price * card.get('count', 1)
+
+    return {
+        'commander': result.get('commander', {}).get('name', ''),
+        'shopping_list': shopping,
+        'total_missing': len(shopping),
+        'estimated_cost_usd': round(total, 2),
+    }
+
+
+# ══════════════════════════════════════════════════════════════
 # Coach Service (LLM-powered deck coaching)
 # ══════════════════════════════════════════════════════════════
 
@@ -5053,11 +6895,13 @@ async def deck_generator_commander_search(q: str = ""):
 _coach_service = None
 _coach_embeddings = None
 _coach_llm = None
+_deck_gen_v3 = None  # V3 Deck Generator (Perplexity structured output)
+_deck_gen_v3_error = None  # Error message if V3 init failed
 
 
 def init_coach_service():
     """Initialize the coach service with LLM client and embeddings."""
-    global _coach_service, _coach_embeddings, _coach_llm
+    global _coach_service, _coach_embeddings, _coach_llm, _deck_gen_v3, _deck_gen_v3_error
     try:
         from coach.llm_client import LMStudioClient
         from coach.embeddings import MTGEmbeddingIndex
@@ -5090,6 +6934,37 @@ def init_coach_service():
             print(f"  Coach LLM:    Not connected (start LM Studio on 192.168.0.122:1234)")
 
         print("  Coach:        Service initialized")
+
+        # Initialize V3 Deck Generator (Perplexity)
+        _deck_gen_v3_error = None
+        if CFG.pplx_api_key:
+            try:
+                from coach.clients.perplexity_client import PerplexityClient
+                from coach.services.deck_generator import DeckGeneratorV3
+                from coach.config import DECK_GEN_MODEL
+
+                pplx_client = PerplexityClient(
+                    api_key=CFG.pplx_api_key,
+                    model=DECK_GEN_MODEL,
+                )
+                _deck_gen_v3 = DeckGeneratorV3(
+                    pplx_client=pplx_client,
+                    db_conn_factory=_get_db_conn,
+                    embedding_index=_coach_embeddings,
+                )
+                print(f"  Deck Gen V3:  Initialized (model: {DECK_GEN_MODEL})")
+            except ImportError as e:
+                _deck_gen_v3_error = f"Missing dependency: {e}. Run: pip install openai"
+                print(f"  Deck Gen V3:  {_deck_gen_v3_error}")
+                _deck_gen_v3 = None
+            except Exception as e:
+                _deck_gen_v3_error = str(e)
+                print(f"  Deck Gen V3:  Failed to initialize: {e}")
+                _deck_gen_v3 = None
+        else:
+            _deck_gen_v3_error = "PPLX_API_KEY not set"
+            print("  Deck Gen V3:  Skipped (no PPLX_API_KEY)")
+
     except Exception as e:
         print(f"  Coach:        Failed to initialize: {e}")
         _coach_service = None
@@ -5489,13 +7364,13 @@ def _run_training_pipeline(
         train_path = os.path.join(data_dir, "train.npz")
         if rebuild_dataset or not os.path.exists(train_path):
             _training_state["phase"] = "building"
-            _training_state["message"] = "Building training dataset from decision logs..."
-            print("[ML Train] Building dataset...")
+            _training_state["message"] = "Loading card embeddings & building dataset..."
+            print("[ML Train] Building dataset (loading embeddings, may auto-download)...")
 
             from ml.data.dataset_builder import build_dataset, split_dataset, save_dataset
             dataset = build_dataset(results_dir=results_dir)
             if not dataset:
-                raise RuntimeError("No training data found. Run batch simulations with ML logging enabled first.")
+                raise RuntimeError("No training data produced. Check server log for details.")
             train_ds, val_ds, test_ds = split_dataset(dataset)
             save_dataset(train_ds, os.path.join(data_dir, "train.npz"))
             save_dataset(val_ds, os.path.join(data_dir, "val.npz"))
@@ -5961,12 +7836,33 @@ async def ml_tournament_results():
 
 
 # ══════════════════════════════════════════════════════════════
-# Static File Serving (Web UI) — MUST be after all API routes
+# Static File Serving (React SPA) — MUST be after all API routes
 # ══════════════════════════════════════════════════════════════
 
-ui_dir = Path(__file__).parent / "ui"
-if ui_dir.exists():
-    app.mount("/", StaticFiles(directory=str(ui_dir), html=True), name="ui")
+# React SPA: serve from frontend/commander-ai-lab-ui/dist (built with Vite)
+_spa_dir = Path(__file__).parent / "frontend" / "commander-ai-lab-ui" / "dist"
+_legacy_ui_dir = Path(__file__).parent / "ui"
+
+if _spa_dir.exists():
+    # Serve static assets (JS, CSS, images) from the SPA dist folder
+    _spa_assets = _spa_dir / "assets"
+    if _spa_assets.exists():
+        app.mount("/assets", StaticFiles(directory=str(_spa_assets)), name="spa-assets")
+
+    # SPA catch-all: serve index.html for all non-API routes (client-side routing)
+    @app.get("/{full_path:path}")
+    async def _spa_catchall(full_path: str):
+        from fastapi.responses import FileResponse
+        # If the exact file exists in dist, serve it
+        requested_file = _spa_dir / full_path
+        if full_path and requested_file.exists() and requested_file.is_file():
+            return FileResponse(str(requested_file))
+        # Otherwise serve index.html (let React Router handle it)
+        return FileResponse(str(_spa_dir / "index.html"))
+
+elif _legacy_ui_dir.exists():
+    # Fallback: legacy HTML files
+    app.mount("/", StaticFiles(directory=str(_legacy_ui_dir), html=True), name="ui")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -5986,6 +7882,8 @@ def parse_args():
     parser.add_argument("--port", type=int, default=int(os.environ.get("LAB_PORT", "8080")))
     parser.add_argument("--ximilar-key", default=os.environ.get("XIMILAR_API_KEY", "96c7dab35ddbd8829b04c0f5bcea57f5ede20496"),
                         help="Ximilar API key for card scanner (visual AI recognition)")
+    parser.add_argument("--pplx-key", default=os.environ.get("PPLX_API_KEY", "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"),
+                        help="Perplexity API key for AI deck research/generation (env: PPLX_API_KEY)")
     return parser.parse_args()
 
 
@@ -6047,6 +7945,7 @@ def main():
     CFG.lab_jar = args.lab_jar or resolve_lab_jar()
     CFG.port = args.port
     CFG.ximilar_api_key = args.ximilar_key
+    CFG.pplx_api_key = args.pplx_key
 
     print("╔══════════════════════════════════════════════════╗")
     print("║      Commander AI Lab — API Server  v3.0.0      ║")
@@ -6059,6 +7958,7 @@ def main():
     print(f"  Results Dir:  {CFG.results_dir}")
     print(f"  Port:         {CFG.port}")
     print(f"  Ximilar:      {'configured' if CFG.ximilar_api_key else 'NOT SET (scanner will fail)'}")
+    print(f"  Perplexity:   {'configured' if CFG.pplx_api_key else 'NOT SET (AI research/gen disabled)'}")
     j17 = get_java17()
     print(f"  Java 17:      {j17 if j17 != 'java' else 'NOT FOUND (batch sim may fail on Java 25+)'}")
     print(f"  LM Studio:    http://192.168.0.122:1234")
@@ -6083,12 +7983,12 @@ def main():
 
     print()
     print(f"  Starting server on http://localhost:{CFG.port}")
-    print(f"  Web UI:       http://localhost:{CFG.port}/index.html")
-    print(f"  Collection:   http://localhost:{CFG.port}/collection.html")
-    print(f"  Deck Builder: http://localhost:{CFG.port}/deckbuilder.html")
-    print(f"  Deck Gen:     http://localhost:{CFG.port}/deckgenerator.html")
-    print(f"  Deck Coach:   http://localhost:{CFG.port}/coach.html")
-    print(f"  ML Training:  http://localhost:{CFG.port}/training.html")
+    if _spa_dir.exists():
+        print(f"  Web UI:       http://localhost:{CFG.port}/  (React SPA)")
+        print(f"  Routes:       / (Batch Sim), /collection, /decks, /autogen, /simulator, /coach, /training")
+    else:
+        print(f"  Web UI:       http://localhost:{CFG.port}/index.html  (legacy HTML)")
+        print(f"  NOTE: React SPA not built. Run: cd frontend/commander-ai-lab-ui && npm install && npm run build")
     print(f"  API docs:     http://localhost:{CFG.port}/docs")
     print()
 

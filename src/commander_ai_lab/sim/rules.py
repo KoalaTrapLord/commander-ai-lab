@@ -105,40 +105,80 @@ _KNOWN_CARDS: list[tuple[re.Pattern, dict]] = [
 def enrich_card(card: Card) -> Card:
     """
     Enrich a card with type/cost heuristics if it lacks Scryfall data.
+    Also sets combat flags (is_removal, is_ramp, is_board_wipe) from oracle text.
     Modifies the card in-place and returns it.
     """
     name_lower = (card.name or "").lower().strip()
 
-    # Already enriched — has real data
-    if card.cmc > 0 or (card.type_line and len(card.type_line) > 5):
-        return card
+    has_real_data = card.cmc > 0 or (card.type_line and len(card.type_line) > 5)
 
-    # Basic lands
-    if name_lower in _BASIC_LAND_COLORS:
-        color = _BASIC_LAND_COLORS[name_lower]
-        card.type_line = f"Basic Land - {card.name}"
-        card.oracle_text = "{{T}}: Add {{{color}}}".format(color=color)
-        card.cmc = 0
-        return card
-
-    # Known card patterns
-    for pattern, attrs in _KNOWN_CARDS:
-        if pattern.search(card.name):
-            for k, v in attrs.items():
-                setattr(card, k, v)
+    if not has_real_data:
+        # Basic lands
+        if name_lower in _BASIC_LAND_COLORS:
+            color = _BASIC_LAND_COLORS[name_lower]
+            card.type_line = f"Basic Land - {card.name}"
+            card.oracle_text = "{{T}}: Add {{{color}}}".format(color=color)
+            card.cmc = 0
+            _apply_oracle_flags(card)
             return card
 
-    # Default: treat as creature with random CMC
-    if not card.type_line or len(card.type_line) < 3:
-        estimated_cmc = random.randint(2, 6)
-        estimated_pow = max(1, estimated_cmc - 1)
-        card.type_line = "Creature"
-        card.cmc = estimated_cmc
-        card.pt = f"{estimated_pow}/{estimated_pow}"
-        card.power = str(estimated_pow)
-        card.toughness = str(estimated_pow)
+        # Known card patterns
+        for pattern, attrs in _KNOWN_CARDS:
+            if pattern.search(card.name):
+                for k, v in attrs.items():
+                    setattr(card, k, v)
+                _apply_oracle_flags(card)
+                return card
 
+        # Default: treat as creature with random CMC
+        if not card.type_line or len(card.type_line) < 3:
+            estimated_cmc = random.randint(2, 6)
+            estimated_pow = max(1, estimated_cmc - 1)
+            card.type_line = "Creature"
+            card.cmc = estimated_cmc
+            card.pt = f"{estimated_pow}/{estimated_pow}"
+            card.power = str(estimated_pow)
+            card.toughness = str(estimated_pow)
+
+    # Always apply oracle-text-based flags
+    _apply_oracle_flags(card)
     return card
+
+
+def _apply_oracle_flags(card: Card) -> None:
+    """Set is_removal, is_ramp, is_board_wipe from oracle_text and type_line."""
+    oracle = (card.oracle_text or "").lower()
+    type_line = (card.type_line or "").lower()
+
+    # Skip if flags are already explicitly set
+    if not card.is_removal and not card.is_board_wipe and not card.is_ramp:
+        # Board wipes
+        if any(phrase in oracle for phrase in [
+            "destroy all creature", "destroy all permanent",
+            "all creatures get -", "exile all creature",
+            "each creature gets -", "deals 13 damage to each creature",
+        ]):
+            card.is_board_wipe = True
+        # Removal
+        elif any(phrase in oracle for phrase in [
+            "destroy target", "exile target creature", "exile target permanent",
+            "deals damage to target", "target creature gets -",
+            "counter target spell", "return target",
+        ]):
+            card.is_removal = True
+
+        # Ramp
+        if any(phrase in oracle for phrase in [
+            "search your library for a basic land",
+            "search your library for a land",
+            "add one mana", "add {c}{c}", "add {c}",
+            "add one mana of any color",
+        ]) or (
+            "land" in oracle and "onto the battlefield" in oracle
+        ) or (
+            "{t}: add" in oracle and "land" not in type_line
+        ):
+            card.is_ramp = True
 
 
 def score_card(card: Card, weights: Optional[dict] = None) -> float:

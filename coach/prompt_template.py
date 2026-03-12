@@ -27,6 +27,11 @@ RULES:
 - Base suggestions on the simulation data provided, not general "goodstuff" advice.
 - Consider mana curve, role balance (ramp, draw, removal, threats), and synergy.
 - When suggesting replacements, prefer cards that fill the same functional role.
+- IMPORTANT: Suggest 3-5 DIFFERENT cards to cut and 3-5 DIFFERENT cards to add.
+- Each suggested add MUST be a different card — never suggest the same card twice.
+- Vary your suggestions across different functional roles (ramp, draw, removal, threats, utility).
+- If the deck is missing a functional role (e.g., no card draw, no removal), prioritize adding cards for that role.
+- If candidate replacements are provided from embeddings search, prefer those over generic suggestions.
 {goals_section}
 
 You MUST respond ONLY with valid JSON matching this exact structure:
@@ -117,7 +122,7 @@ def _format_curve(buckets: List[int]) -> str:
     """Format mana curve buckets as a readable string."""
     labels = ["0", "1", "2", "3", "4", "5", "6", "7+"]
     parts = [f"{labels[i]}={buckets[i]}" for i in range(min(len(buckets), 8)) if buckets[i] > 0]
-    return ", ".join(parts) if parts else "unknown"
+    return ", ".join(parts) if parts else "not available (analyze deck structure manually)"
 
 
 def _format_top_cards(cards: List[CardPerformance], top_n: int = 10) -> str:
@@ -151,7 +156,11 @@ def _format_underperformers(cards: List[CardPerformance],
 def _format_candidates(candidates: Dict[str, List[dict]]) -> str:
     """Format replacement candidates grouped by the card they'd replace."""
     if not candidates:
-        return "No candidate replacements found."
+        return ("No embedding-based candidates available. "
+                "Use your MTG knowledge to suggest cards that fit the deck's "
+                "color identity, strategy, and missing functional roles. "
+                "Suggest at least 3 different cards across different roles "
+                "(ramp, draw, removal, threats, utility).")
 
     lines = []
     for underperformer, replacements in list(candidates.items())[:MAX_UNDERPERFORMERS]:
@@ -161,7 +170,12 @@ def _format_candidates(candidates: Dict[str, List[dict]]) -> str:
             types = r.get("types", "")
             mv = r.get("mana_value", "?")
             sim = r.get("similarity", 0)
+            text_preview = r.get("text", "")[:80]
             lines.append(f"  - {name} (MV:{mv}, {types}) [similarity: {sim:.3f}]")
+            if text_preview:
+                lines.append(f"    Oracle: {text_preview}")
+    lines.append("\nChoose from these candidates when possible, but also suggest ")
+    lines.append("cards NOT in this list if they better address the deck's weaknesses.")
     return "\n".join(lines)
 
 

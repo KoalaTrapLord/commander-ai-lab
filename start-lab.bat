@@ -23,6 +23,9 @@ set LAB_PORT=8080
 REM ── Ximilar API Key for Card Scanner ────────────────────────
 set XIMILAR_API_KEY=96c7dab35ddbd8829b04c0f5bcea57f5ede20496
 
+REM ── Perplexity API Key for AI Deck Research/Generation ─────
+set PPLX_API_KEY=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
+
 echo.
 echo  ╔══════════════════════════════════════════════════╗
 echo  ║      Commander AI Lab — Launcher                ║
@@ -33,6 +36,11 @@ echo  Forge Dir:    %FORGE_DIR%
 echo  Decks Dir:    %FORGE_DECKS_DIR%
 echo  Port:         %LAB_PORT%
 echo  Ximilar:      Configured
+if defined PPLX_API_KEY (
+    echo  Perplexity:   Configured
+) else (
+    echo  Perplexity:   Not configured ^(set PPLX_API_KEY env var for AI features^)
+)
 echo.
 
 REM ── Check prerequisites ────────────────────────────────────
@@ -81,9 +89,19 @@ echo  API:     http://localhost:%LAB_PORT%/docs
 echo  Press Ctrl+C to stop.
 echo.
 
-python "%~dp0lab_api.py" ^
-    --forge-jar "%FORGE_JAR%" ^
-    --forge-dir "%FORGE_DIR%" ^
-    --forge-decks-dir "%FORGE_DECKS_DIR%" ^
-    --port %LAB_PORT% ^
-    --ximilar-key "%XIMILAR_API_KEY%"
+if defined PPLX_API_KEY (
+    python "%~dp0lab_api.py" ^
+        --forge-jar "%FORGE_JAR%" ^
+        --forge-dir "%FORGE_DIR%" ^
+        --forge-decks-dir "%FORGE_DECKS_DIR%" ^
+        --port %LAB_PORT% ^
+        --ximilar-key "%XIMILAR_API_KEY%" ^
+        --pplx-key "%PPLX_API_KEY%"
+) else (
+    python "%~dp0lab_api.py" ^
+        --forge-jar "%FORGE_JAR%" ^
+        --forge-dir "%FORGE_DIR%" ^
+        --forge-decks-dir "%FORGE_DECKS_DIR%" ^
+        --port %LAB_PORT% ^
+        --ximilar-key "%XIMILAR_API_KEY%"
+)

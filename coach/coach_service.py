@@ -138,6 +138,18 @@ class CoachService:
         6. Parse response
         7. Persist session
         """
+        # 0. Auto-load embeddings if not loaded
+        if not self.embeddings.loaded:
+            logger.info("Embeddings not loaded — attempting auto-load...")
+            try:
+                loaded = self.embeddings.load()
+                if loaded:
+                    logger.info("Embeddings auto-loaded: %d cards", self.embeddings.card_count)
+                else:
+                    logger.warning("Embeddings auto-load returned False")
+            except Exception as e:
+                logger.warning("Embeddings auto-load failed: %s", e)
+
         # 1. Load deck report
         report = self.load_deck_report(deck_id)
         if report is None:
@@ -157,6 +169,15 @@ class CoachService:
                 c.name for c in sorted_cards[:MAX_UNDERPERFORMERS]
                 if c.impactScore < UNDERPERFORMER_IMPACT_THRESHOLD
             ]
+
+        # If still no underperformers and we have cards, pick bottom N by impact
+        if not underperformers and report.cards:
+            sorted_cards = sorted(report.cards, key=lambda c: c.impactScore)
+            # Take the bottom 5 non-land cards as candidates for cuts
+            underperformers = [
+                c.name for c in sorted_cards[:5]
+                if not any(t in (c.tags or []) for t in [])
+            ][:MAX_UNDERPERFORMERS]
 
         if self.embeddings.loaded:
             for card_name in underperformers:

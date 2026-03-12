@@ -1,0 +1,44 @@
+# Build artifacts
+target/
+dist/
+dependency-reduced-pom.xml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+.eggs/
+
+# Node
+node_modules/
+.vite/
+
+# Data & runtime
+*.db
+*.db-journal
+results/
+imported-decks/
+deck-reports/
+coach-sessions/
+embeddings/
+logs/
+checkpoints/
+data/mtg-embeddings.npz
+data/mtg-embeddings.parquet
+card_names_cache.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Installer (generated, too large for git)
+install-commander-ai-lab.ps1

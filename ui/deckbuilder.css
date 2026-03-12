@@ -137,6 +137,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 200px;
+    cursor: pointer;
+    transition: color 0.1s;
+}
+
+.deck-commander-label:hover {
+    color: var(--text);
 }
 
 .deck-color-chips {
@@ -374,6 +380,29 @@
     background: linear-gradient(135deg, rgba(91, 158, 240, 0.38), rgba(167, 139, 250, 0.3));
     border-color: var(--accent);
     box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.deck-btn-danger {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+.deck-btn-danger:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: #ef4444;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+}
+
+.deck-btn-danger-outline {
+    background: transparent;
+    color: rgba(239, 68, 68, 0.7);
+    border-color: rgba(239, 68, 68, 0.3);
+    font-size: 0.72rem;
+}
+.deck-btn-danger-outline:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.5);
 }
 
 /* Import modal */
@@ -1153,11 +1182,12 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    color: var(--gold);
-    border: 1px solid rgba(252, 211, 77, 0.3);
+    color: var(--accent);
+    border: 1px solid rgba(91, 158, 240, 0.35);
     border-radius: 3px;
-    padding: 1px 4px;
+    padding: 1px 6px;
     flex-shrink: 0;
+    margin-left: auto;
 }
 
 .deck-card-row-name {
@@ -2356,4 +2386,901 @@
 
 .deck-text-warning {
     color: var(--warning);
+}
+
+/* ── 20. AI Panel Styles (Perplexity Research/Generate) ──── */
+
+.deck-panel-ai .deck-panel-header {
+    background: linear-gradient(135deg, var(--surface-1) 70%, rgba(91, 158, 240, 0.1));
+}
+
+.deck-panel-ai .deck-panel-title {
+    color: var(--accent);
+}
+
+.deck-ai-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.deck-ai-row {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--sp-3);
+}
+
+.deck-form-field-sm {
+    margin-bottom: 0;
+}
+
+.deck-form-field-half {
+    flex: 1;
+    min-width: 0;
+}
+
+.deck-form-label-sm {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.deck-form-input-sm {
+    width: 100%;
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+
+.deck-form-input-sm::placeholder {
+    color: var(--text-secondary);
+}
+
+.deck-form-input-sm:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.deck-toggle-label-sm {
+    font-size: 11px;
+    white-space: nowrap;
+    padding-bottom: 4px;
+}
+
+.deck-btn-ai {
+    background: linear-gradient(135deg, rgba(91, 158, 240, 0.15), rgba(139, 92, 246, 0.15));
+    color: var(--accent);
+    border-color: rgba(91, 158, 240, 0.35);
+    font-weight: 600;
+    margin-top: var(--sp-2);
+    position: relative;
+    overflow: hidden;
+}
+
+.deck-btn-ai::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(91, 158, 240, 0.08), rgba(139, 92, 246, 0.12));
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.deck-btn-ai:hover:not(:disabled)::before {
+    opacity: 1;
+}
+
+.deck-btn-ai:hover:not(:disabled) {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px rgba(91, 158, 240, 0.2);
+}
+
+.deck-btn-ai:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* AI Loading Spinner */
+.deck-ai-loading {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-4) 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.deck-ai-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: ai-spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes ai-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* AI Results */
+.deck-ai-results {
+    margin-top: var(--sp-3);
+}
+
+.deck-ai-section {
+    margin-bottom: var(--sp-4);
+}
+
+.deck-ai-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    margin-bottom: var(--sp-2);
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+}
+
+.deck-ai-rating {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-3);
+    padding: var(--sp-3);
+    background: var(--surface-1);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+}
+
+.deck-ai-rating-num {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.deck-ai-rating-num.low  { color: var(--error); }
+.deck-ai-rating-num.mid  { color: var(--warning); }
+.deck-ai-rating-num.high { color: var(--success); }
+
+.deck-ai-rating-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex: 1;
+    min-width: 0;
+}
+
+.deck-ai-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.deck-ai-list li {
+    font-size: 12px;
+    color: var(--text);
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    line-height: 1.4;
+}
+
+.deck-ai-list li:last-child {
+    border-bottom: none;
+}
+
+.deck-ai-list li::before {
+    content: '\2022';
+    color: var(--text-secondary);
+    margin-right: 6px;
+}
+
+/* Cuts / Adds card rows */
+.deck-ai-card-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 5px var(--sp-2);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 3px;
+    transition: border-color var(--duration) var(--ease);
+}
+
+.deck-ai-card-row:hover {
+    border-color: var(--accent-glow);
+}
+
+.deck-ai-card-row.cut-row {
+    border-left: 3px solid var(--error);
+}
+
+.deck-ai-card-row.add-row {
+    border-left: 3px solid var(--success);
+}
+
+.deck-ai-card-name {
+    font-size: 12px;
+    color: var(--text);
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.deck-ai-card-name:hover {
+    color: var(--accent);
+}
+
+.deck-ai-card-role {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.deck-ai-card-price {
+    font-size: 10px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.deck-ai-card-reason {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    line-height: 1.3;
+}
+
+.deck-ai-card-owned-badge {
+    font-size: 8px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: var(--success-dim);
+    color: var(--success);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.deck-ai-card-add-btn {
+    background: transparent;
+    border: 1px solid var(--success);
+    color: var(--success);
+    border-radius: var(--radius-sm);
+    padding: 2px 6px;
+    font-size: 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background var(--duration) var(--ease);
+}
+
+.deck-ai-card-add-btn:hover {
+    background: var(--success-dim);
+}
+
+.deck-ai-notes {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    padding: var(--sp-2) 0;
+}
+
+.deck-ai-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-top: var(--sp-2);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.deck-ai-total strong {
+    color: var(--text);
+}
+
+/* AI Generate — Commander search dropdown */
+.deck-ai-commander-wrap {
+    position: relative;
+}
+
+.deck-ai-commander-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    z-index: 50;
+    max-height: 180px;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+}
+
+.deck-ai-commander-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background 0.12s;
+    font-size: 12px;
+}
+
+.deck-ai-commander-option:hover,
+.deck-ai-commander-option.active {
+    background: var(--accent-dim);
+}
+
+.deck-ai-commander-option-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.deck-ai-commander-selected {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-top: 4px;
+    padding: 4px 8px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-glow);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    color: var(--accent);
+}
+
+.deck-ai-commander-selected .deck-clear-commander-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 2px;
+}
+
+.deck-ai-commander-selected .deck-clear-commander-btn:hover {
+    color: var(--error);
+}
+
+/* AI Generate — Apply to Deck button */
+.deck-btn-apply-ai {
+    background: var(--success-dim);
+    color: var(--success);
+    border-color: rgba(74, 222, 128, 0.4);
+    font-weight: 600;
+    margin-top: var(--sp-3);
+}
+
+.deck-btn-apply-ai:hover:not(:disabled) {
+    background: rgba(74, 222, 128, 0.25);
+    border-color: var(--success);
+    box-shadow: 0 0 12px var(--success-dim);
+}
+
+/* AI error message */
+.deck-ai-error {
+    font-size: 12px;
+    color: var(--error);
+    padding: var(--sp-3) 0;
+    line-height: 1.4;
+}
+
+/* Strategy text block */
+.deck-ai-strategy {
+    font-size: 12px;
+    color: var(--text);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+    line-height: 1.5;
+    margin-bottom: var(--sp-3);
+}
+
+/* Stats row for generated deck */
+.deck-ai-stats {
+    display: flex;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--sp-3);
+}
+
+.deck-ai-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    flex: 1;
+    min-width: 60px;
+}
+
+.deck-ai-stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.deck-ai-stat-label {
+    font-size: 9px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AI Deep Analysis — Research Results Styles
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Header Row: Rating + Bracket + Archetype inline ──── */
+.deck-ai-header-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--sp-3);
+    padding-bottom: var(--sp-3);
+    border-bottom: 1px solid var(--border);
+}
+
+.deck-ai-rating-sublabel {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin-left: 1px;
+}
+
+/* ── Bracket Badge ──────────────────────────────────────── */
+.deck-ai-bracket-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+.deck-ai-bracket-badge.bracket-1 {
+    background: rgba(74, 222, 128, 0.15);
+    color: var(--success);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.deck-ai-bracket-badge.bracket-2 {
+    background: rgba(91, 158, 240, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(91, 158, 240, 0.3);
+}
+
+.deck-ai-bracket-badge.bracket-3 {
+    background: rgba(251, 191, 36, 0.15);
+    color: var(--warning);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.deck-ai-bracket-badge.bracket-4 {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--error);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+/* ── Archetype Badge ────────────────────────────────────── */
+.deck-ai-archetype-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--purple-dim);
+    color: var(--purple);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    text-transform: capitalize;
+    flex-shrink: 0;
+}
+
+/* ── Rating Explanation ─────────────────────────────────── */
+.deck-ai-rating-explanation {
+    font-style: italic;
+    color: var(--text-secondary);
+    font-size: 11px;
+    padding: var(--sp-1) 0 var(--sp-2);
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: var(--sp-2);
+}
+
+/* ── Bracket Detail block ──────────────────────────────── */
+.deck-ai-bracket-detail {
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+/* ── Win Conditions ─────────────────────────────────────── */
+.deck-ai-wincon {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+    margin-bottom: var(--sp-2);
+}
+
+.deck-ai-wincon-header {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-2);
+}
+
+.deck-ai-wincon-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.deck-ai-wincon-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: var(--sp-1);
+}
+
+/* ── Reliability Badge (high/mid/low) ──────────────────── */
+.deck-ai-reliability-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    flex-shrink: 0;
+}
+
+.deck-ai-reliability-badge.high {
+    background: rgba(74, 222, 128, 0.15);
+    color: var(--success);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.deck-ai-reliability-badge.mid {
+    background: rgba(251, 191, 36, 0.15);
+    color: var(--warning);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.deck-ai-reliability-badge.low {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--error);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+/* ── Card Chip (inline card references) ─────────────────── */
+.deck-ai-card-chip {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(91, 158, 240, 0.2);
+    white-space: nowrap;
+}
+
+.deck-ai-card-chip-warn {
+    background: var(--error-dim);
+    color: var(--error);
+    border-color: rgba(248, 113, 113, 0.25);
+}
+
+/* ── Synergy Packages ───────────────────────────────────── */
+.deck-ai-synergy-pkg {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+    margin-bottom: var(--sp-2);
+}
+
+.deck-ai-synergy-header {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-2);
+}
+
+.deck-ai-synergy-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+/* ── Threat Assessment (game phases) ───────────────────── */
+.deck-ai-phases {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.deck-ai-phase {
+    display: flex;
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    align-items: flex-start;
+}
+
+.deck-ai-phase-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--accent);
+    flex-shrink: 0;
+    min-width: 80px;
+    padding-top: 1px;
+}
+
+.deck-ai-phase-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.deck-ai-phase-vuln .deck-ai-phase-label {
+    color: var(--error);
+}
+
+.deck-ai-phase-vuln {
+    border-color: rgba(248, 113, 113, 0.2);
+    background: var(--error-dim);
+}
+
+/* ── Strengths / Weaknesses side-by-side grid ──────────── */
+.deck-ai-sw-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-3);
+}
+
+.deck-ai-sw-col {
+    min-width: 0;
+}
+
+.deck-ai-sw-title-good {
+    color: var(--success) !important;
+}
+
+.deck-ai-sw-title-bad {
+    color: var(--error) !important;
+}
+
+.deck-ai-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.deck-ai-list li {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 3px 0;
+    line-height: 1.4;
+    position: relative;
+    padding-left: 14px;
+}
+
+.deck-ai-list li::before {
+    content: '\2022';
+    position: absolute;
+    left: 2px;
+    color: var(--text-tertiary);
+}
+
+/* ── Role Analysis (progress bar rows) ─────────────────── */
+.deck-ai-role-gaps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.deck-ai-role-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 50px;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: 12px;
+}
+
+.deck-ai-role-name {
+    font-weight: 600;
+    color: var(--text);
+    text-transform: capitalize;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.deck-ai-role-bar-wrap {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.deck-ai-role-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease;
+    min-width: 2px;
+}
+
+.deck-ai-role-bar.good {
+    background: var(--success);
+}
+
+.deck-ai-role-bar.warn {
+    background: var(--warning);
+}
+
+.deck-ai-role-bar.bad {
+    background: var(--error);
+}
+
+.deck-ai-role-nums {
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.deck-ai-role-note {
+    grid-column: 1 / -1;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    line-height: 1.3;
+    padding-left: 92px;
+    margin-top: -2px;
+}
+
+/* ── Severity Badge (cuts) ──────────────────────────────── */
+.deck-ai-severity-badge {
+    font-size: 8px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    flex-shrink: 0;
+}
+
+.deck-ai-severity-badge.sev-must {
+    background: rgba(248, 113, 113, 0.2);
+    color: var(--error);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.deck-ai-severity-badge.sev-should {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--warning);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.deck-ai-severity-badge.sev-consider {
+    background: rgba(91, 158, 240, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(91, 158, 240, 0.2);
+}
+
+/* ── Priority Badge (adds) ──────────────────────────────── */
+.deck-ai-priority-badge {
+    font-size: 8px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    flex-shrink: 0;
+}
+
+.deck-ai-priority-badge.pri-critical {
+    background: rgba(248, 113, 113, 0.2);
+    color: var(--error);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.deck-ai-priority-badge.pri-high {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--warning);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.deck-ai-priority-badge.pri-medium {
+    background: rgba(91, 158, 240, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(91, 158, 240, 0.2);
+}
+
+.deck-ai-priority-badge.pri-nice {
+    background: rgba(74, 222, 128, 0.12);
+    color: var(--success);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+/* ── Card Detail line (reason / synergy) ────────────────── */
+.deck-ai-card-detail {
+    font-size: 10px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    padding: 2px 0 0 14px;
+    margin-top: 2px;
+}
+
+/* ── Synergy Tag (inline in card detail) ────────────────── */
+.deck-ai-synergy-tag {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--purple-dim);
+    color: var(--purple);
+    border: 1px solid rgba(167, 139, 250, 0.2);
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* ── Deep Analysis responsive tweak ─────────────────────── */
+@media (max-width: 600px) {
+    .deck-ai-sw-grid {
+        grid-template-columns: 1fr;
+    }
+    .deck-ai-role-row {
+        grid-template-columns: 70px 1fr 40px;
+    }
+    .deck-ai-role-note {
+        padding-left: 72px;
+    }
+    .deck-ai-phase {
+        flex-direction: column;
+        gap: var(--sp-1);
+    }
+    .deck-ai-phase-label {
+        min-width: auto;
+    }
 }
