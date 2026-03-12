@@ -208,7 +208,8 @@
         try {
             const res = await fetch(API + '/api/coach/decks');
             const data = await res.json();
-            const decks = data.decks || [];
+            // Backend returns a bare array of objects, not {decks: [...]}
+            const decks = Array.isArray(data) ? data : (data.decks || []);
 
             while (deckSelect.options.length > 1) {
                 deckSelect.remove(1);
@@ -217,16 +218,33 @@
             if (decks.length === 0) {
                 const opt = document.createElement('option');
                 opt.disabled = true;
-                opt.textContent = 'No deck reports available \u2014 run simulations first';
+                opt.textContent = 'No decks found \u2014 add decks in Deck Builder first';
                 deckSelect.appendChild(opt);
                 return;
             }
 
-            decks.sort();
-            for (const deckId of decks) {
+            // Sort by deck name
+            decks.sort((a, b) => {
+                const na = (typeof a === 'string' ? a : a.deck_name || '').toLowerCase();
+                const nb = (typeof b === 'string' ? b : b.deck_name || '').toLowerCase();
+                return na.localeCompare(nb);
+            });
+
+            for (const deck of decks) {
                 const opt = document.createElement('option');
-                opt.value = deckId;
-                opt.textContent = deckId;
+                if (typeof deck === 'string') {
+                    // Legacy: bare string ID
+                    opt.value = deck;
+                    opt.textContent = deck;
+                } else {
+                    // Object format: {deck_id, deck_name, commander, has_report, ...}
+                    const slug = deck.deck_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                    opt.value = slug;
+                    opt.textContent = deck.deck_name + (deck.commander ? ' (' + deck.commander + ')' : '');
+                    if (!deck.has_report) {
+                        opt.textContent += ' [no report]';
+                    }
+                }
                 deckSelect.appendChild(opt);
             }
         } catch (e) {
