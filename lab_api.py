@@ -8230,30 +8230,27 @@ async def ml_tournament_results():
 # Static File Serving (React SPA) — MUST be after all API routes
 # ══════════════════════════════════════════════════════════════
 
-# React SPA: serve from frontend/commander-ai-lab-ui/dist (built with Vite)
-_spa_dir = Path(__file__).parent / "frontend" / "commander-ai-lab-ui" / "dist"
+# UI Serving: legacy HTML/JS/CSS pages (primary) or React SPA (fallback)
 _legacy_ui_dir = Path(__file__).parent / "ui"
+_spa_dir = Path(__file__).parent / "frontend" / "commander-ai-lab-ui" / "dist"
 
-if _spa_dir.exists():
-    # Serve static assets (JS, CSS, images) from the SPA dist folder
+if _legacy_ui_dir.exists():
+    # Primary: serve the proven multi-page HTML/JS/CSS UI
+    app.mount("/", StaticFiles(directory=str(_legacy_ui_dir), html=True), name="ui")
+
+elif _spa_dir.exists():
+    # Fallback: React SPA (only if legacy ui/ folder is missing)
     _spa_assets = _spa_dir / "assets"
     if _spa_assets.exists():
         app.mount("/assets", StaticFiles(directory=str(_spa_assets)), name="spa-assets")
 
-    # SPA catch-all: serve index.html for all non-API routes (client-side routing)
     @app.get("/{full_path:path}")
     async def _spa_catchall(full_path: str):
         from fastapi.responses import FileResponse
-        # If the exact file exists in dist, serve it
         requested_file = _spa_dir / full_path
         if full_path and requested_file.exists() and requested_file.is_file():
             return FileResponse(str(requested_file))
-        # Otherwise serve index.html (let React Router handle it)
         return FileResponse(str(_spa_dir / "index.html"))
-
-elif _legacy_ui_dir.exists():
-    # Fallback: legacy HTML files
-    app.mount("/", StaticFiles(directory=str(_legacy_ui_dir), html=True), name="ui")
 
 
 # ══════════════════════════════════════════════════════════════
