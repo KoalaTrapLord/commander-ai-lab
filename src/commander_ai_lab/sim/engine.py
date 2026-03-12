@@ -21,6 +21,7 @@ from commander_ai_lab.sim.models import (
     Card,
     GameResult,
     Player,
+    PlayerResult,
     PlayerStats,
     SimState,
 )
@@ -93,8 +94,8 @@ class GameEngine:
                 if self.record_log and p.stats.lands_played > land_before:
                     # Find what land was just played
                     last_land = next(
-                        (c for c in reversed(sim.battlefield)
-                         if c.owner_id == pi and c.is_land()),
+                        (c for c in reversed(sim.get_battlefield(pi))
+                         if c.is_land()),
                         None,
                     )
                     if last_land:
@@ -108,9 +109,7 @@ class GameEngine:
                 self._play_spells(sim, pi, available_mana, phase_events if self.record_log else None)
 
                 # ── Track board size ──
-                board_size = sum(
-                    1 for c in sim.battlefield if c.owner_id == pi
-                )
+                board_size = len(sim.get_battlefield(pi))
                 if board_size > p.stats.max_board_size:
                     p.stats.max_board_size = board_size
 
@@ -120,9 +119,8 @@ class GameEngine:
                 self._resolve_combat(sim, pi, turn, phase_events if self.record_log else None)
 
                 # ── Untap ──
-                for c in sim.battlefield:
-                    if c.owner_id == pi:
-                        c.tapped = False
+                for c in sim.get_battlefield(pi):
+                    c.tapped = False
 
                 if self.record_log:
                     turn_entry["phases"].append({
@@ -131,8 +129,8 @@ class GameEngine:
                         "events": phase_events,
                         "lifeAfter": {sim.players[0].name: sim.players[0].life,
                                       sim.players[1].name: sim.players[1].life},
-                        "boardA": [c.name for c in sim.battlefield if c.owner_id == 0 and c.is_creature()],
-                        "boardB": [c.name for c in sim.battlefield if c.owner_id == 1 and c.is_creature()],
+                        "boardA": [c.name for c in sim.get_battlefield(0) if c.is_creature()],
+                        "boardB": [c.name for c in sim.get_battlefield(1) if c.is_creature()],
                     })
 
             # Check game over
@@ -186,6 +184,7 @@ class GameEngine:
             )
             sim.players.append(player)
 
+        sim.init_battlefields(len(sim.players))
         return sim
 
     def _play_land(self, sim: SimState, pi: int) -> None:
@@ -204,15 +203,15 @@ class GameEngine:
         land_card.tapped = False
         land_card.id = sim.next_card_id
         sim.next_card_id += 1
-        sim.battlefield.append(land_card)
+        sim.add_to_battlefield(pi, land_card)
         p.stats.lands_played += 1
 
     def _count_untapped_lands(self, sim: SimState, pi: int) -> int:
         """Count untapped lands for a player."""
         return sum(
             1
-            for c in sim.battlefield
-            if c.owner_id == pi and not c.tapped and c.is_land()
+            for c in sim.get_battlefield(pi)
+            if not c.tapped and c.is_land()
         )
 
     def _play_spells(self, sim: SimState, pi: int, available_mana: int, events: list | None = None) -> None:
@@ -251,14 +250,10 @@ class GameEngine:
 
             # Pay mana
             mana_needed = card.cmc or 0
-            for bf_card in sim.battlefield:
+            for bf_card in sim.get_battlefield(pi):
                 if mana_needed <= 0:
                     break
-                if (
-                    bf_card.owner_id == pi
-                    and not bf_card.tapped
-                    and bf_card.is_land()
-                ):
+                if not bf_card.tapped and bf_card.is_land():
                     bf_card.tapped = True
                     mana_needed -= 1
 
@@ -268,17 +263,16 @@ class GameEngine:
             # Handle removal
             if card.is_removal:
                 p.stats.removal_used += 1
+                opp_idx_r = 1 - pi
                 opp_creatures = [
                     c
-                    for c in sim.battlefield
-                    if c.owner_id != pi and c.is_creature()
+                    for c in sim.get_battlefield(opp_idx_r)
+                    if c.is_creature()
                 ]
                 if opp_creatures:
                     opp_creatures.sort(key=lambda c: -score_card(c, w))
                     killed = opp_creatures[0]
-                    sim.battlefield = [
-                        c for c in sim.battlefield if c.id != killed.id
-                    ]
+                    sim.remove_from_battlefield(killed.id)
                     sim.players[killed.owner_id].graveyard.append(killed)
                     if events is not None:
                         events.append(f"Cast {card.name} (removal) — destroyed {killed.name}")
@@ -289,20 +283,23 @@ class GameEngine:
 
             elif card.is_board_wipe:
                 p.stats.board_wipes_used += 1
-                wiped = [c.name for c in sim.battlefield if c.is_creature()]
-                surviving = []
-                for c in sim.battlefield:
-                    if c.is_creature():
-                        sim.players[c.owner_id].graveyard.append(c)
-                    else:
-                        surviving.append(c)
-                sim.battlefield = surviving
+                wiped_names = []
+                for seat_idx in range(len(sim.players)):
+                    bf = sim.get_battlefield(seat_idx)
+                    keep = []
+                    for c in bf:
+                        if c.is_creature():
+                            wiped_names.append(c.name)
+                            sim.players[c.owner_id].graveyard.append(c)
+                        else:
+                            keep.append(c)
+                    sim.battlefields[seat_idx] = keep
                 p.graveyard.append(card)
                 if events is not None:
-                    events.append(f"Cast {card.name} (board wipe) — destroyed {len(wiped)} creatures")
+                    events.append(f"Cast {card.name} (board wipe) — destroyed {len(wiped_names)} creatures")
 
             else:
-                sim.battlefield.append(card)
+                sim.add_to_battlefield(pi, card)
                 if card.is_creature():
                     p.stats.creatures_played += 1
                     if events is not None:
@@ -333,10 +330,9 @@ class GameEngine:
         # My creatures that can attack (not tapped, not summoning sick)
         my_creatures = [
             c
-            for c in sim.battlefield
+            for c in sim.get_battlefield(pi)
             if (
-                c.owner_id == pi
-                and c.is_creature()
+                c.is_creature()
                 and not c.tapped
                 and (turn > 0 or c.turn_played != turn)
             )
@@ -346,10 +342,9 @@ class GameEngine:
 
         opp_blockers = [
             c
-            for c in sim.battlefield
+            for c in sim.get_battlefield(opp_idx)
             if (
-                c.owner_id == opp_idx
-                and c.is_creature()
+                c.is_creature()
                 and not c.tapped
             )
         ]
@@ -431,18 +426,14 @@ class GameEngine:
 
                     # Attacker kills blocker?
                     if a_pow >= blocker.get_toughness() or atk.has_keyword("deathtouch"):
-                        sim.battlefield = [
-                            c for c in sim.battlefield if c.id != blocker.id
-                        ]
+                        sim.remove_from_battlefield(blocker.id)
                         sim.players[opp_idx].graveyard.append(blocker)
                         if events is not None:
                             combat_details.append(f"  {blocker.name} dies")
 
                     # Blocker kills attacker?
                     if b_pow >= a_tou or blocker.has_keyword("deathtouch"):
-                        sim.battlefield = [
-                            c for c in sim.battlefield if c.id != atk.id
-                        ]
+                        sim.remove_from_battlefield(atk.id)
                         sim.players[pi].graveyard.append(atk)
                         if events is not None:
                             combat_details.append(f"  {atk.name} dies")
@@ -490,15 +481,19 @@ class GameEngine:
             # Both alive or both dead: compare life
             winner = 0 if pa.life >= pb.life else 1
 
+        player_results = []
+        for seat, p in enumerate(sim.players):
+            player_results.append(PlayerResult(
+                seat_index=seat,
+                name=p.name,
+                life=p.life,
+                eliminated=p.eliminated,
+                finish_position=1 if seat == winner else 2,
+                stats=p.stats,
+            ))
+
         return GameResult(
-            winner=winner,
+            winner_seat=winner,
             turns=min(final_turn, sim.max_turns),
-            player_a_name=name_a,
-            player_a_life=pa.life,
-            player_a_eliminated=pa.eliminated,
-            player_a_stats=pa.stats,
-            player_b_name=name_b,
-            player_b_life=pb.life,
-            player_b_eliminated=pb.eliminated,
-            player_b_stats=pb.stats,
+            players=player_results,
         )
