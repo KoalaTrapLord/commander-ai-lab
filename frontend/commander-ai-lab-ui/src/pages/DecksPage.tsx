@@ -2,15 +2,15 @@ import { useState, useEffect } from 'react'
 import {
   Plus, Trash2, Download, ChevronRight,
   BarChart3, Lightbulb, Layers, X, Library,
-  Globe, CheckCircle, XCircle, ShoppingCart,
+  Globe, XCircle, ShoppingCart,
   ChevronDown, ChevronUp, Sparkles
 } from 'lucide-react'
-import { Spinner, EmptyState, ManaSymbols, CardImage, ColorDots } from '../components/common'
+import { Spinner, EmptyState, ManaSymbols, ColorDots } from '../components/common'
 import { decksApi } from '../api'
 import type {
-  Deck, DeckCard, DeckAnalysis, DeckRecommendation,
+  Deck, DeckCard, DeckAnalysis,
   EdhRecCard, EdhRecsResponse,
-  CollectionRecCard, CollectionRecsResponse
+  CollectionRecsResponse
 } from '../types'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 

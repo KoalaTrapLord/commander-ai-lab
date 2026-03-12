@@ -1,5 +1,5 @@
 import { get, post, put, del, patch } from './client'
-import type { Deck, DeckCard, DeckAnalysis, DeckRecommendation, EdhRecsResponse, CollectionRecsResponse, PplxStatus } from '../types'
+import type { Deck, DeckCard, DeckAnalysis, EdhRecsResponse, CollectionRecsResponse, PplxStatus } from '../types'
 
 export async function listDecks() {
   return get<Deck[]>('/api/decks')
