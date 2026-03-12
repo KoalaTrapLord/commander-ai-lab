@@ -94,6 +94,8 @@ class BatchState:
         self.error: Optional[str] = None
         self.process: Optional[subprocess.Popen] = None
         self.log_lines: list = []
+        # v24 (Issue #5): Real-time throughput tracking
+        self.sims_per_sec: float = 0.0
 
 active_batches: dict[str, BatchState] = {}
 
@@ -116,6 +118,10 @@ class StartRequest(BaseModel):
     useLearnedPolicy: bool = False
     policyStyle: str = "midrange"
     policyGreedy: bool = False
+    # v24 (Issues #4/#5): Performance settings
+    aiSimplified: bool = False         # Use faster AI profile
+    aiThinkTimeMs: int = -1            # Cap AI think time (-1 unlimited)
+    maxQueueDepth: int = -1            # Backpressure limit (-1 unlimited)
 
 class StartResponse(BaseModel):
     batchId: str
@@ -130,6 +136,7 @@ class StatusResponse(BaseModel):
     threads: int
     elapsedMs: int
     error: Optional[str] = None
+    simsPerSec: float = 0.0  # v24 (Issue #5): Real-time throughput
 
 class DeckInfo(BaseModel):
     name: str
@@ -391,6 +398,9 @@ async def start_batch(req: StartRequest, background_tasks: BackgroundTasks):
         req.useLearnedPolicy,
         req.policyStyle,
         req.policyGreedy,
+        req.aiSimplified,
+        req.aiThinkTimeMs,
+        req.maxQueueDepth,
     )
 
     policy_msg = ""
@@ -417,6 +427,7 @@ async def get_status(batchId: str):
         threads=state.threads,
         elapsedMs=elapsed if state.running else state.elapsed_ms,
         error=state.error,
+        simsPerSec=state.sims_per_sec,
     )
 
 
@@ -1177,6 +1188,9 @@ async def run_batch_subprocess(
     use_learned_policy: bool = False,
     policy_style: str = "midrange",
     policy_greedy: bool = False,
+    ai_simplified: bool = False,
+    ai_think_time_ms: int = -1,
+    max_queue_depth: int = -1,
 ):
     try:
         # Compute policy server URL from our own port
@@ -1187,6 +1201,9 @@ async def run_batch_subprocess(
             policy_server=policy_server,
             policy_style=policy_style,
             policy_greedy=policy_greedy,
+            ai_simplified=ai_simplified,
+            ai_think_time_ms=ai_think_time_ms,
+            max_queue_depth=max_queue_depth,
         )
         print(f"[Lab API] Starting batch {state.batch_id}: {' '.join(cmd[:6])}...")
         loop = asyncio.get_event_loop()
@@ -1283,6 +1300,16 @@ def _run_process_blocking(state: BatchState, cmd: list[str]):
                     state.completed_games = current
                 except (ValueError, IndexError):
                     pass
+
+            # v24 (Issue #5): Parse real-time sims/sec from Java output
+            if '[PROGRESS]' in line or '[BATCH]' in line:
+                import re
+                sps_match = re.search(r'([\d.]+)\s+sims/sec', line)
+                if sps_match:
+                    try:
+                        state.sims_per_sec = float(sps_match.group(1))
+                    except ValueError:
+                        pass
 
             print(f"  [{state.batch_id}] {line}")
 
@@ -1780,6 +1807,10 @@ def build_java_command(
     policy_server: str = "http://localhost:8080",
     policy_style: str = "midrange",
     policy_greedy: bool = False,
+    # v24 (Issues #4/#5): Performance flags
+    ai_simplified: bool = False,
+    ai_think_time_ms: int = -1,
+    max_queue_depth: int = -1,
 ) -> list[str]:
     java17 = get_java17()
     cmd = [
@@ -1804,6 +1835,13 @@ def build_java_command(
         cmd.extend(["--policy-style", policy_style])
         if policy_greedy:
             cmd.append("--policy-greedy")
+    # v24 (Issues #4/#5): Performance flags
+    if ai_simplified:
+        cmd.append("--ai-simplified")
+    if ai_think_time_ms > 0:
+        cmd.extend(["--ai-think-time", str(ai_think_time_ms)])
+    if max_queue_depth > 0:
+        cmd.extend(["--max-queue", str(max_queue_depth)])
     return cmd
 
 
