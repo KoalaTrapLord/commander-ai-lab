@@ -142,6 +142,51 @@ export interface DeckRecommendation {
   owned: boolean
 }
 
+// ── EDHREC Recommendations ──────────────────────────────────
+
+export interface EdhRecCard {
+  name: string
+  type_line: string
+  role: string
+  roles: string[]
+  inclusion_pct: number | null
+  synergy_score: number | null
+  owned: boolean
+  owned_qty: number
+  scryfall_id: string
+  image_url: string | null
+}
+
+export interface EdhRecsResponse {
+  commander: string
+  source: string
+  total: number
+  recommendations: EdhRecCard[]
+}
+
+// ── Collection Recommendations ──────────────────────────────
+
+export interface CollectionRecCard {
+  id: number
+  scryfall_id: string
+  name: string
+  type_line: string
+  card_type: string
+  cmc: number
+  color_identity: string[]
+  owned_qty: number
+  roles: string[]
+  score: number
+  image_url: string | null
+}
+
+export interface CollectionRecsResponse {
+  shortfall_types: string[]
+  role_filter: string[]
+  grouped: Record<string, CollectionRecCard[]>
+  total: number
+}
+
 // ── V3 Deck Generator ────────────────────────────────────────
 
 export interface DeckGenV3Request {

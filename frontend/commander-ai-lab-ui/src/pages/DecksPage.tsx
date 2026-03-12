@@ -1,12 +1,40 @@
 import { useState, useEffect } from 'react'
 import {
   Plus, Trash2, Download, ChevronRight,
-  BarChart3, Lightbulb, Layers, X
+  BarChart3, Lightbulb, Layers, X, Library,
+  Globe, CheckCircle, XCircle, ShoppingCart,
+  ChevronDown, ChevronUp, Sparkles
 } from 'lucide-react'
 import { Spinner, EmptyState, ManaSymbols, CardImage, ColorDots } from '../components/common'
 import { decksApi } from '../api'
-import type { Deck, DeckCard, DeckAnalysis, DeckRecommendation } from '../types'
+import type {
+  Deck, DeckCard, DeckAnalysis, DeckRecommendation,
+  EdhRecCard, EdhRecsResponse,
+  CollectionRecCard, CollectionRecsResponse
+} from '../types'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+
+// ── Role Badge ──────────────────────────────────────────────
+const ROLE_COLORS: Record<string, string> = {
+  Ramp: 'bg-green-500/15 text-green-400 border-green-500/25',
+  Draw: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
+  Removal: 'bg-red-500/15 text-red-400 border-red-500/25',
+  BoardWipe: 'bg-orange-500/15 text-orange-400 border-orange-500/25',
+  Tutor: 'bg-purple-500/15 text-purple-400 border-purple-500/25',
+  Protection: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
+  Finisher: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
+  Recursion: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+  Other: 'bg-slate-500/15 text-slate-400 border-slate-500/25',
+}
+
+function RoleBadge({ role }: { role: string }) {
+  const colors = ROLE_COLORS[role] || ROLE_COLORS.Other
+  return (
+    <span className={'text-[10px] font-medium px-1.5 py-0.5 rounded border ' + colors}>
+      {role}
+    </span>
+  )
+}
 
 // ── Deck Card List ────────────────────────────────────────────
 function DeckCardList({ deckId, cards, onUpdate }: { deckId: number; cards: DeckCard[]; onUpdate: () => void }) {
@@ -97,13 +125,500 @@ function ManaCurveChart({ analysis }: { analysis: DeckAnalysis }) {
   )
 }
 
+// ── EDHREC Recommendations Sub-tab ──────────────────────────
+function EdhRecTab({ deckId, onAddedCards }: { deckId: number; onAddedCards: () => void }) {
+  const [data, setData] = useState<EdhRecsResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [onlyOwned, setOnlyOwned] = useState(false)
+  const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set())
+  const [addingCards, setAddingCards] = useState<Set<string>>(new Set())
+  const [bulkAdding, setBulkAdding] = useState(false)
+  const [hoveredCard, setHoveredCard] = useState<EdhRecCard | null>(null)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+
+  async function fetchRecs() {
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await decksApi.getEdhRecs(deckId, onlyOwned)
+      setData(result)
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load EDHREC recommendations')
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchRecs() }, [deckId, onlyOwned])
+
+  function toggleSelect(name: string) {
+    setSelectedCards(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  function selectAll() {
+    if (!data) return
+    setSelectedCards(new Set(data.recommendations.map(r => r.name)))
+  }
+
+  function selectNone() { setSelectedCards(new Set()) }
+
+  function selectOwned() {
+    if (!data) return
+    setSelectedCards(new Set(data.recommendations.filter(r => r.owned).map(r => r.name)))
+  }
+
+  async function handleAddSingle(name: string) {
+    setAddingCards(prev => new Set(prev).add(name))
+    try {
+      await decksApi.bulkAddRecommended(deckId, [name])
+      onAddedCards()
+      // Remove from list
+      if (data) {
+        setData({
+          ...data,
+          recommendations: data.recommendations.filter(r => r.name !== name),
+          total: data.total - 1,
+        })
+      }
+      selectedCards.delete(name)
+      setSelectedCards(new Set(selectedCards))
+    } catch { /* ignore */ }
+    setAddingCards(prev => { const n = new Set(prev); n.delete(name); return n })
+  }
+
+  async function handleBulkAdd() {
+    if (selectedCards.size === 0) return
+    setBulkAdding(true)
+    try {
+      await decksApi.bulkAddRecommended(deckId, Array.from(selectedCards))
+      onAddedCards()
+      if (data) {
+        setData({
+          ...data,
+          recommendations: data.recommendations.filter(r => !selectedCards.has(r.name)),
+          total: data.total - selectedCards.size,
+        })
+      }
+      setSelectedCards(new Set())
+    } catch { /* ignore */ }
+    setBulkAdding(false)
+  }
+
+  function toggleGroup(groupName: string) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(groupName)) next.delete(groupName)
+      else next.add(groupName)
+      return next
+    })
+  }
+
+  // Group recommendations by role
+  function groupByRole(recs: EdhRecCard[]): Record<string, EdhRecCard[]> {
+    const groups: Record<string, EdhRecCard[]> = {}
+    for (const rec of recs) {
+      const role = rec.role || 'Other'
+      if (!groups[role]) groups[role] = []
+      groups[role].push(rec)
+    }
+    return groups
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-40"><Spinner size="lg" className="text-accent-blue" /></div>
+  }
+
+  if (error) {
+    return (
+      <div className="bg-accent-red/10 border border-accent-red/20 rounded-xl p-5 text-center">
+        <XCircle className="w-6 h-6 text-accent-red mx-auto mb-2" />
+        <p className="text-sm text-accent-red font-medium">{error}</p>
+        <button onClick={fetchRecs} className="mt-3 px-4 py-2 text-xs font-medium bg-bg-tertiary text-text-secondary rounded-lg hover:bg-bg-hover border border-border-primary transition-colors">
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  if (!data || data.recommendations.length === 0) {
+    return <EmptyState icon={Globe} title="No EDHREC data" description="No recommendations found for this commander on EDHREC." />
+  }
+
+  const grouped = groupByRole(data.recommendations)
+  const roleOrder = ['Ramp', 'Draw', 'Removal', 'BoardWipe', 'Tutor', 'Protection', 'Finisher', 'Recursion', 'Other']
+  const sortedRoles = Object.keys(grouped).sort((a, b) => {
+    const ia = roleOrder.indexOf(a)
+    const ib = roleOrder.indexOf(b)
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+  })
+
+  const ownedCount = data.recommendations.filter(r => r.owned).length
+  const missingCount = data.recommendations.length - ownedCount
+
+  return (
+    <div className="space-y-4">
+      {/* Header bar */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Sparkles className="w-4 h-4 text-accent-blue" />
+            <span className="text-text-primary font-medium">{data.commander}</span>
+            <span className="text-text-tertiary">via {data.source}</span>
+          </div>
+          <span className="text-xs px-2 py-0.5 rounded bg-accent-green/15 text-accent-green">{ownedCount} owned</span>
+          <span className="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-tertiary">{missingCount} missing</span>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={onlyOwned}
+            onChange={e => setOnlyOwned(e.target.checked)}
+            className="rounded border-border-primary bg-bg-tertiary text-accent-blue focus:ring-accent-blue/30 w-3.5 h-3.5"
+          />
+          Show only owned
+        </label>
+      </div>
+
+      {/* Selection toolbar */}
+      <div className="flex items-center justify-between bg-bg-secondary rounded-xl border border-border-primary px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-tertiary">Select:</span>
+          <button onClick={selectAll} className="text-xs text-accent-blue hover:underline">All</button>
+          <span className="text-text-tertiary">/</span>
+          <button onClick={selectNone} className="text-xs text-accent-blue hover:underline">None</button>
+          <span className="text-text-tertiary">/</span>
+          <button onClick={selectOwned} className="text-xs text-accent-blue hover:underline">Owned</button>
+          {selectedCards.size > 0 && (
+            <span className="text-xs text-text-secondary ml-2">({selectedCards.size} selected)</span>
+          )}
+        </div>
+        <button
+          onClick={handleBulkAdd}
+          disabled={selectedCards.size === 0 || bulkAdding}
+          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-accent-blue text-white rounded-lg hover:bg-accent-blue-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {bulkAdding ? <Spinner size="sm" /> : <ShoppingCart className="w-3.5 h-3.5" />}
+          Add {selectedCards.size > 0 ? selectedCards.size : ''} to Deck
+        </button>
+      </div>
+
+      {/* Grouped cards */}
+      {sortedRoles.map(role => {
+        const cards = grouped[role]
+        const isCollapsed = collapsedGroups.has(role)
+        return (
+          <div key={role} className="bg-bg-secondary rounded-xl border border-border-primary overflow-hidden">
+            {/* Group header */}
+            <button
+              onClick={() => toggleGroup(role)}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-bg-hover transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <RoleBadge role={role} />
+                <span className="text-xs text-text-tertiary">({cards.length})</span>
+              </div>
+              {isCollapsed ? <ChevronDown className="w-4 h-4 text-text-tertiary" /> : <ChevronUp className="w-4 h-4 text-text-tertiary" />}
+            </button>
+            {/* Card list */}
+            {!isCollapsed && (
+              <div className="border-t border-border-primary divide-y divide-border-primary">
+                {cards.map(rec => (
+                  <div
+                    key={rec.name}
+                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-bg-hover transition-colors group relative"
+                    onMouseEnter={() => setHoveredCard(rec)}
+                    onMouseLeave={() => setHoveredCard(null)}
+                  >
+                    {/* Checkbox */}
+                    <input
+                      type="checkbox"
+                      checked={selectedCards.has(rec.name)}
+                      onChange={() => toggleSelect(rec.name)}
+                      className="rounded border-border-primary bg-bg-tertiary text-accent-blue focus:ring-accent-blue/30 w-3.5 h-3.5 flex-shrink-0"
+                    />
+                    {/* Card image mini */}
+                    {rec.image_url && (
+                      <div className="w-8 h-11 rounded overflow-hidden bg-bg-tertiary flex-shrink-0">
+                        <img src={rec.image_url} alt={rec.name} className="w-full h-full object-cover" loading="lazy" />
+                      </div>
+                    )}
+                    {/* Card info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-text-primary truncate">{rec.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] text-text-tertiary truncate">{rec.type_line}</span>
+                        {rec.roles.length > 0 && rec.roles.map(r => <RoleBadge key={r} role={r} />)}
+                      </div>
+                    </div>
+                    {/* Owned badge */}
+                    <span className={'text-xs px-2 py-0.5 rounded flex-shrink-0 ' + (rec.owned ? 'bg-accent-green/15 text-accent-green' : 'bg-bg-tertiary text-text-tertiary')}>
+                      {rec.owned ? (rec.owned_qty + 'x owned') : 'Missing'}
+                    </span>
+                    {/* Add button */}
+                    <button
+                      onClick={e => { e.stopPropagation(); handleAddSingle(rec.name) }}
+                      disabled={addingCards.has(rec.name)}
+                      className="opacity-0 group-hover:opacity-100 px-2.5 py-1 text-xs font-medium bg-accent-blue text-white rounded-lg hover:bg-accent-blue-hover transition-all disabled:opacity-50 flex-shrink-0"
+                    >
+                      {addingCards.has(rec.name) ? <Spinner size="sm" /> : '+ Add'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Hover preview */}
+      {hoveredCard && hoveredCard.image_url && (
+        <div className="fixed top-20 right-8 z-50 pointer-events-none animate-fade-in">
+          <img
+            src={hoveredCard.image_url}
+            alt={hoveredCard.name}
+            className="w-[244px] rounded-xl shadow-2xl shadow-black/60 border border-border-primary"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Collection Recommendations Sub-tab ──────────────────────
+function CollectionRecTab({ deckId, onAddedCards }: { deckId: number; onAddedCards: () => void }) {
+  const [data, setData] = useState<CollectionRecsResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set())
+  const [addingCards, setAddingCards] = useState<Set<string>>(new Set())
+  const [bulkAdding, setBulkAdding] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+
+  async function fetchRecs() {
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await decksApi.getCollectionRecs(deckId)
+      setData(result)
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load collection recommendations')
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchRecs() }, [deckId])
+
+  function toggleSelect(name: string) {
+    setSelectedCards(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  function selectAll() {
+    if (!data) return
+    const all = new Set<string>()
+    Object.values(data.grouped).flat().forEach(c => all.add(c.name))
+    setSelectedCards(all)
+  }
+
+  function selectNone() { setSelectedCards(new Set()) }
+
+  async function handleAddSingle(name: string) {
+    setAddingCards(prev => new Set(prev).add(name))
+    try {
+      await decksApi.bulkAddRecommended(deckId, [name])
+      onAddedCards()
+      // Remove from groupings
+      if (data) {
+        const newGrouped = { ...data.grouped }
+        for (const key of Object.keys(newGrouped)) {
+          newGrouped[key] = newGrouped[key].filter(c => c.name !== name)
+          if (newGrouped[key].length === 0) delete newGrouped[key]
+        }
+        setData({ ...data, grouped: newGrouped, total: data.total - 1 })
+      }
+      selectedCards.delete(name)
+      setSelectedCards(new Set(selectedCards))
+    } catch { /* ignore */ }
+    setAddingCards(prev => { const n = new Set(prev); n.delete(name); return n })
+  }
+
+  async function handleBulkAdd() {
+    if (selectedCards.size === 0) return
+    setBulkAdding(true)
+    try {
+      await decksApi.bulkAddRecommended(deckId, Array.from(selectedCards))
+      onAddedCards()
+      if (data) {
+        const newGrouped = { ...data.grouped }
+        for (const key of Object.keys(newGrouped)) {
+          newGrouped[key] = newGrouped[key].filter(c => !selectedCards.has(c.name))
+          if (newGrouped[key].length === 0) delete newGrouped[key]
+        }
+        setData({ ...data, grouped: newGrouped, total: data.total - selectedCards.size })
+      }
+      setSelectedCards(new Set())
+    } catch { /* ignore */ }
+    setBulkAdding(false)
+  }
+
+  function toggleGroup(groupName: string) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(groupName)) next.delete(groupName)
+      else next.add(groupName)
+      return next
+    })
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-40"><Spinner size="lg" className="text-accent-blue" /></div>
+  }
+
+  if (error) {
+    return (
+      <div className="bg-accent-red/10 border border-accent-red/20 rounded-xl p-5 text-center">
+        <XCircle className="w-6 h-6 text-accent-red mx-auto mb-2" />
+        <p className="text-sm text-accent-red font-medium">{error}</p>
+        <button onClick={fetchRecs} className="mt-3 px-4 py-2 text-xs font-medium bg-bg-tertiary text-text-secondary rounded-lg hover:bg-bg-hover border border-border-primary transition-colors">
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  if (!data || data.total === 0) {
+    return <EmptyState icon={Library} title="No collection matches" description="No cards in your collection match this deck's needs." />
+  }
+
+  const typeOrder = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land', 'Other']
+  const sortedTypes = Object.keys(data.grouped).sort((a, b) => {
+    const ia = typeOrder.indexOf(a)
+    const ib = typeOrder.indexOf(b)
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+  })
+
+  return (
+    <div className="space-y-4">
+      {/* Shortfall alert */}
+      {data.shortfall_types.length > 0 && (
+        <div className="flex items-start gap-3 bg-accent-blue/8 border border-accent-blue/20 rounded-xl px-4 py-3">
+          <Lightbulb className="w-4 h-4 text-accent-blue mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-medium text-accent-blue">Deck needs more:</p>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {data.shortfall_types.map(t => (
+                <span key={t} className="text-[10px] font-medium px-2 py-0.5 rounded bg-accent-blue/15 text-accent-blue border border-accent-blue/25">{t}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selection toolbar */}
+      <div className="flex items-center justify-between bg-bg-secondary rounded-xl border border-border-primary px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-tertiary">Select:</span>
+          <button onClick={selectAll} className="text-xs text-accent-blue hover:underline">All</button>
+          <span className="text-text-tertiary">/</span>
+          <button onClick={selectNone} className="text-xs text-accent-blue hover:underline">None</button>
+          {selectedCards.size > 0 && (
+            <span className="text-xs text-text-secondary ml-2">({selectedCards.size} selected)</span>
+          )}
+        </div>
+        <button
+          onClick={handleBulkAdd}
+          disabled={selectedCards.size === 0 || bulkAdding}
+          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-accent-blue text-white rounded-lg hover:bg-accent-blue-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {bulkAdding ? <Spinner size="sm" /> : <ShoppingCart className="w-3.5 h-3.5" />}
+          Add {selectedCards.size > 0 ? selectedCards.size : ''} to Deck
+        </button>
+      </div>
+
+      {/* Grouped cards */}
+      {sortedTypes.map(type => {
+        const cards = data.grouped[type]
+        const isCollapsed = collapsedGroups.has(type)
+        const isShortfall = data.shortfall_types.includes(type)
+        return (
+          <div key={type} className={'bg-bg-secondary rounded-xl border overflow-hidden ' + (isShortfall ? 'border-accent-blue/30' : 'border-border-primary')}>
+            {/* Group header */}
+            <button
+              onClick={() => toggleGroup(type)}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-bg-hover transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-text-primary uppercase tracking-wider">{type}</span>
+                <span className="text-xs text-text-tertiary">({cards.length})</span>
+                {isShortfall && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent-blue/15 text-accent-blue border border-accent-blue/25">Shortfall</span>}
+              </div>
+              {isCollapsed ? <ChevronDown className="w-4 h-4 text-text-tertiary" /> : <ChevronUp className="w-4 h-4 text-text-tertiary" />}
+            </button>
+            {/* Card list */}
+            {!isCollapsed && (
+              <div className="border-t border-border-primary divide-y divide-border-primary">
+                {cards.map(rec => (
+                  <div key={rec.scryfall_id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-bg-hover transition-colors group">
+                    {/* Checkbox */}
+                    <input
+                      type="checkbox"
+                      checked={selectedCards.has(rec.name)}
+                      onChange={() => toggleSelect(rec.name)}
+                      className="rounded border-border-primary bg-bg-tertiary text-accent-blue focus:ring-accent-blue/30 w-3.5 h-3.5 flex-shrink-0"
+                    />
+                    {/* Card image mini */}
+                    {rec.image_url && (
+                      <div className="w-8 h-11 rounded overflow-hidden bg-bg-tertiary flex-shrink-0">
+                        <img src={rec.image_url} alt={rec.name} className="w-full h-full object-cover" loading="lazy" />
+                      </div>
+                    )}
+                    {/* Card info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-text-primary truncate">{rec.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] text-text-tertiary">{rec.cmc} CMC</span>
+                        {rec.roles.length > 0 && rec.roles.map(r => <RoleBadge key={r} role={r} />)}
+                      </div>
+                    </div>
+                    {/* Score */}
+                    <span className="text-xs text-accent-teal font-medium flex-shrink-0">Score: {rec.score}</span>
+                    {/* Owned qty */}
+                    <span className="text-xs px-2 py-0.5 rounded bg-accent-green/15 text-accent-green flex-shrink-0">{rec.owned_qty}x</span>
+                    {/* Add button */}
+                    <button
+                      onClick={e => { e.stopPropagation(); handleAddSingle(rec.name) }}
+                      disabled={addingCards.has(rec.name)}
+                      className="opacity-0 group-hover:opacity-100 px-2.5 py-1 text-xs font-medium bg-accent-blue text-white rounded-lg hover:bg-accent-blue-hover transition-all disabled:opacity-50 flex-shrink-0"
+                    >
+                      {addingCards.has(rec.name) ? <Spinner size="sm" /> : '+ Add'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Deck Detail View ──────────────────────────────────────────
 function DeckDetail({ deck, onBack }: { deck: Deck; onBack: () => void }) {
   const [cards, setCards] = useState<DeckCard[]>([])
   const [analysis, setAnalysis] = useState<DeckAnalysis | null>(null)
-  const [recs, setRecs] = useState<DeckRecommendation[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'cards' | 'analysis' | 'recs'>('cards')
+  const [recSource, setRecSource] = useState<'edhrec' | 'collection'>('edhrec')
   const [addingCard, setAddingCard] = useState('')
   const [bulkText, setBulkText] = useState('')
   const [showBulk, setShowBulk] = useState(false)
@@ -122,15 +637,6 @@ function DeckDetail({ deck, onBack }: { deck: Deck; onBack: () => void }) {
   }
 
   useEffect(() => { fetchAll() }, [deck.id])
-
-  async function loadRecs() {
-    try {
-      const r = await decksApi.getCollectionRecs(deck.id)
-      setRecs(r)
-    } catch { /* ignore */ }
-  }
-
-  useEffect(() => { if (tab === 'recs' && recs.length === 0) loadRecs() }, [tab])
 
   async function handleAddCard() {
     if (!addingCard.trim()) return
@@ -284,24 +790,36 @@ function DeckDetail({ deck, onBack }: { deck: Deck; onBack: () => void }) {
           </div>
         </div>
       ) : tab === 'recs' ? (
-        <div className="space-y-3">
-          {recs.length === 0 ? (
-            <EmptyState icon={Lightbulb} title="No recommendations yet" description="Recommendations are generated from your collection." />
+        <div className="space-y-4">
+          {/* Sub-tab toggle */}
+          <div className="flex items-center gap-1 bg-bg-tertiary rounded-lg p-1 w-fit">
+            <button
+              onClick={() => setRecSource('edhrec')}
+              className={'flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-md transition-all ' +
+                (recSource === 'edhrec'
+                  ? 'bg-accent-blue text-white shadow-sm'
+                  : 'text-text-tertiary hover:text-text-secondary')}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              EDHREC
+            </button>
+            <button
+              onClick={() => setRecSource('collection')}
+              className={'flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-md transition-all ' +
+                (recSource === 'collection'
+                  ? 'bg-accent-blue text-white shadow-sm'
+                  : 'text-text-tertiary hover:text-text-secondary')}
+            >
+              <Library className="w-3.5 h-3.5" />
+              From Collection
+            </button>
+          </div>
+
+          {/* Sub-tab content */}
+          {recSource === 'edhrec' ? (
+            <EdhRecTab deckId={deck.id} onAddedCards={fetchAll} />
           ) : (
-            recs.map(rec => (
-              <div key={rec.scryfall_id} className="flex items-center gap-4 p-3 bg-bg-secondary rounded-xl border border-border-primary hover:border-border-secondary transition-colors">
-                <CardImage src={rec.image_url} alt={rec.name} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-text-primary">{rec.name}</p>
-                  <p className="text-xs text-text-secondary truncate">{rec.reason}</p>
-                </div>
-                <ManaSymbols cost={rec.mana_cost} />
-                <span className="text-xs text-accent-teal">{rec.tcg_price != null ? `$${rec.tcg_price.toFixed(2)}` : ''}</span>
-                <span className={`text-xs px-2 py-0.5 rounded ${rec.owned ? 'bg-accent-green/15 text-accent-green' : 'bg-bg-tertiary text-text-tertiary'}`}>
-                  {rec.owned ? 'Owned' : 'Missing'}
-                </span>
-              </div>
-            ))
+            <CollectionRecTab deckId={deck.id} onAddedCards={fetchAll} />
           )}
         </div>
       ) : null}
