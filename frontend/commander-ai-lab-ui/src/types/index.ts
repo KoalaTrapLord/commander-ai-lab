@@ -374,47 +374,75 @@ export interface CoachMessage {
 
 // ── ML Training ──────────────────────────────────────────────
 
+/** GET /api/ml/status */
 export interface MLStatus {
-  enabled: boolean
-  model_loaded: boolean
-  model_path: string | null
-  decisions_count: number
-  decision_files: string[]
+  ml_logging_enabled: boolean
+  training_files: { file: string; decisions: number; size_kb: number }[]
+  total_decisions: number
+  total_files: number
 }
 
+/** GET /api/ml/data/status */
 export interface MLDataStatus {
-  dataset_exists: boolean
-  samples: number
-  features: number
-  last_built: string | null
+  decisionFiles: { name: string; size: number; decisions: number }[]
+  totalDecisions: number
+  datasets: Record<string, { samples: number; features: number; size: number }>
+  checkpoints: { name: string; size: number; modified: string }[]
+  evalResults: Record<string, unknown> | null
+  policyLoaded: boolean
 }
 
+/** GET /api/ml/train/status */
 export interface MLTrainStatus {
   running: boolean
-  epoch: number
+  progress: number
   total_epochs: number
-  loss: number | null
-  accuracy: number | null
-  best_accuracy: number | null
+  current_epoch: number
+  phase: 'idle' | 'starting' | 'building' | 'training' | 'evaluating' | 'done' | 'error'
+  message: string
+  metrics: Record<string, unknown> | null
+  result: {
+    training: Record<string, unknown>
+    evaluation: Record<string, unknown> | null
+    checkpoint: string
+    device: string
+  } | null
+  error: string | null
+  started_at: string | null
 }
 
+/** GET /api/ml/train/ppo/status */
 export interface PPOTrainStatus {
   running: boolean
   iteration: number
   total_iterations: number
-  avg_reward: number | null
-  win_rate: number | null
+  phase: 'idle' | 'starting' | 'training' | 'done' | 'error'
+  message: string
+  metrics: {
+    avg_reward?: number
+    win_rate?: number
+    policy_loss?: number
+    value_loss?: number
+    entropy?: number
+    [key: string]: unknown
+  } | null
+  result: Record<string, unknown> | null
+  error: string | null
 }
 
+/** GET /api/ml/tournament/status */
 export interface TournamentStatus {
   running: boolean
-  games_completed: number
-  total_games: number
+  phase: 'idle' | 'starting' | 'running' | 'done' | 'error'
+  message: string
+  result: TournamentResults | null
+  error: string | null
 }
 
 export interface TournamentResults {
   players: TournamentPlayer[]
-  total_games: number
+  total_matches: number
+  matchups?: Record<string, unknown>
 }
 
 export interface TournamentPlayer {
@@ -422,6 +450,17 @@ export interface TournamentPlayer {
   wins: number
   games: number
   win_rate: number
+}
+
+/** GET /api/ml/model */
+export interface MLModelInfo {
+  loaded: boolean
+  device?: string
+  input_dim?: number
+  num_actions?: number
+  checkpoint_path?: string
+  error?: string
+  torch_available?: boolean
 }
 
 // ── DeepSeek ─────────────────────────────────────────────────
