@@ -7151,8 +7151,15 @@ async def coach_run_session(deck_id: str, body: CoachRequestBody = None):
         except Exception:
             goals = None
 
+    # Build a fallback DeckReport from the DB if no simulation report exists
+    fallback_report = None
     try:
-        session = await _coach_service.run_coaching_session(deck_id, goals)
+        fallback_report = _build_deck_report_from_db(deck_id)
+    except Exception as e:
+        print(f"  Coach: Fallback report build failed for '{deck_id}': {e}")
+
+    try:
+        session = await _coach_service.run_coaching_session(deck_id, goals, fallback_report=fallback_report)
         return session.model_dump()
     except ValueError as e:
         raise HTTPException(404, str(e))
@@ -7160,6 +7167,119 @@ async def coach_run_session(deck_id: str, body: CoachRequestBody = None):
         raise HTTPException(503, f"LLM connection failed: {e}")
     except Exception as e:
         raise HTTPException(500, f"Coach session failed: {e}")
+
+
+def _build_deck_report_from_db(deck_slug: str):
+    """
+    Build a lightweight DeckReport from the deck builder DB when no
+    simulation report exists. Allows the coach to analyze deck composition
+    even without simulation data.
+    """
+    from coach.models import DeckReport, CardPerformance, DeckStructure
+    conn = _get_db_conn()
+
+    # Find the deck by slug match against the deck name
+    rows = conn.execute(
+        "SELECT id, name, commander_name, color_identity FROM decks ORDER BY id"
+    ).fetchall()
+
+    matched_deck = None
+    for r in rows:
+        name = r["name"] or ""
+        slug = name.lower().replace(" ", "-")
+        # Also try a more thorough slugify
+        import re
+        clean_slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+        if slug == deck_slug.lower() or clean_slug == deck_slug.lower() or name.lower() == deck_slug.lower():
+            matched_deck = r
+            break
+
+    if matched_deck is None:
+        return None
+
+    deck_id = matched_deck["id"]
+    deck_name = matched_deck["name"]
+    commander = matched_deck["commander_name"] or ""
+
+    # Parse color identity
+    ci_raw = matched_deck["color_identity"] or "[]"
+    try:
+        color_identity = json.loads(ci_raw) if isinstance(ci_raw, str) else ci_raw
+    except Exception:
+        color_identity = []
+
+    # Load all cards in this deck
+    card_rows = conn.execute(
+        """SELECT dc.card_name, dc.quantity, dc.is_commander, dc.role_tag,
+                  ce.type_line, ce.cmc, ce.oracle_text
+           FROM deck_cards dc
+           LEFT JOIN collection_entries ce ON LOWER(dc.card_name) = LOWER(ce.name)
+           WHERE dc.deck_id = ?""",
+        (deck_id,)
+    ).fetchall()
+
+    cards = []
+    type_counts = {}
+    cmc_buckets = [0] * 8
+    land_count = 0
+
+    for cr in card_rows:
+        card_name = cr["card_name"] or ""
+        type_line = cr["type_line"] or ""
+        cmc = cr["cmc"] or 0
+        qty = cr["quantity"] or 1
+        role_tag = cr["role_tag"] or ""
+
+        # Build tags from type_line and role_tag
+        tags = []
+        if role_tag:
+            tags.append(role_tag)
+        if "Land" in type_line:
+            tags.append("land")
+            land_count += qty
+        elif "Creature" in type_line:
+            tags.append("creature")
+        elif "Instant" in type_line:
+            tags.append("instant")
+        elif "Sorcery" in type_line:
+            tags.append("sorcery")
+        elif "Artifact" in type_line:
+            tags.append("artifact")
+        elif "Enchantment" in type_line:
+            tags.append("enchantment")
+        elif "Planeswalker" in type_line:
+            tags.append("planeswalker")
+
+        # Type count
+        for t in ["Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land"]:
+            if t in type_line:
+                type_counts[t] = type_counts.get(t, 0) + qty
+
+        # CMC bucket
+        bucket = min(int(cmc), 7)
+        cmc_buckets[bucket] += qty
+
+        # CardPerformance with zeroed-out sim stats
+        cards.append(CardPerformance(
+            name=card_name,
+            drawnRate=0.0,
+            castRate=0.0,
+            impactScore=0.0,
+            tags=tags,
+        ))
+
+    slug = deck_slug
+    return DeckReport(
+        deckId=slug,
+        commander=commander,
+        colorIdentity=color_identity,
+        cards=cards,
+        structure=DeckStructure(
+            landCount=land_count,
+            curveBuckets=cmc_buckets,
+            cardTypeCounts=type_counts,
+        ),
+    )
 
 
 @app.get("/api/coach/sessions")

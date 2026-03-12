@@ -241,9 +241,6 @@
                     const slug = deck.deck_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
                     opt.value = slug;
                     opt.textContent = deck.deck_name + (deck.commander ? ' (' + deck.commander + ')' : '');
-                    if (!deck.has_report) {
-                        opt.textContent += ' [no report]';
-                    }
                 }
                 deckSelect.appendChild(opt);
             }

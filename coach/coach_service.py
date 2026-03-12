@@ -126,11 +126,12 @@ class CoachService:
     # ── Main Coaching Pipeline ─────────────────────────────────
 
     async def run_coaching_session(self, deck_id: str,
-                                    goals: Optional[CoachGoals] = None
+                                    goals: Optional[CoachGoals] = None,
+                                    fallback_report: Optional[DeckReport] = None,
                                     ) -> CoachSession:
         """
         Full coaching pipeline:
-        1. Load deck report
+        1. Load deck report (or use fallback from DB card list)
         2. Identify underperformers
         3. Find replacement candidates via embeddings
         4. Build prompt
@@ -150,8 +151,11 @@ class CoachService:
             except Exception as e:
                 logger.warning("Embeddings auto-load failed: %s", e)
 
-        # 1. Load deck report
+        # 1. Load deck report — try simulation report first, then fallback
         report = self.load_deck_report(deck_id)
+        if report is None and fallback_report is not None:
+            report = fallback_report
+            logger.info("Using DB-built fallback report for '%s' (no simulation data)", deck_id)
         if report is None:
             raise ValueError(f"Deck report not found for: {deck_id}")
 
