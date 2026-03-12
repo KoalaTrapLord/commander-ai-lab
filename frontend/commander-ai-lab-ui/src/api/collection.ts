@@ -2,9 +2,32 @@ import { get, post, patch, postForm } from './client'
 import type { CollectionCard, CollectionFilters, SetInfo, ScanResult } from '../types'
 
 export async function searchCollection(filters: CollectionFilters) {
-  return get<{ cards: CollectionCard[]; total: number; page: number; page_size: number }>(
-    '/api/collection', filters as Record<string, string | number | boolean>
+  // Map frontend snake_case filter names to backend camelCase param names
+  const params: Record<string, string | number | boolean> = {}
+  if (filters.q) params.q = filters.q
+  if (filters.page) params.page = filters.page
+  if (filters.page_size) params.pageSize = filters.page_size
+  if (filters.sort_by) params.sortField = filters.sort_by
+  if (filters.sort_dir) params.sortDir = filters.sort_dir
+  if (filters.color) params.colors = filters.color
+  if (filters.type_line) params.types = filters.type_line
+  if (filters.rarity) params.rarity = filters.rarity
+  if (filters.set_code) params.setCode = filters.set_code
+  if (filters.cmc_min !== undefined) params.cmcMin = filters.cmc_min
+  if (filters.cmc_max !== undefined) params.cmcMax = filters.cmc_max
+  if (filters.price_min !== undefined) params.priceMin = filters.price_min
+  if (filters.price_max !== undefined) params.priceMax = filters.price_max
+  if (filters.owned_only !== undefined) params.owned_only = filters.owned_only
+
+  const res = await get<{ items?: CollectionCard[]; cards?: CollectionCard[]; total: number; page: number; pageSize?: number; page_size?: number }>(
+    '/api/collection', params
   )
+  return {
+    cards: res.items || res.cards || [],
+    total: res.total || 0,
+    page: res.page || 1,
+    page_size: res.pageSize || res.page_size || 48,
+  }
 }
 
 export async function getCard(cardId: number) {
@@ -16,11 +39,13 @@ export async function updateCard(cardId: number, updates: Partial<CollectionCard
 }
 
 export async function getSets() {
-  return get<SetInfo[]>('/api/collection/sets')
+  const res = await get<SetInfo[] | { sets: SetInfo[] }>('/api/collection/sets')
+  return Array.isArray(res) ? res : (res as { sets: SetInfo[] }).sets || []
 }
 
 export async function getKeywords() {
-  return get<string[]>('/api/collection/keywords')
+  const res = await get<string[] | { keywords: string[] }>('/api/collection/keywords')
+  return Array.isArray(res) ? res : (res as { keywords: string[] }).keywords || []
 }
 
 export async function exportCollection(format: string = 'csv') {
