@@ -406,7 +406,7 @@ const DeckGenerator = (() => {
             html += '<div class="dg-card-group">'
                 + '<div class="dg-group-header" data-type="' + type + '">'
                 + '<span class="dg-group-title">' + icon + ' ' + escHtml(type) + '</span>'
-                + '<span class="dg-group-count">' + groupCards.length + '</span>'
+                + '<span class="dg-group-count">' + groupCards.reduce(function(s,c){ return s + (c.count || 1); }, 0) + '</span>'
                 + '</div>'
                 + '<div class="dg-group-body" data-group="' + type + '">';
 
@@ -462,7 +462,7 @@ const DeckGenerator = (() => {
 
         return '<div class="dg-card-row dg-card-status-' + card.status + '">'
             + '<div class="dg-card-row-main">'
-            + '<span class="dg-card-row-name">' + escHtml(card.name) + '</span>'
+            + '<span class="dg-card-row-name">' + ((card.count || 1) > 1 ? '<span class="dg-card-count">' + card.count + 'x</span> ' : '') + escHtml(card.name) + '</span>'
             + '<span class="dg-card-row-roles">' + roleTags + '</span>'
             + statusBadge
             + price

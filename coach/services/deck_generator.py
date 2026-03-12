@@ -253,6 +253,9 @@ class DeckGeneratorV3:
         # Step 5: Check ownership and build enriched card list
         cards_with_status = self._check_ownership(raw_deck.get("cards", []))
 
+        # Step 5b: Fill basic lands to hit exactly 100 cards
+        cards_with_status = self._fill_basic_lands(cards_with_status, color_identity)
+
         # Step 6: Compute stats
         stats = self._compute_stats(cards_with_status)
 
@@ -318,6 +321,57 @@ class DeckGeneratorV3:
             enriched.append(enriched_card)
 
         return enriched
+
+    # ── Step 5b: Basic Land Fill ──────────────────────────────
+    _COLOR_TO_BASIC = {
+        'W': 'Plains', 'U': 'Island', 'B': 'Swamp',
+        'R': 'Mountain', 'G': 'Forest',
+    }
+    _BASIC_NAMES = set(_COLOR_TO_BASIC.values()) | {'Wastes'}
+
+    def _fill_basic_lands(
+        self,
+        cards: List[DeckCardWithStatus],
+        color_identity: List[str],
+        target_total: int = 100,
+    ) -> List[DeckCardWithStatus]:
+        """
+        Strip LLM-provided basics, then add the right number evenly
+        across the commander's colors to reach exactly target_total.
+        """
+        non_basics = [c for c in cards if c.name not in self._BASIC_NAMES]
+        current_total = sum(c.count for c in non_basics)
+        basics_needed = max(0, target_total - current_total)
+
+        if basics_needed == 0:
+            return non_basics
+
+        ci = [c.upper() for c in color_identity]
+        basic_names = [self._COLOR_TO_BASIC[c] for c in ci if c in self._COLOR_TO_BASIC]
+        if not basic_names:
+            basic_names = ['Wastes']
+
+        per_color = basics_needed // len(basic_names)
+        remainder = basics_needed % len(basic_names)
+
+        for i, bname in enumerate(basic_names):
+            qty = per_color + (1 if i < remainder else 0)
+            if qty > 0:
+                non_basics.append(DeckCardWithStatus(
+                    name=bname,
+                    count=qty,
+                    category='Land',
+                    role_tags=[],
+                    reason='Basic land for mana fixing',
+                    estimated_price_usd=0.10,
+                    owned=True,
+                    owned_qty=qty,
+                    status='owned',
+                ))
+
+        logger.info("Basic land fill: %d basics added across %d color(s)",
+                     basics_needed, len(basic_names))
+        return non_basics
 
     # ── Step 6: Smart Substitution ───────────────────────────
     def run_substitution(

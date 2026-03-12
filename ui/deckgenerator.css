@@ -1152,6 +1152,19 @@
     font-size: 0.85rem;
 }
 
+.dg-card-count {
+    display: inline-block;
+    background: var(--accent, #6c63ff);
+    color: #fff;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    margin-right: 2px;
+    min-width: 20px;
+    text-align: center;
+}
+
 .dg-card-row-roles {
     display: flex;
     gap: 3px;
