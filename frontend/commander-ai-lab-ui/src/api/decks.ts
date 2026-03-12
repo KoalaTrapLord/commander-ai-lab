@@ -1,5 +1,5 @@
 import { get, post, put, del, patch } from './client'
-import type { Deck, DeckCard, DeckAnalysis, DeckRecommendation, PplxStatus } from '../types'
+import type { Deck, DeckCard, DeckAnalysis, DeckRecommendation, EdhRecsResponse, CollectionRecsResponse, PplxStatus } from '../types'
 
 export async function listDecks() {
   return get<Deck[]>('/api/decks')
@@ -46,11 +46,11 @@ export async function getDeckAnalysis(deckId: number) {
 }
 
 export async function getCollectionRecs(deckId: number) {
-  return get<DeckRecommendation[]>(`/api/decks/${deckId}/recommended-from-collection`)
+  return get<CollectionRecsResponse>(`/api/decks/${deckId}/recommended-from-collection`)
 }
 
-export async function getEdhRecs(deckId: number) {
-  return get<DeckRecommendation[]>(`/api/decks/${deckId}/edh-recs`)
+export async function getEdhRecs(deckId: number, onlyOwned = false, maxResults = 30) {
+  return get<EdhRecsResponse>(`/api/decks/${deckId}/edh-recs?only_owned=${onlyOwned}&max_results=${maxResults}`)
 }
 
 export async function bulkAddCards(deckId: number, cards: { name: string; quantity?: number }[]) {
