@@ -57,7 +57,7 @@ export interface CollectionStats {
 export interface SetInfo {
   code: string
   name: string
-  card_count: number
+  card_count?: number
 }
 
 // ── Scan ─────────────────────────────────────────────────────

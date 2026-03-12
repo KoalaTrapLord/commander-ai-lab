@@ -2,7 +2,17 @@ import { get, post, put, del, patch } from './client'
 import type { Deck, DeckCard, DeckAnalysis, EdhRecsResponse, CollectionRecsResponse, PplxStatus } from '../types'
 
 export async function listDecks() {
-  return get<Deck[]>('/api/decks')
+  const res = await get<{ decks: Record<string, unknown>[] } | Record<string, unknown>[]>('/api/decks')
+  const raw = Array.isArray(res) ? res : (res as { decks: Record<string, unknown>[] }).decks || []
+  return raw.map(d => ({
+    ...d,
+    commander: d.commander || d.commander_name || '',
+    card_count: d.card_count ?? d.total_cards ?? 0,
+    total_price: d.total_price ?? 0,
+    color_identity: d.color_identity || [],
+    created_date: d.created_date || d.created_at || '',
+    updated_date: d.updated_date || d.updated_at || '',
+  })) as Deck[]
 }
 
 export async function getDeck(deckId: number) {
@@ -26,7 +36,13 @@ export async function deleteAllDecks() {
 }
 
 export async function getDeckCards(deckId: number) {
-  return get<DeckCard[]>(`/api/decks/${deckId}/cards`)
+  const res = await get<{ cards: Record<string, unknown>[]; total: number } | Record<string, unknown>[]>(`/api/decks/${deckId}/cards`)
+  const raw = Array.isArray(res) ? res : (res as { cards: Record<string, unknown>[] }).cards || []
+  return raw.map(c => ({
+    ...c,
+    name: c.name || c.card_name || '',
+    category: c.category || c.role_tag || '',
+  })) as DeckCard[]
 }
 
 export async function addCardToDeck(deckId: number, card: { name: string; scryfall_id?: string; quantity?: number; category?: string }) {
@@ -42,7 +58,35 @@ export async function updateDeckCard(deckId: number, cardId: number, updates: Pa
 }
 
 export async function getDeckAnalysis(deckId: number) {
-  return get<DeckAnalysis>(`/api/decks/${deckId}/analysis`)
+  const raw = await get<Record<string, unknown>>(`/api/decks/${deckId}/analysis`)
+  // Backend returns: counts_by_type, targets, deltas, mana_curve, color_pips, total_cards, roles
+  // Frontend DeckAnalysis expects: card_count, land_count, creature_count, noncreature_count, avg_cmc, mana_curve, color_distribution, type_distribution, total_price, owned_count, missing_count
+  const counts = (raw.counts_by_type || {}) as Record<string, number>
+  const totalCards = (raw.total_cards as number) || 0
+  const landCount = counts['Land'] || 0
+  const creatureCount = counts['Creature'] || 0
+  const manaCurve = (raw.mana_curve || {}) as Record<string | number, number>
+  const colorPips = (raw.color_pips || {}) as Record<string, number>
+  // Compute avg CMC from mana curve
+  let totalMana = 0, nonLandCards = 0
+  for (const [cmc, count] of Object.entries(manaCurve)) {
+    const cmcNum = cmc === '6+' ? 6 : Number(cmc)
+    totalMana += cmcNum * count
+    nonLandCards += count
+  }
+  return {
+    card_count: totalCards,
+    land_count: landCount,
+    creature_count: creatureCount,
+    noncreature_count: totalCards - landCount - creatureCount,
+    avg_cmc: nonLandCards > 0 ? totalMana / nonLandCards : 0,
+    mana_curve: manaCurve as Record<number, number>,
+    color_distribution: colorPips,
+    type_distribution: counts,
+    total_price: 0,
+    owned_count: totalCards,
+    missing_count: 0,
+  } as DeckAnalysis
 }
 
 export async function getCollectionRecs(deckId: number) {
