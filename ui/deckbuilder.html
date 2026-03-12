@@ -48,6 +48,8 @@
                         <option value="">— Select Deck —</option>
                     </select>
                 </div>
+                <button class="deck-btn deck-btn-danger" id="deck-delete-btn" title="Delete this deck" style="display:none;">✕ Delete</button>
+                <button class="deck-btn deck-btn-danger-outline" id="deck-clear-all-btn" title="Delete all decks">Clear All</button>
             </div>
 
             <div class="deck-topbar-actions">
@@ -240,6 +242,93 @@
                                 Add All Owned (respect ratios)
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- AI Research (Perplexity) — hidden until pplx status check -->
+                <div class="deck-panel deck-panel-ai" id="deck-ai-research-panel" style="display:none">
+                    <div class="deck-panel-header deck-panel-header-collapsible" data-target="deck-ai-research-body">
+                        <span class="deck-panel-title">🧠 AI Research</span>
+                        <span class="deck-collapse-arrow">▼</span>
+                    </div>
+                    <div class="deck-panel-body" id="deck-ai-research-body">
+                        <div class="deck-ai-controls">
+                            <div class="deck-form-field deck-form-field-sm">
+                                <label class="deck-form-label-sm">Analysis Goal</label>
+                                <input type="text" class="deck-form-input deck-form-input-sm" id="ai-research-goal" 
+                                       placeholder="Identify weaknesses and suggest upgrades" />
+                            </div>
+                            <div class="deck-ai-row">
+                                <div class="deck-form-field deck-form-field-sm deck-form-field-half">
+                                    <label class="deck-form-label-sm">Budget ($)</label>
+                                    <input type="number" class="deck-form-input deck-form-input-sm" id="ai-research-budget" 
+                                           placeholder="No limit" min="0" step="10" />
+                                </div>
+                                <label class="deck-toggle-label deck-toggle-label-sm">
+                                    <input type="checkbox" class="deck-toggle-check" id="ai-research-use-collection" checked />
+                                    <span class="deck-toggle-track"><span class="deck-toggle-thumb"></span></span>
+                                    Use Collection
+                                </label>
+                            </div>
+                            <div class="deck-form-field deck-form-field-sm">
+                                <label class="deck-form-label-sm">Omit Cards (comma-separated)</label>
+                                <input type="text" class="deck-form-input deck-form-input-sm" id="ai-research-omit" 
+                                       placeholder="Dockside Extortionist, Rhystic Study" />
+                            </div>
+                            <button class="deck-btn deck-btn-ai deck-btn-full" id="ai-research-btn" disabled>
+                                🔍 Analyze Deck
+                            </button>
+                        </div>
+                        <div class="deck-ai-loading" id="ai-research-loading" style="display:none">
+                            <div class="deck-ai-spinner"></div>
+                            <span>Analyzing with Perplexity AI...</span>
+                        </div>
+                        <div class="deck-ai-results" id="ai-research-results" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- AI Deck Generate (Perplexity) — hidden until pplx status check -->
+                <div class="deck-panel deck-panel-ai" id="deck-ai-generate-panel" style="display:none">
+                    <div class="deck-panel-header deck-panel-header-collapsible" data-target="deck-ai-generate-body">
+                        <span class="deck-panel-title">✨ AI Generate Deck</span>
+                        <span class="deck-collapse-arrow">▼</span>
+                    </div>
+                    <div class="deck-panel-body" id="deck-ai-generate-body">
+                        <div class="deck-ai-controls">
+                            <div class="deck-form-field deck-form-field-sm">
+                                <label class="deck-form-label-sm">Commander</label>
+                                <div class="deck-ai-commander-wrap">
+                                    <input type="text" class="deck-form-input deck-form-input-sm" id="ai-gen-commander" 
+                                           placeholder="Search for a commander..." autocomplete="off" />
+                                    <div class="deck-ai-commander-dropdown" id="ai-gen-commander-dropdown" style="display:none"></div>
+                                </div>
+                            </div>
+                            <div class="deck-ai-row">
+                                <div class="deck-form-field deck-form-field-sm deck-form-field-half">
+                                    <label class="deck-form-label-sm">Budget ($)</label>
+                                    <input type="number" class="deck-form-input deck-form-input-sm" id="ai-gen-budget" 
+                                           placeholder="No limit" min="0" step="10" />
+                                </div>
+                                <label class="deck-toggle-label deck-toggle-label-sm">
+                                    <input type="checkbox" class="deck-toggle-check" id="ai-gen-use-collection" checked />
+                                    <span class="deck-toggle-track"><span class="deck-toggle-thumb"></span></span>
+                                    Use Collection
+                                </label>
+                            </div>
+                            <div class="deck-form-field deck-form-field-sm">
+                                <label class="deck-form-label-sm">Omit Cards (comma-separated)</label>
+                                <input type="text" class="deck-form-input deck-form-input-sm" id="ai-gen-omit" 
+                                       placeholder="Rhystic Study, Cyclonic Rift" />
+                            </div>
+                            <button class="deck-btn deck-btn-ai deck-btn-full" id="ai-gen-btn">
+                                ✨ Generate Full Deck
+                            </button>
+                        </div>
+                        <div class="deck-ai-loading" id="ai-gen-loading" style="display:none">
+                            <div class="deck-ai-spinner"></div>
+                            <span>Generating deck with Perplexity AI...</span>
+                        </div>
+                        <div class="deck-ai-results" id="ai-gen-results" style="display:none"></div>
                     </div>
                 </div>
 

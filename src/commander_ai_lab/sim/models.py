@@ -26,6 +26,7 @@ class Card:
     power: str = ""
     toughness: str = ""
     color_identity: list[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
 
     # Functional flags (set by enrich_card)
     is_ramp: bool = False
@@ -70,8 +71,11 @@ class Card:
             return 0
 
     def has_keyword(self, kw: str) -> bool:
-        """Check if oracle text contains a keyword (case-insensitive)."""
-        return kw.lower() in (self.oracle_text or "").lower()
+        """Check if card has a keyword (checks keywords list and oracle text)."""
+        kw_lower = kw.lower()
+        if self.keywords and any(k.lower() == kw_lower for k in self.keywords):
+            return True
+        return kw_lower in (self.oracle_text or "").lower()
 
     def is_land(self) -> bool:
         return bool(self.type_line and "land" in self.type_line.lower())

@@ -171,6 +171,13 @@ const AiLab = (() => {
                     <label>Seed:</label>
                     <input type="text" id="lab-seed" placeholder="Random" style="width:100px" />
                 </div>
+                <div class="lab-control-group">
+                    <label>Engine:</label>
+                    <select id="lab-engine">
+                        <option value="java" selected>Forge Heuristic</option>
+                        <option value="deepseek">DeepSeek LLM</option>
+                    </select>
+                </div>
                 <button class="lab-run-btn" id="lab-run-btn" onclick="AiLab.startBatch()">
                     <span class="run-icon">▶</span>
                     <span class="spinner"></span>
@@ -1001,37 +1008,83 @@ const AiLab = (() => {
     // ── Batch Execution ────────────────────────────────────
 
     async function startBatch() {
-        // Validate 3 decks selected
-        if (selectedDecks.some(d => !d)) {
-            alert('Select a deck for all 3 seats.');
-            return;
-        }
+        const engine = document.getElementById('lab-engine').value;
 
-        const numGames = parseInt(document.getElementById('lab-game-count').value) || 100;
-        const threads = parseInt(document.getElementById('lab-threads').value) || 4;
-        const seedInput = document.getElementById('lab-seed').value.trim();
-        const seed = seedInput ? parseInt(seedInput) : null;
+        if (engine === 'deepseek') {
+            // DeepSeek: at least 1 deck required (not all 3)
+            const filledDecks = selectedDecks.filter(d => d);
+            if (filledDecks.length === 0) {
+                alert('Select at least 1 deck.');
+                return;
+            }
 
-        // Build source metadata for each deck
-        const deckSources = selectedDecks.map(name => {
-            const meta = importedDeckMeta[name];
-            return meta ? {
-                source: meta.source,
-                sourceUrl: meta.sourceUrl || null,
-                commander: meta.commander || null,
-                archetype: meta.archetype || null,
-            } : {};
-        });
+            const numGames = parseInt(document.getElementById('lab-game-count').value) || 30;
 
-        setRunning(true);
-        clearLog();
-        showProgress();
+            setRunning(true);
+            clearLog();
+            showProgress();
+            appendLog('[DeepSeek Engine] Starting batch with LLM opponent...');
 
-        if (backendAvailable) {
-            await startBackendBatch(numGames, threads, seed, deckSources);
+            await startDeepSeekBatch(filledDecks, numGames);
         } else {
-            console.warn('[AI Lab] No backend — running local simulation');
-            runLocalSimulation(numGames, seed);
+            // Java Forge: requires all 3 decks
+            if (selectedDecks.some(d => !d)) {
+                alert('Select a deck for all 3 seats.');
+                return;
+            }
+
+            const numGames = parseInt(document.getElementById('lab-game-count').value) || 100;
+            const threads = parseInt(document.getElementById('lab-threads').value) || 4;
+            const seedInput = document.getElementById('lab-seed').value.trim();
+            const seed = seedInput ? parseInt(seedInput) : null;
+
+            const deckSources = selectedDecks.map(name => {
+                const meta = importedDeckMeta[name];
+                return meta ? {
+                    source: meta.source,
+                    sourceUrl: meta.sourceUrl || null,
+                    commander: meta.commander || null,
+                    archetype: meta.archetype || null,
+                } : {};
+            });
+
+            setRunning(true);
+            clearLog();
+            showProgress();
+
+            if (backendAvailable) {
+                await startBackendBatch(numGames, threads, seed, deckSources);
+            } else {
+                console.warn('[AI Lab] No backend — running local simulation');
+                runLocalSimulation(numGames, seed);
+            }
+        }
+    }
+
+    async function startDeepSeekBatch(deckNames, numGames) {
+        try {
+            const res = await fetch(`${API_BASE}/api/lab/start-deepseek`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    decks: deckNames,
+                    numGames,
+                }),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                appendLog(`DeepSeek batch ${data.batchId} started: ${numGames} games across ${deckNames.length} decks`);
+                startPolling(data.batchId);
+                startLogPolling(data.batchId);
+            } else {
+                const err = await res.text();
+                appendLog(`ERROR: ${err}`);
+                setRunning(false);
+            }
+        } catch (err) {
+            appendLog(`ERROR: ${err.message}`);
+            setRunning(false);
         }
     }
 

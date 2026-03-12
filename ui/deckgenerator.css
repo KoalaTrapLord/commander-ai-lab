@@ -255,30 +255,33 @@
 
 .dg-commander-card {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: var(--sp-3);
-    padding: var(--sp-2);
+    gap: var(--sp-2);
+    padding: var(--sp-3);
     background: var(--bg);
     border: 1px solid var(--accent);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius);
     position: relative;
 }
 
 .dg-commander-img {
-    width: 44px;
-    height: 60px;
-    object-fit: cover;
-    border-radius: var(--radius-sm);
+    width: 100%;
+    max-width: 260px;
+    height: auto;
+    border-radius: 12px;
     flex-shrink: 0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
 .dg-commander-info {
-    flex: 1;
+    text-align: center;
     min-width: 0;
+    width: 100%;
 }
 
 .dg-commander-name {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
     color: #fff;
 }
@@ -291,6 +294,7 @@
 
 .dg-commander-colors {
     display: flex;
+    justify-content: center;
     gap: 3px;
     margin-top: var(--sp-1);
 }
@@ -317,16 +321,18 @@
 
 .dg-commander-clear {
     position: absolute;
-    top: var(--sp-1);
+    top: var(--sp-2);
     right: var(--sp-2);
-    background: none;
+    background: rgba(0, 0, 0, 0.6);
     border: none;
-    color: var(--text-secondary);
+    color: #fff;
     font-size: 18px;
     cursor: pointer;
-    padding: 2px 6px;
+    padding: 2px 8px;
     line-height: 1;
-    transition: color var(--duration) var(--ease);
+    border-radius: 50%;
+    z-index: 2;
+    transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
 }
 
 .dg-commander-clear:hover {
@@ -923,3 +929,317 @@
         display: none !important;
     }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   V3 Additions — Bracket, Strategy, Substitution UI
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Bracket Buttons ──────────────────────────────────────── */
+.dg-bracket-row {
+    margin-top: var(--sp-3);
+}
+
+.dg-bracket-btns {
+    display: flex;
+    gap: var(--sp-2);
+    margin-top: var(--sp-2);
+}
+
+.dg-bracket-btn {
+    flex: 1;
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.dg-bracket-btn:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.dg-bracket-btn.dg-bracket-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+/* ── Budget Row ───────────────────────────────────────────── */
+.dg-budget-row {
+    display: flex;
+    gap: var(--sp-2);
+}
+
+.dg-input-narrow {
+    width: 120px;
+    flex-shrink: 0;
+}
+
+.dg-select {
+    flex: 1;
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    color: var(--text);
+    font-size: 0.85rem;
+}
+
+/* ── Model Row ────────────────────────────────────────────── */
+.dg-model-row {
+    margin-top: var(--sp-3);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.dg-model-row .dg-select {
+    flex: 1;
+}
+
+.dg-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* ── Strategy Bar ─────────────────────────────────────────── */
+.dg-strategy-bar {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3) var(--sp-4);
+    margin-bottom: var(--sp-3);
+}
+
+.dg-strategy-info {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+}
+
+.dg-bracket-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #fff;
+    padding: 0 var(--sp-2);
+}
+
+.dg-bracket-1 { background: #4ade80; color: #0a0a0a; }
+.dg-bracket-2 { background: #60a5fa; }
+.dg-bracket-3 { background: #f59e0b; color: #0a0a0a; }
+.dg-bracket-4 { background: #ef4444; }
+
+.dg-archetype-badge {
+    background: var(--surface-2, #2a2a2a);
+    color: var(--text-muted);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.dg-strategy-text {
+    font-size: 0.85rem;
+    color: var(--text);
+}
+
+.dg-bracket-reasoning {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: var(--sp-2);
+    line-height: 1.4;
+}
+
+.dg-game-changers {
+    margin-top: var(--sp-2);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.dg-gc-chip {
+    display: inline-block;
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    margin-left: var(--sp-1);
+}
+
+/* ── Substitution Summary ─────────────────────────────────── */
+.dg-sub-summary {
+    margin-bottom: var(--sp-3);
+}
+
+.dg-sub-bar {
+    display: flex;
+    gap: var(--sp-3);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-2) var(--sp-4);
+}
+
+.dg-sub-stat {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.dg-sub-owned { color: #4ade80; }
+.dg-sub-substituted { color: #60a5fa; }
+.dg-sub-missing { color: #f59e0b; }
+
+/* ── Card Status Badges ───────────────────────────────────── */
+.dg-card-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.dg-badge-owned {
+    background: rgba(74, 222, 128, 0.15);
+    color: #4ade80;
+}
+
+.dg-badge-substituted {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+}
+
+.dg-badge-missing {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+/* ── Card Row V3 ──────────────────────────────────────────── */
+.dg-card-row {
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.dg-card-row-main {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.dg-card-row-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.85rem;
+}
+
+.dg-card-row-roles {
+    display: flex;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.dg-card-price {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.dg-card-reason {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    padding: 2px 0 0 var(--sp-3);
+    line-height: 1.3;
+}
+
+/* ── Substitution Lines ───────────────────────────────────── */
+.dg-card-sub-line {
+    padding: 2px 0 0 var(--sp-3);
+    font-size: 0.75rem;
+}
+
+.dg-sub-arrow {
+    color: #60a5fa;
+    font-weight: 700;
+}
+
+.dg-sub-name {
+    color: #60a5fa;
+    font-weight: 600;
+}
+
+.dg-sub-label {
+    color: var(--text-muted);
+}
+
+.dg-alt-chip {
+    display: inline-block;
+    background: rgba(255,255,255,0.05);
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    font-size: 0.65rem;
+    margin-left: 3px;
+    color: var(--text-muted);
+    cursor: help;
+}
+
+/* ── Card row status striping ─────────────────────────────── */
+.dg-card-status-owned {}
+.dg-card-status-substituted {
+    background: rgba(96, 165, 250, 0.04);
+    border-left: 2px solid rgba(96, 165, 250, 0.3);
+}
+.dg-card-status-missing {
+    background: rgba(245, 158, 11, 0.04);
+    border-left: 2px solid rgba(245, 158, 11, 0.3);
+}
+
+/* ── Commander row highlight ──────────────────────────────── */
+.dg-card-row-commander {
+    background: rgba(139, 92, 246, 0.08);
+    border-left: 2px solid rgba(139, 92, 246, 0.5);
+}
+
+/* ── Export Buttons ────────────────────────────────────────── */
+.dg-export-group {
+    display: flex;
+    gap: var(--sp-2);
+    margin-left: auto;
+}
+
+.dg-btn-export {
+    padding: var(--sp-2) var(--sp-3) !important;
+    font-size: 0.75rem !important;
+    background: var(--surface-1) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-muted) !important;
+}
+
+.dg-btn-export:hover {
+    border-color: var(--accent) !important;
+    color: var(--text) !important;
+}
+
+/* ── Stats additions ──────────────────────────────────────── */
+.dg-stat-substituted .dg-stat-num { color: #60a5fa; }
+.dg-stat-missing .dg-stat-num { color: #f59e0b; }
+.dg-stat-price .dg-stat-num { color: #a78bfa; }

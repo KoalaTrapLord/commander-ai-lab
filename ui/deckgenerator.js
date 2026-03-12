@@ -1,12 +1,16 @@
 /**
- * Commander AI Lab — Auto Deck Generator UI
- * ═══════════════════════════════════════════
+ * Commander AI Lab — Auto Deck Generator V3 UI
+ * ═══════════════════════════════════════════════
  *
- * Endpoints consumed:
- *   GET   /api/deck-generator/config           — default ratios + source list
+ * V3 Endpoints:
+ *   GET   /api/deck/v3/status              — check V3 generator status
  *   GET   /api/deck-generator/commander-search  — autocomplete commanders
- *   POST  /api/deck-generator/preview           — generate preview deck
- *   POST  /api/deck-generator/commit            — save deck to Deck Builder
+ *   POST  /api/deck/v3/generate            — generate deck (Perplexity structured output)
+ *   POST  /api/deck/v3/commit              — generate + save to Deck Builder
+ *   POST  /api/deck/v3/export/csv          — export as CSV
+ *   POST  /api/deck/v3/export/dck          — export as Forge .dck
+ *   POST  /api/deck/v3/export/moxfield     — export in Moxfield paste format
+ *   POST  /api/deck/v3/export/shopping     — shopping list of missing cards
  */
 
 const DeckGenerator = (() => {
@@ -24,62 +28,50 @@ const DeckGenerator = (() => {
         C: { label: 'C', cls: 'dg-pip-C' },
     };
 
-    const TYPE_ORDER = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land', 'Other'];
+    const TYPE_ORDER = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land', 'Battle', 'Other'];
     const TYPE_ICONS = {
-        'Creature': '🐉',
-        'Instant': '⚡',
-        'Sorcery': '🌀',
-        'Artifact': '🔧',
-        'Enchantment': '✨',
-        'Planeswalker': '🌟',
-        'Land': '🏔',
+        'Creature': '🐉', 'Instant': '⚡', 'Sorcery': '🌀', 'Artifact': '🔧',
+        'Enchantment': '✨', 'Planeswalker': '🌟', 'Land': '🏔', 'Battle': '⚔',
         'Other': '🃏',
+    };
+
+    const STATUS_BADGES = {
+        owned: { label: 'Owned', cls: 'dg-badge-owned' },
+        substituted: { label: 'Substituted', cls: 'dg-badge-substituted' },
+        missing: { label: 'Missing', cls: 'dg-badge-missing' },
     };
 
     // ── State ──────────────────────────────────────────────
     let state = {
-        commander: null,         // { name, scryfall_id, color_identity, type_line, mana_cost, image_url }
-        config: null,            // from /api/deck-generator/config
-        sourceToggles: {},       // { archidekt: true, edhrec: true, ... }
-        ratios: {},              // { target_land_count: 37, ... }
-        previewResult: null,     // last preview result
+        commander: null,
+        targetBracket: 3,
+        previewResult: null,
+        lastRequestBody: null,
         isLoading: false,
+        v3Ready: false,
     };
 
     let searchTimeout = null;
 
-    // ── DOM refs ────────────────────────────────────────────
     const $ = (id) => document.getElementById(id);
 
     // ── Init ────────────────────────────────────────────────
     async function init() {
-        await loadConfig();
+        await checkV3Status();
         bindEvents();
         checkQueryParams();
     }
 
-    async function loadConfig() {
+    async function checkV3Status() {
         try {
-            const resp = await fetch(API_BASE + '/api/deck-generator/config');
-            state.config = await resp.json();
-
-            // Initialize ratios from defaults
-            const defaults = state.config.defaults;
-            state.ratios = { ...defaults };
-
-            // Render source toggles
-            renderSourceToggles(state.config.sources);
-
-            // Render ratio sliders
-            renderRatioSliders(defaults);
-
-            // Initialize source toggles state
-            for (const src of state.config.sources) {
-                state.sourceToggles[src.id] = src.enabled;
+            const resp = await fetch(API_BASE + '/api/deck/v3/status');
+            const data = await resp.json();
+            state.v3Ready = data.initialized;
+            if (!state.v3Ready) {
+                toast('V3 Deck Generator not available — check Perplexity API key', 'error');
             }
         } catch (e) {
-            console.error('Failed to load config:', e);
-            toast('Failed to load generator config', 'error');
+            console.warn('V3 status check failed:', e);
         }
     }
 
@@ -89,64 +81,67 @@ const DeckGenerator = (() => {
         input.addEventListener('input', () => {
             clearTimeout(searchTimeout);
             const q = input.value.trim();
-            if (q.length < 2) {
-                hideDropdown();
-                return;
-            }
+            if (q.length < 2) { hideDropdown(); return; }
             searchTimeout = setTimeout(() => searchCommander(q), DEBOUNCE_MS);
         });
 
         input.addEventListener('focus', () => {
             const q = input.value.trim();
-            if (q.length >= 2) {
-                searchCommander(q);
-            }
+            if (q.length >= 2) searchCommander(q);
         });
 
-        // Close dropdown on outside click
         document.addEventListener('click', (e) => {
             const wrap = document.querySelector('.dg-commander-search-wrap');
-            if (wrap && !wrap.contains(e.target)) {
-                hideDropdown();
-            }
+            if (wrap && !wrap.contains(e.target)) hideDropdown();
         });
 
-        // Clear commander
         $('dg-commander-clear').addEventListener('click', clearCommander);
 
-        // Preview button
-        $('dg-preview-btn').addEventListener('click', generatePreview);
+        // Bracket buttons
+        document.querySelectorAll('.dg-bracket-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.dg-bracket-btn').forEach(b => b.classList.remove('dg-bracket-active'));
+                btn.classList.add('dg-bracket-active');
+                state.targetBracket = parseInt(btn.dataset.bracket, 10);
+            });
+        });
 
-        // Save button
+        // Generate & save
+        $('dg-preview-btn').addEventListener('click', generateDeck);
         $('dg-save-btn').addEventListener('click', commitDeck);
+        $('dg-regenerate-btn').addEventListener('click', generateDeck);
 
-        // Regenerate button
-        $('dg-regenerate-btn').addEventListener('click', generatePreview);
+        // Export buttons
+        $('dg-export-csv').addEventListener('click', () => exportDeck('csv'));
+        $('dg-export-dck').addEventListener('click', () => exportDeck('dck'));
+        $('dg-export-moxfield').addEventListener('click', () => exportMoxfield());
+        $('dg-export-shopping').addEventListener('click', () => exportShopping());
     }
 
     function checkQueryParams() {
         const params = new URLSearchParams(window.location.search);
         const name = params.get('commander');
-        const sid = params.get('scryfall_id');
-
-        if (sid || name) {
-            // Pre-fill commander from query params
-            const input = $('dg-commander-input');
-            if (name) input.value = name;
-
-            // If we have a scryfall_id, resolve directly
-            if (sid) {
-                fetch(API_BASE + '/api/deck-generator/commander-search?q=' + encodeURIComponent(name || 'a'))
-                    .then(r => r.json())
-                    .then(data => {
-                        const match = data.results.find(r => r.scryfall_id === sid);
-                        if (match) selectCommander(match);
-                    })
-                    .catch(() => {});
-            } else if (name) {
-                searchCommander(name);
-            }
+        if (name) {
+            $('dg-commander-input').value = name;
+            searchCommander(name);
         }
+    }
+
+    // ── Build Request Body ──────────────────────────────────
+    function buildRequestBody() {
+        const budget = parseFloat($('dg-budget').value) || null;
+        return {
+            commander_name: state.commander.name,
+            strategy: $('dg-strategy').value.trim(),
+            target_bracket: state.targetBracket,
+            budget_usd: budget,
+            budget_mode: $('dg-budget-mode').value,
+            omit_cards: [],
+            use_collection: $('dg-use-collection').checked,
+            run_substitution: $('dg-substitution').checked,
+            model: $('dg-model').value,
+            deck_name: $('dg-deck-name').value.trim() || '',
+        };
     }
 
     // ── Commander Search ────────────────────────────────────
@@ -182,26 +177,21 @@ const DeckGenerator = (() => {
             return;
         }
 
-        dropdown.innerHTML = results.map(r => {
+        dropdown.innerHTML = results.map((r, idx) => {
             const colors = (r.color_identity || [])
-                .map(c => {
-                    const info = COLOR_MAP[c];
-                    return info ? '<span class="dg-color-pip ' + info.cls + '">' + info.label + '</span>' : '';
-                })
+                .map(c => COLOR_MAP[c] ? '<span class="dg-color-pip ' + COLOR_MAP[c].cls + '">' + COLOR_MAP[c].label + '</span>' : '')
                 .join('');
 
             const badge = r.in_collection
                 ? '<span class="dg-dropdown-item-badge dg-badge-owned">Owned</span>'
                 : '<span class="dg-dropdown-item-badge dg-badge-scryfall">Scryfall</span>';
 
-            const imgSrc = r.image_url
-                ? r.image_url.replace('version=normal', 'version=small')
-                : '';
+            const imgSrc = r.image_url ? r.image_url.replace('version=normal', 'version=small') : '';
             const imgTag = imgSrc
                 ? '<img class="dg-dropdown-item-img" src="' + imgSrc + '" alt="" loading="lazy" />'
                 : '<div class="dg-dropdown-item-img" style="background:var(--lab-surface)"></div>';
 
-            return '<div class="dg-dropdown-item" data-idx="' + results.indexOf(r) + '">'
+            return '<div class="dg-dropdown-item" data-idx="' + idx + '">'
                 + imgTag
                 + '<div class="dg-dropdown-item-info">'
                 + '  <div class="dg-dropdown-item-name">' + escHtml(r.name) + '</div>'
@@ -212,11 +202,9 @@ const DeckGenerator = (() => {
                 + '</div>';
         }).join('');
 
-        // Bind click handlers
         dropdown.querySelectorAll('.dg-dropdown-item').forEach(el => {
             el.addEventListener('click', () => {
-                const idx = parseInt(el.dataset.idx, 10);
-                selectCommander(results[idx]);
+                selectCommander(results[parseInt(el.dataset.idx, 10)]);
                 hideDropdown();
             });
         });
@@ -224,32 +212,32 @@ const DeckGenerator = (() => {
 
     function selectCommander(cmdr) {
         state.commander = cmdr;
-
-        // Update UI
         $('dg-commander-input').style.display = 'none';
-        const sel = $('dg-commander-selected');
-        sel.style.display = 'block';
-
+        $('dg-commander-selected').style.display = 'block';
         $('dg-commander-name').textContent = cmdr.name;
         $('dg-commander-type').textContent = cmdr.type_line || '';
 
-        const colorsEl = $('dg-commander-colors');
-        colorsEl.innerHTML = (cmdr.color_identity || [])
-            .map(c => {
-                const info = COLOR_MAP[c];
-                return info ? '<span class="dg-color-pip ' + info.cls + '">' + info.label + '</span>' : '';
-            })
+        $('dg-commander-colors').innerHTML = (cmdr.color_identity || [])
+            .map(c => COLOR_MAP[c] ? '<span class="dg-color-pip ' + COLOR_MAP[c].cls + '">' + COLOR_MAP[c].label + '</span>' : '')
             .join('');
 
         const img = $('dg-commander-img');
         if (cmdr.image_url) {
-            img.src = cmdr.image_url.replace('version=normal', 'version=small');
+            // Use normal size for readable oracle text; ensure we don't have small version
+            var imgUrl = cmdr.image_url;
+            if (imgUrl.indexOf('version=small') !== -1) {
+                imgUrl = imgUrl.replace('version=small', 'version=normal');
+            } else if (imgUrl.indexOf('version=') === -1 && imgUrl.indexOf('?') !== -1) {
+                imgUrl += '&version=normal';
+            } else if (imgUrl.indexOf('version=') === -1) {
+                imgUrl += '?version=normal';
+            }
+            img.src = imgUrl;
             img.style.display = 'block';
         } else {
             img.style.display = 'none';
         }
 
-        // Enable preview button
         $('dg-preview-btn').disabled = false;
     }
 
@@ -265,122 +253,18 @@ const DeckGenerator = (() => {
         $('dg-commander-dropdown').classList.remove('open');
     }
 
-    // ── Source Toggles ──────────────────────────────────────
-    function renderSourceToggles(sources) {
-        const container = $('dg-source-toggles');
-        container.innerHTML = sources.map(src => {
-            const checked = src.enabled ? 'checked' : '';
-            const exp = src.experimental
-                ? '<span class="dg-source-exp">Beta</span>'
-                : '';
-            return '<label class="dg-toggle-row">'
-                + '<span class="dg-source-label">' + escHtml(src.name) + ' ' + exp + '</span>'
-                + '<input type="checkbox" class="dg-toggle-check" data-source="' + src.id + '" ' + checked + ' />'
-                + '<span class="dg-toggle-track"><span class="dg-toggle-thumb"></span></span>'
-                + '</label>';
-        }).join('');
+    // ── Generate Deck ───────────────────────────────────────
+    async function generateDeck() {
+        if (!state.commander) { toast('Select a commander first', 'error'); return; }
+        if (!state.v3Ready) { toast('V3 generator not ready — check Perplexity API key', 'error'); return; }
 
-        // Bind change events
-        container.querySelectorAll('.dg-toggle-check').forEach(cb => {
-            cb.addEventListener('change', () => {
-                state.sourceToggles[cb.dataset.source] = cb.checked;
-            });
-        });
-    }
+        setLoading(true, 'Generating deck via Perplexity AI...');
 
-    // ── Ratio Sliders ───────────────────────────────────────
-    function renderRatioSliders(defaults) {
-        const container = $('dg-ratio-list');
-        const types = [
-            { key: 'target_land_count', label: 'Lands', max: 50 },
-            { key: 'target_creature_count', label: 'Creatures', max: 50 },
-            { key: 'target_instant_count', label: 'Instants', max: 25 },
-            { key: 'target_sorcery_count', label: 'Sorceries', max: 25 },
-            { key: 'target_artifact_count', label: 'Artifacts', max: 25 },
-            { key: 'target_enchantment_count', label: 'Enchantments', max: 25 },
-            { key: 'target_planeswalker_count', label: 'Planeswalkers', max: 10 },
-        ];
-
-        container.innerHTML = types.map(t => {
-            const val = defaults[t.key] || 0;
-            return '<div class="dg-ratio-row">'
-                + '<span class="dg-ratio-label">' + t.label + '</span>'
-                + '<input type="range" class="dg-ratio-slider" data-key="' + t.key + '" min="0" max="' + t.max + '" value="' + val + '" />'
-                + '<input type="number" class="dg-ratio-value" data-key="' + t.key + '" min="0" max="' + t.max + '" value="' + val + '" />'
-                + '</div>';
-        }).join('');
-
-        // Sync slider <-> input
-        container.querySelectorAll('.dg-ratio-slider').forEach(slider => {
-            const key = slider.dataset.key;
-            const numInput = container.querySelector('.dg-ratio-value[data-key="' + key + '"]');
-
-            slider.addEventListener('input', () => {
-                numInput.value = slider.value;
-                state.ratios[key] = parseInt(slider.value, 10);
-                updateTotalHint();
-            });
-
-            numInput.addEventListener('input', () => {
-                slider.value = numInput.value;
-                state.ratios[key] = parseInt(numInput.value, 10) || 0;
-                updateTotalHint();
-            });
-        });
-
-        updateTotalHint();
-    }
-
-    function updateTotalHint() {
-        const total = Object.keys(state.ratios)
-            .filter(k => k.startsWith('target_'))
-            .reduce((sum, k) => sum + (parseInt(state.ratios[k], 10) || 0), 0);
-
-        const hint = $('dg-total-hint');
-        // +1 for commander
-        const withCmdr = total + 1;
-        hint.textContent = withCmdr + ' / 100';
-
-        if (withCmdr > 100) {
-            hint.classList.add('dg-over');
-        } else {
-            hint.classList.remove('dg-over');
-        }
-    }
-
-    // ── Preview Generation ──────────────────────────────────
-    async function generatePreview() {
-        if (!state.commander) {
-            toast('Select a commander first', 'error');
-            return;
-        }
-
-        setLoading(true);
-
-        const body = {
-            commander_name: state.commander.name,
-            commander_scryfall_id: state.commander.scryfall_id || '',
-            color_identity: state.commander.color_identity || [],
-            sources: {
-                use_archidekt: !!state.sourceToggles.archidekt,
-                use_edhrec: !!state.sourceToggles.edhrec,
-                use_moxfield: !!state.sourceToggles.moxfield,
-                use_mtggoldfish: !!state.sourceToggles.mtggoldfish,
-            },
-            only_cards_in_collection: !!$('dg-only-owned').checked,
-            allow_proxies: !!$('dg-allow-proxies').checked,
-            deck_name: $('dg-deck-name').value.trim() || '',
-        };
-
-        // Add ratio targets
-        for (const [key, val] of Object.entries(state.ratios)) {
-            if (key.startsWith('target_')) {
-                body[key] = parseInt(val, 10) || 0;
-            }
-        }
+        const body = buildRequestBody();
+        state.lastRequestBody = body;
 
         try {
-            const resp = await fetch(API_BASE + '/api/deck-generator/preview', {
+            const resp = await fetch(API_BASE + '/api/deck/v3/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
@@ -388,24 +272,27 @@ const DeckGenerator = (() => {
 
             if (!resp.ok) {
                 const err = await resp.json().catch(() => ({}));
-                throw new Error(err.detail || 'Preview generation failed');
+                throw new Error(err.error || err.detail || 'Generation failed');
             }
 
             state.previewResult = await resp.json();
             renderResults(state.previewResult);
-            toast('Deck generated: ' + (state.previewResult.stats?.total || 0) + ' cards', 'success');
+
+            const stats = state.previewResult.stats || {};
+            toast('Deck generated: ' + (stats.total_cards || 0) + ' cards | $' + (stats.total_price_usd || 0), 'success');
         } catch (e) {
-            toast(e.message || 'Preview failed', 'error');
+            toast(e.message || 'Generation failed', 'error');
             setLoading(false);
         }
     }
 
-    function setLoading(loading) {
+    function setLoading(loading, text) {
         state.isLoading = loading;
         $('dg-empty-state').style.display = 'none';
         $('dg-loading').style.display = loading ? 'flex' : 'none';
         $('dg-results').style.display = loading ? 'none' : 'none';
         $('dg-preview-btn').disabled = loading || !state.commander;
+        if (text) $('dg-loading-text').textContent = text;
     }
 
     // ── Render Results ──────────────────────────────────────
@@ -414,21 +301,43 @@ const DeckGenerator = (() => {
         $('dg-results').style.display = 'block';
         $('dg-preview-btn').disabled = false;
 
+        renderStrategyBar(result);
         renderStatsBar(result);
+        renderSubstitutionSummary(result);
         renderCardGroups(result);
+    }
+
+    function renderStrategyBar(result) {
+        const bar = $('dg-strategy-bar');
+        const bracket = result.bracket || {};
+        const archetype = result.archetype || '';
+        const strategy = result.strategy_summary || '';
+
+        bar.innerHTML = '<div class="dg-strategy-info">'
+            + '<span class="dg-bracket-badge dg-bracket-' + (bracket.level || 0) + '">B' + (bracket.level || '?') + '</span>'
+            + '<span class="dg-archetype-badge">' + escHtml(archetype) + '</span>'
+            + '<span class="dg-strategy-text">' + escHtml(strategy) + '</span>'
+            + '</div>'
+            + (bracket.reasoning ? '<div class="dg-bracket-reasoning">' + escHtml(bracket.reasoning) + '</div>' : '')
+            + (bracket.game_changers && bracket.game_changers.length
+                ? '<div class="dg-game-changers">Game Changers: ' + bracket.game_changers.map(c => '<span class="dg-gc-chip">' + escHtml(c) + '</span>').join('') + '</div>'
+                : '');
     }
 
     function renderStatsBar(result) {
         const stats = result.stats || {};
         const container = $('dg-stats-bar');
 
-        container.innerHTML = [
-            chipHtml('Total', stats.total || 0, ''),
-            chipHtml('Owned', stats.owned || 0, 'dg-stat-owned'),
-            chipHtml('Proxy', stats.proxy || 0, 'dg-stat-proxy'),
-            chipHtml('Lands', stats.land || 0, ''),
-            chipHtml('Nonland', stats.nonland || 0, ''),
-        ].join('');
+        const chips = [
+            chipHtml('Total', stats.total_cards || 0, ''),
+            chipHtml('Owned', (stats.by_status || {}).owned || 0, 'dg-stat-owned'),
+            chipHtml('Subbed', (stats.by_status || {}).substituted || 0, 'dg-stat-substituted'),
+            chipHtml('Missing', (stats.by_status || {}).missing || 0, 'dg-stat-missing'),
+            chipHtml('Lands', stats.land_count || 0, ''),
+            chipHtml('$' + (stats.total_price_usd || 0).toFixed(0), 'Total', 'dg-stat-price'),
+        ];
+
+        container.innerHTML = chips.join('');
     }
 
     function chipHtml(label, num, cls) {
@@ -438,22 +347,33 @@ const DeckGenerator = (() => {
             + '</div>';
     }
 
+    function renderSubstitutionSummary(result) {
+        const el = $('dg-sub-summary');
+        const sub = result.substitution_stats;
+        if (!sub) { el.style.display = 'none'; return; }
+
+        el.style.display = 'block';
+        el.innerHTML = '<div class="dg-sub-bar">'
+            + '<span class="dg-sub-stat dg-sub-owned">' + sub.owned + ' owned</span>'
+            + '<span class="dg-sub-stat dg-sub-substituted">' + sub.substituted + ' substituted</span>'
+            + '<span class="dg-sub-stat dg-sub-missing">' + sub.missing + ' still missing</span>'
+            + '</div>';
+    }
+
     function renderCardGroups(result) {
         const container = $('dg-card-groups');
         const cards = result.cards || [];
         const commander = result.commander;
 
-        // Group cards by card_type
+        // Group by category
         const groups = {};
         for (const card of cards) {
-            const ct = card.card_type || 'Other';
-            if (!groups[ct]) groups[ct] = [];
-            groups[ct].push(card);
+            const cat = card.category || 'Other';
+            if (!groups[cat]) groups[cat] = [];
+            groups[cat].push(card);
         }
 
-        // Sort groups by TYPE_ORDER
         const sortedTypes = TYPE_ORDER.filter(t => groups[t] && groups[t].length > 0);
-        // Add any types not in TYPE_ORDER
         for (const t of Object.keys(groups)) {
             if (!sortedTypes.includes(t)) sortedTypes.push(t);
         }
@@ -468,33 +388,25 @@ const DeckGenerator = (() => {
                 + '<span class="dg-group-count">1</span>'
                 + '</div>'
                 + '<div class="dg-group-body">'
-                + '<div class="dg-card-row">'
-                + '<span class="dg-card-row-mana">' + escHtml(commander.mana_cost || '') + '</span>'
+                + '<div class="dg-card-row dg-card-row-commander">'
                 + '<span class="dg-card-row-name" style="font-weight:600;color:#fff">' + escHtml(commander.name) + '</span>'
                 + '<span class="dg-card-row-source dg-src-collection">Commander</span>'
                 + '</div>'
-                + '</div>'
-                + '</div>';
+                + '</div></div>';
         }
 
-        // Card type groups
+        // Card groups
         for (const type of sortedTypes) {
             const groupCards = groups[type];
             if (!groupCards || groupCards.length === 0) continue;
 
-            // Sort cards by score (name as fallback)
             groupCards.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
             const icon = TYPE_ICONS[type] || '🃏';
-            const target = result.targets?.[type];
-            const countLabel = target !== undefined
-                ? groupCards.length + ' / ' + target
-                : String(groupCards.length);
-
             html += '<div class="dg-card-group">'
                 + '<div class="dg-group-header" data-type="' + type + '">'
                 + '<span class="dg-group-title">' + icon + ' ' + escHtml(type) + '</span>'
-                + '<span class="dg-group-count">' + countLabel + '</span>'
+                + '<span class="dg-group-count">' + groupCards.length + '</span>'
                 + '</div>'
                 + '<div class="dg-group-body" data-group="' + type + '">';
 
@@ -507,7 +419,7 @@ const DeckGenerator = (() => {
 
         container.innerHTML = html;
 
-        // Bind collapse toggles
+        // Collapse toggles
         container.querySelectorAll('.dg-group-header').forEach(header => {
             header.addEventListener('click', () => {
                 const type = header.dataset.type;
@@ -516,137 +428,60 @@ const DeckGenerator = (() => {
                 if (body) body.classList.toggle('collapsed');
             });
         });
-
-        // Bind card hover previews
-        container.querySelectorAll('.dg-card-row[data-img]').forEach(row => {
-            row.addEventListener('mouseenter', showCardPreview);
-            row.addEventListener('mousemove', moveCardPreview);
-            row.addEventListener('mouseleave', hideCardPreview);
-        });
     }
 
     function renderCardRow(card) {
-        const sourceCls = getSourceClass(card.source || '');
-        const sourceLabel = getSourceLabel(card.source || '');
+        const statusInfo = STATUS_BADGES[card.status] || STATUS_BADGES.missing;
+        const statusBadge = '<span class="dg-card-status ' + statusInfo.cls + '">' + statusInfo.label + '</span>';
 
-        const ownedHtml = card.owned_qty > 0
-            ? '<span class="dg-card-row-owned is-owned">x' + card.owned_qty + '</span>'
-            : (card.is_proxy
-                ? '<span class="dg-card-row-owned is-proxy">Proxy</span>'
-                : '<span class="dg-card-row-owned">-</span>');
-
-        const rolesHtml = (card.roles || []).slice(0, 3)
+        const roleTags = (card.role_tags || []).slice(0, 3)
             .map(r => '<span class="dg-role-chip">' + escHtml(r) + '</span>')
             .join('');
 
-        const imgUrl = card.image_url || '';
+        // Substitution indicator
+        let subHtml = '';
+        if (card.status === 'substituted' && card.selected_substitute) {
+            subHtml = '<div class="dg-card-sub-line">'
+                + '<span class="dg-sub-arrow">→</span> '
+                + '<span class="dg-sub-name">' + escHtml(card.selected_substitute) + '</span>'
+                + '</div>';
+        } else if (card.status === 'missing' && card.alternatives && card.alternatives.length > 0) {
+            subHtml = '<div class="dg-card-sub-line dg-sub-suggestions">'
+                + '<span class="dg-sub-label">Alternatives:</span> '
+                + card.alternatives.slice(0, 3).map(a =>
+                    '<span class="dg-alt-chip" title="' + escAttr(a.reason || '') + '">'
+                    + escHtml(a.name) + ' (' + (a.similarity_score * 100).toFixed(0) + '%)'
+                    + '</span>'
+                ).join('')
+                + '</div>';
+        }
 
-        return '<div class="dg-card-row" data-img="' + escAttr(imgUrl) + '">'
-            + '<span class="dg-card-row-mana">' + formatMana(card.mana_cost || '') + '</span>'
+        const price = card.estimated_price_usd
+            ? '<span class="dg-card-price">$' + card.estimated_price_usd.toFixed(2) + '</span>'
+            : '';
+
+        return '<div class="dg-card-row dg-card-status-' + card.status + '">'
+            + '<div class="dg-card-row-main">'
             + '<span class="dg-card-row-name">' + escHtml(card.name) + '</span>'
-            + '<span class="dg-card-row-roles">' + rolesHtml + '</span>'
-            + '<span class="dg-card-row-source ' + sourceCls + '">' + sourceLabel + '</span>'
-            + ownedHtml
+            + '<span class="dg-card-row-roles">' + roleTags + '</span>'
+            + statusBadge
+            + price
+            + '</div>'
+            + (card.reason ? '<div class="dg-card-reason">' + escHtml(card.reason) + '</div>' : '')
+            + subHtml
             + '</div>';
-    }
-
-    function getSourceClass(source) {
-        const s = source.toLowerCase();
-        if (s.includes('collection')) return 'dg-src-collection';
-        if (s.includes('edhrec')) return 'dg-src-edhrec';
-        if (s.includes('archidekt')) return 'dg-src-archidekt';
-        if (s.includes('moxfield')) return 'dg-src-moxfield';
-        if (s.includes('mtggoldfish')) return 'dg-src-mtggoldfish';
-        if (s.includes('template')) return 'dg-src-template';
-        return 'dg-src-collection';
-    }
-
-    function getSourceLabel(source) {
-        const s = source.toLowerCase();
-        if (s.includes('collection') && s.includes('+')) {
-            const parts = source.split('+');
-            return parts[parts.length - 1];
-        }
-        if (s === 'collection') return 'Owned';
-        if (s.includes('edhrec')) return 'EDHREC';
-        if (s.includes('archidekt')) return 'Archidekt';
-        if (s.includes('moxfield')) return 'Moxfield';
-        if (s.includes('mtggoldfish')) return 'Goldfish';
-        if (s.includes('template')) return 'Template';
-        return source || 'Owned';
-    }
-
-    // ── Card Preview ────────────────────────────────────────
-    let previewEl = null;
-
-    function ensurePreviewEl() {
-        if (!previewEl) {
-            previewEl = document.createElement('div');
-            previewEl.className = 'dg-card-preview';
-            previewEl.innerHTML = '<img src="" alt="" />';
-            document.body.appendChild(previewEl);
-        }
-        return previewEl;
-    }
-
-    function showCardPreview(e) {
-        const imgUrl = e.currentTarget.dataset.img;
-        if (!imgUrl) return;
-        const el = ensurePreviewEl();
-        el.querySelector('img').src = imgUrl;
-        el.classList.add('visible');
-        positionPreview(e);
-    }
-
-    function moveCardPreview(e) {
-        positionPreview(e);
-    }
-
-    function hideCardPreview() {
-        if (previewEl) previewEl.classList.remove('visible');
-    }
-
-    function positionPreview(e) {
-        if (!previewEl) return;
-        const x = e.clientX + 16;
-        const y = e.clientY - 80;
-        previewEl.style.left = Math.min(x, window.innerWidth - 260) + 'px';
-        previewEl.style.top = Math.max(8, Math.min(y, window.innerHeight - 360)) + 'px';
     }
 
     // ── Commit Deck ─────────────────────────────────────────
     async function commitDeck() {
-        if (!state.commander) {
-            toast('No commander selected', 'error');
-            return;
-        }
+        if (!state.commander) { toast('No commander selected', 'error'); return; }
 
         $('dg-save-btn').disabled = true;
         $('dg-save-btn').textContent = 'Saving...';
 
-        const body = {
-            commander_name: state.commander.name,
-            commander_scryfall_id: state.commander.scryfall_id || '',
-            color_identity: state.commander.color_identity || [],
-            sources: {
-                use_archidekt: !!state.sourceToggles.archidekt,
-                use_edhrec: !!state.sourceToggles.edhrec,
-                use_moxfield: !!state.sourceToggles.moxfield,
-                use_mtggoldfish: !!state.sourceToggles.mtggoldfish,
-            },
-            only_cards_in_collection: !!$('dg-only-owned').checked,
-            allow_proxies: !!$('dg-allow-proxies').checked,
-            deck_name: $('dg-deck-name').value.trim() || '',
-        };
-
-        for (const [key, val] of Object.entries(state.ratios)) {
-            if (key.startsWith('target_')) {
-                body[key] = parseInt(val, 10) || 0;
-            }
-        }
-
         try {
-            const resp = await fetch(API_BASE + '/api/deck-generator/commit', {
+            const body = state.lastRequestBody || buildRequestBody();
+            const resp = await fetch(API_BASE + '/api/deck/v3/commit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
@@ -654,13 +489,12 @@ const DeckGenerator = (() => {
 
             if (!resp.ok) {
                 const err = await resp.json().catch(() => ({}));
-                throw new Error(err.detail || 'Save failed');
+                throw new Error(err.error || err.detail || 'Save failed');
             }
 
             const result = await resp.json();
             toast('Deck saved: ' + (result.deck_name || 'Unknown'), 'success');
 
-            // Navigate to deck builder with the new deck
             setTimeout(() => {
                 window.location.href = 'deckbuilder.html?deck_id=' + result.deck_id;
             }, 1200);
@@ -672,6 +506,91 @@ const DeckGenerator = (() => {
         }
     }
 
+    // ── Exports ─────────────────────────────────────────────
+    async function exportDeck(format) {
+        if (!state.commander) { toast('Generate a deck first', 'error'); return; }
+
+        const body = state.lastRequestBody || buildRequestBody();
+
+        try {
+            const resp = await fetch(API_BASE + '/api/deck/v3/export/' + format, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            if (!resp.ok) throw new Error('Export failed');
+
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = (state.commander.name || 'deck').replace(/\s+/g, '_') + '.' + (format === 'csv' ? 'csv' : 'dck');
+            a.click();
+            URL.revokeObjectURL(url);
+
+            toast('Exported ' + format.toUpperCase(), 'success');
+        } catch (e) {
+            toast(e.message || 'Export failed', 'error');
+        }
+    }
+
+    async function exportMoxfield() {
+        if (!state.commander) { toast('Generate a deck first', 'error'); return; }
+
+        const body = state.lastRequestBody || buildRequestBody();
+
+        try {
+            const resp = await fetch(API_BASE + '/api/deck/v3/export/moxfield', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            const data = await resp.json();
+            if (data.content) {
+                await navigator.clipboard.writeText(data.content);
+                toast('Moxfield deck copied to clipboard', 'success');
+            }
+        } catch (e) {
+            toast('Moxfield export failed', 'error');
+        }
+    }
+
+    async function exportShopping() {
+        if (!state.commander) { toast('Generate a deck first', 'error'); return; }
+
+        const body = state.lastRequestBody || buildRequestBody();
+
+        try {
+            const resp = await fetch(API_BASE + '/api/deck/v3/export/shopping', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            const data = await resp.json();
+            const list = data.shopping_list || [];
+
+            if (list.length === 0) {
+                toast('All cards are owned — nothing to buy', 'success');
+                return;
+            }
+
+            // Build and copy text
+            const lines = ['Shopping List — ' + (data.commander || 'Deck'), ''];
+            for (const item of list) {
+                lines.push(item.count + 'x ' + item.name + ' ($' + (item.estimated_price_usd || 0).toFixed(2) + ') — ' + item.category);
+            }
+            lines.push('', 'Total: ' + list.length + ' cards, ~$' + (data.estimated_cost_usd || 0).toFixed(2));
+
+            await navigator.clipboard.writeText(lines.join('\n'));
+            toast('Shopping list copied (' + list.length + ' cards, ~$' + (data.estimated_cost_usd || 0).toFixed(0) + ')', 'success');
+        } catch (e) {
+            toast('Shopping list failed', 'error');
+        }
+    }
+
     // ── Toast ───────────────────────────────────────────────
     function toast(msg, type) {
         type = type || 'info';
@@ -680,7 +599,7 @@ const DeckGenerator = (() => {
         el.className = 'dg-toast dg-toast-' + type;
         el.textContent = msg;
         container.appendChild(el);
-        setTimeout(() => el.remove(), 3000);
+        setTimeout(() => el.remove(), 4000);
     }
 
     // ── Helpers ─────────────────────────────────────────────
@@ -694,13 +613,6 @@ const DeckGenerator = (() => {
         return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
-    function formatMana(cost) {
-        if (!cost) return '';
-        // Simple mana cost formatting — keep symbols readable
-        return escHtml(cost.replace(/[{}]/g, ''));
-    }
-
-    // ── Public API ──────────────────────────────────────────
     return { init };
 })();
 

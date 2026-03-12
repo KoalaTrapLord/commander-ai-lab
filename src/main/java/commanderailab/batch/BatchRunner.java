@@ -701,8 +701,20 @@ public class BatchRunner {
         try {
             Path path = Path.of(deckFilePath);
             if (!Files.exists(path)) {
-                System.err.println("[COACH] Deck file not found: " + deckFilePath);
-                return names;
+                // Try adding .dck extension
+                Path withExt = Path.of(deckFilePath + ".dck");
+                if (Files.exists(withExt)) {
+                    path = withExt;
+                } else {
+                    // Try resolving against Forge commander decks directory
+                    Path resolved = resolveForgeDecksPath(deckFilePath);
+                    if (resolved != null && Files.exists(resolved)) {
+                        path = resolved;
+                    } else {
+                        System.err.println("[COACH] Deck file not found: " + deckFilePath);
+                        return names;
+                    }
+                }
             }
             List<String> lines = Files.readAllLines(path);
             String section = "Main";
@@ -735,6 +747,36 @@ public class BatchRunner {
             System.err.println("[COACH] Failed to read deck file: " + deckFilePath + " - " + e.getMessage());
         }
         return names;
+    }
+
+    /**
+     * Resolve a deck name to its full path in the Forge commander decks directory.
+     * Checks %APPDATA%/Forge/decks/commander/ on Windows.
+     */
+    private Path resolveForgeDecksPath(String deckName) {
+        try {
+            String appdata = System.getenv("APPDATA");
+            if (appdata == null || appdata.isEmpty()) return null;
+            Path decksDir = Path.of(appdata, "Forge", "decks", "commander");
+            if (!Files.isDirectory(decksDir)) return null;
+
+            // Try with .dck extension
+            String name = deckName;
+            if (!name.endsWith(".dck")) name = name + ".dck";
+            Path candidate = decksDir.resolve(name);
+            if (Files.exists(candidate)) return candidate;
+
+            // Case-insensitive fallback
+            String lowerName = name.toLowerCase();
+            try (var stream = Files.list(decksDir)) {
+                return stream
+                    .filter(p -> p.getFileName().toString().toLowerCase().equals(lowerName))
+                    .findFirst()
+                    .orElse(null);
+            }
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

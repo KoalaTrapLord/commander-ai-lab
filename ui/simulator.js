@@ -7,6 +7,7 @@
 
     // ── DOM refs ──
     const deckSelect     = document.getElementById('sim-deck-select');
+    const oppSelect      = document.getElementById('sim-opponent-select');
     const numGamesInput  = document.getElementById('sim-num-games');
     const recordLogsChk  = document.getElementById('sim-record-logs');
     const runBtn         = document.getElementById('sim-run-btn');
@@ -21,8 +22,19 @@
     const statsGrid      = document.getElementById('sim-stats-grid');
     const gamesList      = document.getElementById('sim-games-list');
 
+    // DeepSeek DOM refs
+    const dsPanel        = document.getElementById('deepseek-panel');
+    const dsStatusBadge  = document.getElementById('ds-status-badge');
+    const dsConnectBtn   = document.getElementById('ds-connect-btn');
+    const dsApiBase      = document.getElementById('ds-api-base');
+    const dsModel        = document.getElementById('ds-model');
+    const dsTemp         = document.getElementById('ds-temp');
+    const dsTimeout      = document.getElementById('ds-timeout');
+    const dsStatsRow     = document.getElementById('ds-stats-row');
+
     let currentSimId = null;
     let pollTimer    = null;
+    let dsConnected  = false;
 
     // ── Init: load decks ──
     async function loadDecks() {
@@ -46,6 +58,111 @@
         runBtn.disabled = !deckSelect.value;
     });
 
+    // ── Opponent selector ──
+    oppSelect.addEventListener('change', () => {
+        const isDeepSeek = oppSelect.value === 'deepseek';
+        dsPanel.style.display = isDeepSeek ? 'block' : 'none';
+        if (isDeepSeek) {
+            // Auto-cap games for DeepSeek (LLM is slower)
+            if (parseInt(numGamesInput.value) > 50) {
+                numGamesInput.value = 5;
+            }
+            numGamesInput.max = 50;
+            // Check initial connection status
+            checkDeepSeekStatus();
+        } else {
+            numGamesInput.max = 1000;
+        }
+    });
+
+    // ── DeepSeek connection ──
+    dsConnectBtn.addEventListener('click', connectDeepSeek);
+
+    async function connectDeepSeek() {
+        dsConnectBtn.disabled = true;
+        dsConnectBtn.textContent = 'Connecting...';
+        dsStatusBadge.className = 'ds-badge ds-badge-pending';
+        dsStatusBadge.textContent = 'Connecting...';
+
+        try {
+            const payload = {};
+            if (dsApiBase.value.trim()) payload.apiBase = dsApiBase.value.trim();
+            if (dsModel.value.trim()) payload.model = dsModel.value.trim();
+
+            const res = await fetch('/api/deepseek/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+
+            if (data.connected) {
+                dsConnected = true;
+                dsStatusBadge.className = 'ds-badge ds-badge-on';
+                dsStatusBadge.textContent = 'Connected';
+                dsConnectBtn.textContent = 'Reconnect';
+                if (data.model) dsModel.value = data.model;
+
+                // Apply settings
+                await applyDeepSeekConfig();
+                updateDeepSeekStats(data.stats);
+            } else {
+                dsConnected = false;
+                dsStatusBadge.className = 'ds-badge ds-badge-off';
+                dsStatusBadge.textContent = 'Failed';
+                dsConnectBtn.textContent = 'Retry';
+            }
+        } catch (e) {
+            dsConnected = false;
+            dsStatusBadge.className = 'ds-badge ds-badge-off';
+            dsStatusBadge.textContent = 'Error';
+            dsConnectBtn.textContent = 'Retry';
+            console.error('DeepSeek connect error:', e);
+        }
+        dsConnectBtn.disabled = false;
+    }
+
+    async function applyDeepSeekConfig() {
+        try {
+            await fetch('/api/deepseek/configure', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    temperature: parseFloat(dsTemp.value) || 0.3,
+                    timeout: parseFloat(dsTimeout.value) || 10,
+                }),
+            });
+        } catch (e) {
+            console.warn('Config apply failed:', e);
+        }
+    }
+
+    async function checkDeepSeekStatus() {
+        try {
+            const res = await fetch('/api/deepseek/status');
+            const data = await res.json();
+            if (data.connected) {
+                dsConnected = true;
+                dsStatusBadge.className = 'ds-badge ds-badge-on';
+                dsStatusBadge.textContent = 'Connected';
+                dsConnectBtn.textContent = 'Reconnect';
+                updateDeepSeekStats(data);
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    function updateDeepSeekStats(stats) {
+        if (!stats) return;
+        dsStatsRow.style.display = 'flex';
+        document.getElementById('ds-stat-calls').textContent = 'Calls: ' + (stats.total_calls || 0);
+        document.getElementById('ds-stat-cache').textContent = 'Cache: ' + (stats.cache_hits || 0);
+        document.getElementById('ds-stat-fallback').textContent = 'Fallbacks: ' + (stats.fallbacks || 0);
+        document.getElementById('ds-stat-latency').textContent = 'Avg: ' + (stats.avg_latency_ms || 0) + 'ms';
+        if (stats.model) {
+            document.getElementById('ds-stat-model').textContent = stats.model;
+        }
+    }
+
     // ── Run from deck ID ──
     runBtn.addEventListener('click', async () => {
         const deckId = parseInt(deckSelect.value);
@@ -53,15 +170,27 @@
 
         const numGames = parseInt(numGamesInput.value) || 10;
         const recordLogs = recordLogsChk.checked;
+        const useDeepSeek = oppSelect.value === 'deepseek';
+
+        // If DeepSeek selected but not connected, try to connect first
+        if (useDeepSeek && !dsConnected) {
+            await connectDeepSeek();
+            if (!dsConnected) {
+                alert('Could not connect to DeepSeek. Make sure LM Studio is running at ' + dsApiBase.value);
+                return;
+            }
+            await applyDeepSeekConfig();
+        }
 
         runBtn.disabled = true;
         runBtn.classList.add('running');
-        runBtn.textContent = 'Running...';
+        runBtn.textContent = useDeepSeek ? 'Running (DeepSeek)...' : 'Running...';
         showProgress(numGames);
         hideResults();
 
         try {
-            const res = await fetch('/api/sim/run-from-deck', {
+            const endpoint = useDeepSeek ? '/api/sim/run-deepseek' : '/api/sim/run-from-deck';
+            const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deckId, numGames, recordLogs }),
@@ -141,6 +270,10 @@
                 pollTimer = null;
                 await loadResults(currentSimId);
                 resetRunBtn();
+                // Refresh DeepSeek stats if applicable
+                if (oppSelect.value === 'deepseek') {
+                    checkDeepSeekStatus();
+                }
             } else if (data.status === 'error') {
                 clearInterval(pollTimer);
                 pollTimer = null;
@@ -228,6 +361,23 @@
         el.innerHTML = '<div class="sim-stat-value">' + s.elapsedSeconds + 's</div>'
             + '<div class="sim-stat-label">Elapsed</div>';
         statsGrid.appendChild(el);
+
+        // Opponent type badge
+        if (s.opponentType === 'deepseek') {
+            const dsCard = document.createElement('div');
+            dsCard.className = 'sim-stat-card ds-opponent-card';
+            let dsInfo = '&#129504; DeepSeek AI';
+            if (s.deepseekStats) {
+                const ds = s.deepseekStats;
+                dsInfo += '<br><small>LLM calls: ' + (ds.llm_calls || 0)
+                    + ' | Cache: ' + (ds.cache_hits || 0)
+                    + ' | Fallbacks: ' + (ds.fallbacks || 0)
+                    + ' | Avg: ' + (ds.avg_latency_ms || 0) + 'ms</small>';
+            }
+            dsCard.innerHTML = '<div class="sim-stat-value" style="font-size:0.9rem">' + dsInfo + '</div>'
+                + '<div class="sim-stat-label">Opponent</div>';
+            statsGrid.appendChild(dsCard);
+        }
     }
 
     function renderGames(games, summary) {

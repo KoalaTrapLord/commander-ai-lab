@@ -21,6 +21,21 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshTrainingStatus();
 });
 
+async function refreshAll() {
+    const btn = document.getElementById('btn-refresh-data');
+    const icon = document.getElementById('refresh-icon');
+    btn.disabled = true;
+    icon.style.display = 'inline-block';
+    icon.style.animation = 'spin 0.8s linear infinite';
+    try {
+        await refreshDataStatus();
+        await refreshTrainingStatus();
+    } finally {
+        btn.disabled = false;
+        icon.style.animation = '';
+    }
+}
+
 // ═══════════════════════════════════════════
 // Data Status
 // ═══════════════════════════════════════════

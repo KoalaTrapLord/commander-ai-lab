@@ -13,9 +13,14 @@
 <body>
     <script src="nav.js"></script>
     <div class="page">
-        <div class="page-header">
-            <h1>ML Training Dashboard</h1>
-            <p>Train, evaluate, and deploy the AI opponent policy network</p>
+        <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <h1>ML Training Dashboard</h1>
+                <p>Train, evaluate, and deploy the AI opponent policy network</p>
+            </div>
+            <button id="btn-refresh-data" class="btn btn-secondary" onclick="refreshAll()" title="Refresh training data status">
+                <span class="btn-icon" id="refresh-icon">&#8635;</span> Refresh
+            </button>
         </div>
 
         <!-- Status Overview Cards -->

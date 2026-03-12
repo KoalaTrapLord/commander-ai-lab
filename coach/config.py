@@ -33,9 +33,29 @@ MAX_CANDIDATES_PER_UNDERPERFORMER = 10
 MAX_UNDERPERFORMERS = 8
 UNDERPERFORMER_IMPACT_THRESHOLD = -0.05  # impactScore below this = underperformer
 
-# ── LLM Generation Settings ────────────────────────────────
+# ── LLM Generation Settings (Coach — LM Studio) ──────────────
 DEFAULT_TEMPERATURE = 0.7
-DEFAULT_MAX_TOKENS = 2048
+# DeepSeek-R1 uses <think> reasoning tokens before the JSON output,
+# so we need a generous limit to avoid truncation
+DEFAULT_MAX_TOKENS = 8192
+
+# ── Perplexity Deck Generation Settings ───────────────────────
+# Provider for deck generation: "perplexity" (V3) or "local" (V2 collection-based)
+DECK_GEN_PROVIDER = os.environ.get("DECK_GEN_PROVIDER", "perplexity")
+# Model for deck generation (sonar = fast/$0.004, sonar-pro = deep/$0.04)
+DECK_GEN_MODEL = os.environ.get("DECK_GEN_MODEL", "sonar")
+DECK_GEN_TEMPERATURE = float(os.environ.get("DECK_GEN_TEMPERATURE", "0.2"))
+DECK_GEN_MAX_TOKENS = int(os.environ.get("DECK_GEN_MAX_TOKENS", "8192"))
+
+# ── Smart Substitution Settings ───────────────────────────────
+# Minimum embedding similarity to accept a substitute without Perplexity fallback
+SUBSTITUTION_MIN_SIMILARITY = float(os.environ.get("SUBSTITUTION_MIN_SIMILARITY", "0.75"))
+# Maximum number of alternatives to suggest per missing card
+SUBSTITUTION_MAX_ALTERNATIVES = int(os.environ.get("SUBSTITUTION_MAX_ALTERNATIVES", "5"))
+# Model for substitution fallback (sonar is fine — small focused queries)
+SUBSTITUTION_MODEL = os.environ.get("SUBSTITUTION_MODEL", "sonar")
+# Enable Perplexity fallback for low-confidence embedding matches
+SUBSTITUTION_USE_PPLX_FALLBACK = os.environ.get("SUBSTITUTION_USE_PPLX_FALLBACK", "true").lower() == "true"
 
 # ── Ensure directories exist ───────────────────────────────
 def ensure_dirs():

@@ -28,6 +28,13 @@
                     </select>
                 </div>
                 <div class="form-group sim-field-auto">
+                    <label class="form-label" for="sim-opponent-select">Opponent</label>
+                    <select id="sim-opponent-select" class="form-select">
+                        <option value="heuristic">Heuristic AI</option>
+                        <option value="deepseek">DeepSeek AI</option>
+                    </select>
+                </div>
+                <div class="form-group sim-field-auto">
                     <label class="form-label" for="sim-num-games">Games</label>
                     <input type="number" id="sim-num-games" class="form-input sim-num-input" value="10" min="1" max="1000" />
                 </div>
@@ -39,6 +46,43 @@
                 </div>
                 <div class="form-group sim-field-auto sim-field-end">
                     <button id="sim-run-btn" class="btn btn-primary" disabled>Run Simulation</button>
+                </div>
+            </div>
+
+            <!-- DeepSeek Config Panel -->
+            <div id="deepseek-panel" class="deepseek-panel" style="display:none;">
+                <div class="deepseek-header">
+                    <div class="deepseek-title">
+                        <span class="deepseek-icon">&#129504;</span>
+                        <span>DeepSeek AI Brain</span>
+                        <span id="ds-status-badge" class="ds-badge ds-badge-off">Disconnected</span>
+                    </div>
+                    <button id="ds-connect-btn" class="btn btn-sm btn-outline">Connect</button>
+                </div>
+                <div class="deepseek-config-row">
+                    <div class="form-group sim-field-grow">
+                        <label class="form-label" for="ds-api-base">API Endpoint</label>
+                        <input type="text" id="ds-api-base" class="form-input" value="http://192.168.0.122:1234" placeholder="http://192.168.0.122:1234" />
+                    </div>
+                    <div class="form-group sim-field-auto">
+                        <label class="form-label" for="ds-model">Model</label>
+                        <input type="text" id="ds-model" class="form-input" value="" placeholder="Auto-detect" style="width:200px" />
+                    </div>
+                    <div class="form-group sim-field-auto">
+                        <label class="form-label" for="ds-temp">Temp</label>
+                        <input type="number" id="ds-temp" class="form-input sim-num-input" value="0.3" min="0" max="2" step="0.1" />
+                    </div>
+                    <div class="form-group sim-field-auto">
+                        <label class="form-label" for="ds-timeout">Timeout (s)</label>
+                        <input type="number" id="ds-timeout" class="form-input sim-num-input" value="10" min="1" max="60" />
+                    </div>
+                </div>
+                <div id="ds-stats-row" class="deepseek-stats-row" style="display:none;">
+                    <span id="ds-stat-calls" class="ds-stat">Calls: 0</span>
+                    <span id="ds-stat-cache" class="ds-stat">Cache: 0</span>
+                    <span id="ds-stat-fallback" class="ds-stat">Fallbacks: 0</span>
+                    <span id="ds-stat-latency" class="ds-stat">Avg: 0ms</span>
+                    <span id="ds-stat-model" class="ds-stat"></span>
                 </div>
             </div>
 

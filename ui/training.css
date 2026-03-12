@@ -343,6 +343,12 @@
     }
 }
 
+/* Refresh button spin animation */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
 @media (max-width: 480px) {
     .status-grid {
         grid-template-columns: 1fr;

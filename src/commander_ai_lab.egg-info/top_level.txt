@@ -1,3 +1,0 @@
-commander_ai_lab
-main
-test

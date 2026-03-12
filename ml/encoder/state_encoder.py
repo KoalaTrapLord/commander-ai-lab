@@ -54,32 +54,92 @@ class CardEmbeddingIndex:
         self._zero_vec = np.zeros(STATE_DIMS.card_embedding_dim, dtype=np.float32)
 
     def load(self) -> bool:
-        """Load embeddings from NPZ cache (created by coach/embeddings.py)."""
-        npz_path = os.path.join(self.embeddings_dir, "mtg_embeddings.npz")
-        if not os.path.exists(npz_path):
-            logger.warning(
-                "Embeddings NPZ not found at %s. "
-                "Run the lab server first to auto-download embeddings.",
-                npz_path,
-            )
-            return False
+        """Load embeddings from NPZ cache.
+
+        Searches multiple known locations and handles two NPZ formats:
+          - Coach format: keys 'vectors', 'names' (saved by coach/embeddings.py)
+          - ML format: keys 'embeddings', 'names' (legacy)
+
+        If no NPZ is found anywhere, auto-downloads from HuggingFace via
+        the coach embedding index and converts to NPZ.
+        """
+        project_root = Path(__file__).parent.parent.parent
+        candidates = [
+            str(project_root / "data" / "mtg-embeddings.npz"),
+            str(project_root / "data" / "mtg_embeddings.npz"),
+            os.path.join(self.embeddings_dir, "mtg_embeddings.npz"),
+            os.path.join(self.embeddings_dir, "mtg-embeddings.npz"),
+            str(project_root / "embeddings" / "mtg_embeddings.npz"),
+            str(project_root / "embeddings" / "mtg-embeddings.npz"),
+        ]
+        npz_path = None
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                npz_path = candidate
+                break
+
+        # Auto-download if nothing found
+        if not npz_path:
+            logger.info("Embeddings NPZ not found — attempting auto-download...")
+            npz_path = self._auto_download(project_root)
+            if not npz_path:
+                return False
 
         try:
             data = np.load(npz_path, allow_pickle=True)
-            self._embeddings = data["embeddings"].astype(np.float32)
+            # Handle both NPZ formats:
+            #   Coach format has 'vectors', ML legacy has 'embeddings'
+            if "vectors" in data:
+                self._embeddings = data["vectors"].astype(np.float32)
+            elif "embeddings" in data:
+                self._embeddings = data["embeddings"].astype(np.float32)
+            else:
+                logger.error("NPZ at %s has no 'vectors' or 'embeddings' key. Keys: %s",
+                             npz_path, list(data.keys()))
+                return False
             self._names = list(data["names"])
             self._name_to_idx = {
                 name.lower(): i for i, name in enumerate(self._names)
             }
             self._loaded = True
             logger.info(
-                "Loaded %d card embeddings (%d-dim)",
-                len(self._names), self._embeddings.shape[1],
+                "Loaded %d card embeddings (%d-dim) from %s",
+                len(self._names), self._embeddings.shape[1], npz_path,
             )
             return True
         except Exception as e:
             logger.error("Failed to load embeddings: %s", e)
             return False
+
+    @staticmethod
+    def _auto_download(project_root: Path) -> Optional[str]:
+        """Download embeddings from HuggingFace via the coach module.
+
+        Uses coach/embeddings.py MTGEmbeddingIndex which handles downloading
+        the parquet from HuggingFace and converting to NPZ. Returns the NPZ
+        path on success, or None on failure.
+        """
+        try:
+            import sys
+            pr = str(project_root)
+            if pr not in sys.path:
+                sys.path.insert(0, pr)
+            from coach.embeddings import MTGEmbeddingIndex
+            from coach.config import EMBEDDINGS_NPZ
+
+            idx = MTGEmbeddingIndex()
+            idx.download_parquet()
+            idx.convert_parquet_to_npz()
+
+            npz_str = str(EMBEDDINGS_NPZ)
+            if os.path.exists(npz_str):
+                logger.info("Auto-downloaded embeddings to %s", npz_str)
+                return npz_str
+            logger.error("Auto-download completed but NPZ not found at %s", npz_str)
+            return None
+        except Exception as e:
+            logger.error("Auto-download failed: %s", e)
+            return None
 
     def get_embedding(self, card_name: str) -> np.ndarray:
         """Get embedding vector for a card name. Returns zero vector if not found."""

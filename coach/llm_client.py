@@ -85,32 +85,104 @@ class LMStudioClient:
             body["response_format"] = {"type": "json_object"}
         return body
 
+    @staticmethod
+    def _strip_think_tags(text: str) -> str:
+        """Remove DeepSeek-R1 <think>...</think> reasoning blocks from LLM output."""
+        import re
+        # Remove all <think>...</think> blocks (greedy, handles multiline)
+        cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        return cleaned.strip()
+
+    @staticmethod
+    def _extract_json_object(text: str) -> Optional[dict]:
+        """Find and parse the first complete JSON object in text.
+        Uses brace-counting to handle nested objects reliably."""
+        start = text.find('{')
+        if start == -1:
+            return None
+
+        depth = 0
+        in_string = False
+        escape_next = False
+
+        for i in range(start, len(text)):
+            ch = text[i]
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\':
+                if in_string:
+                    escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start:i+1]
+                    try:
+                        return json.loads(candidate)
+                    except (json.JSONDecodeError, ValueError):
+                        # Malformed — try next opening brace
+                        next_start = text.find('{', start + 1)
+                        if next_start != -1 and next_start < i:
+                            start = next_start
+                            depth = 1  # we're already past this brace
+                        return None
+        return None
+
     def _parse_response(self, raw: dict) -> LLMResponse:
-        """Extract content and usage from OpenAI-format response."""
+        """Extract content and usage from OpenAI-format response.
+        Handles DeepSeek-R1 <think> tags, markdown fences, and raw JSON."""
         choice = raw.get("choices", [{}])[0]
         content = choice.get("message", {}).get("content", "")
         usage = raw.get("usage", {})
 
-        # Try to parse content as JSON
+        # Step 1: Strip <think>...</think> blocks (DeepSeek-R1)
+        cleaned = self._strip_think_tags(content)
+
+        # Step 2: Try direct JSON parse on cleaned content
         parsed = None
         try:
-            parsed = json.loads(content)
+            parsed = json.loads(cleaned)
         except (json.JSONDecodeError, TypeError):
-            # Try to extract JSON from markdown fences
-            if "```json" in content:
-                start = content.index("```json") + 7
-                end = content.index("```", start)
-                try:
-                    parsed = json.loads(content[start:end].strip())
-                except (json.JSONDecodeError, ValueError):
-                    pass
-            elif "```" in content:
-                start = content.index("```") + 3
-                end = content.index("```", start)
-                try:
-                    parsed = json.loads(content[start:end].strip())
-                except (json.JSONDecodeError, ValueError):
-                    pass
+            pass
+
+        # Step 3: Try extracting from markdown fences
+        if parsed is None and "```json" in cleaned:
+            try:
+                start = cleaned.index("```json") + 7
+                end = cleaned.index("```", start)
+                parsed = json.loads(cleaned[start:end].strip())
+            except (json.JSONDecodeError, ValueError, IndexError):
+                pass
+        if parsed is None and "```" in cleaned:
+            try:
+                start = cleaned.index("```") + 3
+                end = cleaned.index("```", start)
+                parsed = json.loads(cleaned[start:end].strip())
+            except (json.JSONDecodeError, ValueError, IndexError):
+                pass
+
+        # Step 4: Brute-force — find the first valid JSON object in the text
+        if parsed is None:
+            parsed = self._extract_json_object(cleaned)
+
+        # Step 5: If still nothing, try on the original content (in case
+        # think-tag stripping was too aggressive)
+        if parsed is None and content != cleaned:
+            parsed = self._extract_json_object(content)
+
+        if parsed is not None:
+            logger.info("Successfully parsed JSON from LLM response")
+        else:
+            logger.warning("Could not extract JSON from LLM response (%d chars)",
+                           len(content))
 
         return LLMResponse(
             content=content,

@@ -1,0 +1,294 @@
+"""
+Commander AI Lab — Perplexity Sonar Structured Output Client
+═════════════════════════════════════════════════════════════
+Uses the openai SDK to call Perplexity's chat/completions endpoint
+with response_format: json_schema for guaranteed structured output.
+
+Supports both sonar (fast, cheap) and sonar-pro (deep, thorough).
+"""
+
+import json
+import logging
+import asyncio
+from typing import Optional
+
+from openai import OpenAI
+
+logger = logging.getLogger("coach.pplx")
+
+# ── Perplexity Models ─────────────────────────────────────────
+SONAR = "sonar"
+SONAR_PRO = "sonar-pro"
+SONAR_DEEP_RESEARCH = "sonar-deep-research"
+
+
+class PerplexityResponse:
+    """Parsed response container from Perplexity API."""
+    def __init__(self, content: str, parsed_json: Optional[dict],
+                 prompt_tokens: int, completion_tokens: int,
+                 model: str, citations: list[str] = None):
+        self.content = content
+        self.parsed_json = parsed_json
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
+        self.model = model
+        self.citations = citations or []
+
+    @property
+    def ok(self) -> bool:
+        return self.parsed_json is not None
+
+
+class PerplexityClient:
+    """
+    Perplexity Sonar API client using the openai SDK.
+
+    Usage:
+        client = PerplexityClient(api_key="pplx-...")
+        resp = client.chat_structured(
+            system_prompt="You are a deck builder.",
+            user_prompt="Build a deck for...",
+            json_schema=deck_schema,
+            schema_name="DeckList",
+        )
+        if resp.ok:
+            deck = resp.parsed_json
+    """
+
+    def __init__(self, api_key: str, model: str = SONAR,
+                 timeout: int = 120):
+        if not api_key:
+            raise ValueError("Perplexity API key is required")
+        self.api_key = api_key
+        self.model = model
+        self.timeout = timeout
+        self._client = OpenAI(
+            api_key=api_key,
+            base_url="https://api.perplexity.ai",
+            timeout=timeout,
+        )
+
+    def chat_structured(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        json_schema: dict,
+        schema_name: str = "response",
+        model: str = None,
+        temperature: float = 0.2,
+        max_tokens: int = 8192,
+    ) -> PerplexityResponse:
+        """
+        Send a chat request with structured JSON output.
+
+        Args:
+            system_prompt: System message
+            user_prompt: User message
+            json_schema: JSON Schema dict for response_format
+            schema_name: Name for the schema (used in response_format)
+            model: Override model (sonar, sonar-pro)
+            temperature: Sampling temperature (0.0–1.0)
+            max_tokens: Max output tokens
+
+        Returns:
+            PerplexityResponse with parsed_json guaranteed by schema
+        """
+        use_model = model or self.model
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        try:
+            response = self._client.chat.completions.create(
+                model=use_model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": schema_name,
+                        "schema": json_schema,
+                    },
+                },
+            )
+
+            choice = response.choices[0]
+            content = choice.message.content or ""
+            usage = response.usage
+
+            # Parse the structured JSON
+            parsed = None
+            try:
+                parsed = json.loads(content)
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning("Failed to parse structured response: %s", e)
+                # Fallback: try extracting JSON object
+                parsed = self._extract_json(content)
+
+            # Extract citations if available
+            citations = []
+            if hasattr(response, 'citations') and response.citations:
+                citations = response.citations
+
+            logger.info(
+                "[pplx] model=%s tokens=(%d prompt, %d completion) parsed=%s",
+                use_model,
+                usage.prompt_tokens if usage else 0,
+                usage.completion_tokens if usage else 0,
+                "yes" if parsed else "no",
+            )
+
+            return PerplexityResponse(
+                content=content,
+                parsed_json=parsed,
+                prompt_tokens=usage.prompt_tokens if usage else 0,
+                completion_tokens=usage.completion_tokens if usage else 0,
+                model=use_model,
+                citations=citations,
+            )
+
+        except Exception as e:
+            logger.error("[pplx] API call failed: %s", e)
+            raise
+
+    def chat_plain(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str = None,
+        temperature: float = 0.2,
+        max_tokens: int = 4096,
+    ) -> PerplexityResponse:
+        """
+        Send a plain chat request without structured output.
+        Used for substitution fallback queries where schema
+        compliance is less critical.
+        """
+        use_model = model or self.model
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        try:
+            response = self._client.chat.completions.create(
+                model=use_model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+
+            choice = response.choices[0]
+            content = choice.message.content or ""
+            usage = response.usage
+
+            # Try to parse as JSON anyway
+            parsed = self._extract_json(content)
+
+            citations = []
+            if hasattr(response, 'citations') and response.citations:
+                citations = response.citations
+
+            return PerplexityResponse(
+                content=content,
+                parsed_json=parsed,
+                prompt_tokens=usage.prompt_tokens if usage else 0,
+                completion_tokens=usage.completion_tokens if usage else 0,
+                model=use_model,
+                citations=citations,
+            )
+
+        except Exception as e:
+            logger.error("[pplx] Plain chat failed: %s", e)
+            raise
+
+    async def achat_structured(self, *args, **kwargs) -> PerplexityResponse:
+        """Async wrapper — runs structured chat in thread executor."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, lambda: self.chat_structured(*args, **kwargs)
+        )
+
+    async def achat_plain(self, *args, **kwargs) -> PerplexityResponse:
+        """Async wrapper — runs plain chat in thread executor."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, lambda: self.chat_plain(*args, **kwargs)
+        )
+
+    @staticmethod
+    def _extract_json(text: str) -> Optional[dict]:
+        """Best-effort JSON extraction from possibly noisy text."""
+        # Direct parse
+        try:
+            return json.loads(text.strip())
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Markdown fences
+        import re
+        fence_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
+        if fence_match:
+            try:
+                return json.loads(fence_match.group(1).strip())
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Brace counting
+        start = text.find('{')
+        if start == -1:
+            return None
+
+        depth = 0
+        in_string = False
+        escape_next = False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\' and in_string:
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:i+1])
+                    except (json.JSONDecodeError, TypeError):
+                        return None
+        return None
+
+    def check_status(self) -> dict:
+        """Quick health check — try a minimal API call."""
+        try:
+            response = self._client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "Reply with the word OK."},
+                    {"role": "user", "content": "Status check."},
+                ],
+                max_tokens=10,
+            )
+            return {
+                "connected": True,
+                "model": self.model,
+                "response": response.choices[0].message.content,
+            }
+        except Exception as e:
+            return {
+                "connected": False,
+                "model": self.model,
+                "error": str(e),
+            }

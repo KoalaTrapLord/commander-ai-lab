@@ -173,10 +173,12 @@ const ConfirmDialog = {
      * @param {object} opts - { title, message, changes: [{label, before, after}] }
      * @returns {Promise<boolean>}
      */
-    show({ title = 'Confirm Action', message = '', changes = [] }) {
+    show({ title = 'Confirm Action', message = '', changes = [], okLabel = 'OK', cancelLabel = 'Cancel' }) {
         this.titleEl.textContent = title;
         this.messageEl.textContent = message;
         this.changesEl.innerHTML = '';
+        this.okBtn.textContent = okLabel;
+        this.cancelBtn.textContent = cancelLabel;
 
         if (changes.length > 0) {
             for (const c of changes) {
@@ -355,6 +357,11 @@ const DeckBuilder = {
     newCommanderName: '',
     _saveTimer: null,
     _activeTypeFilter: null,
+    pplxConfigured: false,
+    aiGenCommanderName: '',
+    _aiGenSuggestions: [],
+    _aiGenActiveIndex: -1,
+    _lastGenResult: null,
 
     /* ── Init ─────────────────────────────────────────────── */
 
@@ -369,8 +376,10 @@ const DeckBuilder = {
         this._bindNewDeckModal();
         this._bindCollapsible();
         this._bindRightColumn();
+        this._bindAIPanels();
 
         await this.loadDecks();
+        this._checkPplxStatus();
 
         // Restore last deck from localStorage
         const lastId = localStorage.getItem('deck-builder-last-deck');
@@ -403,6 +412,8 @@ const DeckBuilder = {
         qs('#deck-export-btn').addEventListener('click', () => this._exportDck());
         qs('#deck-sim-btn').addEventListener('click', () => this._exportToSim());
         qs('#deck-import-btn').addEventListener('click', () => this._openImportModal());
+        qs('#deck-delete-btn').addEventListener('click', () => this._deleteDeck());
+        qs('#deck-clear-all-btn').addEventListener('click', () => this._clearAllDecks());
 
         // Import modal wiring
         this._initImportModal();
@@ -429,6 +440,59 @@ const DeckBuilder = {
             this._refreshDeckSelector();
         } catch (err) {
             ToastManager.show(`Failed to rename deck: ${err.message}`, 'error');
+        }
+    },
+
+    async _deleteDeck() {
+        if (!this.deckId) { ToastManager.show('No deck selected.', 'warning'); return; }
+        const ok = await ConfirmDialog.show({
+            title: 'Delete Deck',
+            message: 'Are you sure you want to delete "' + (this.deckName || 'this deck') + '"? This cannot be undone.',
+            okLabel: 'Delete',
+        });
+        if (!ok) return;
+        try {
+            await apiDelete('/api/decks/' + this.deckId);
+            ToastManager.show('Deck deleted.', 'success');
+            this.deckId = null;
+            this.deckInfo = null;
+            this.deckName = '';
+            this.deckCards = [];
+            localStorage.removeItem('deck-builder-last-deck');
+            qs('#deck-delete-btn').style.display = 'none';
+            await this.loadDecks();
+            qs('#deck-selector').value = '';
+            qs('#deck-name-input').value = '';
+            qs('#deck-card-groups').innerHTML = '';
+        } catch (err) {
+            ToastManager.show('Failed to delete deck: ' + err.message, 'error');
+        }
+    },
+
+    async _clearAllDecks() {
+        if (!this.allDecks.length) { ToastManager.show('No decks to clear.', 'warning'); return; }
+        const ok = await ConfirmDialog.show({
+            title: 'Clear All Decks',
+            message: 'Delete all ' + this.allDecks.length + ' decks? This cannot be undone.',
+            okLabel: 'Delete All',
+        });
+        if (!ok) return;
+        try {
+            await apiDelete('/api/decks');
+            ToastManager.show('All decks cleared.', 'success');
+            this.deckId = null;
+            this.deckInfo = null;
+            this.deckName = '';
+            this.deckCards = [];
+            this.allDecks = [];
+            localStorage.removeItem('deck-builder-last-deck');
+            qs('#deck-delete-btn').style.display = 'none';
+            this._renderDeckSelector();
+            qs('#deck-selector').value = '';
+            qs('#deck-name-input').value = '';
+            qs('#deck-card-groups').innerHTML = '';
+        } catch (err) {
+            ToastManager.show('Failed to clear decks: ' + err.message, 'error');
         }
     },
 
@@ -495,6 +559,9 @@ const DeckBuilder = {
             // Refresh search results with new deck context
             if (this.searchQuery) this._runSearch();
 
+            // Enable AI research button
+            this._updateAIResearchBtn();
+
         } catch (err) {
             ToastManager.show(`Failed to load deck: ${err.message}`, 'error');
             this._renderCardGroups(); // show empty state
@@ -518,12 +585,17 @@ const DeckBuilder = {
         // Commander portrait
         const img = qs('#deck-commander-img');
         const placeholder = qs('.deck-commander-portrait-placeholder');
+        const portrait = qs('#deck-commander-portrait');
         const cmdCard = this.deckCards.find(c => c.is_commander);
         if (cmdCard && cmdCard.scryfall_id) {
             img.src = `https://api.scryfall.com/cards/${cmdCard.scryfall_id}?format=image&version=small`;
             img.style.display = 'block';
             placeholder.style.display = 'none';
             this.commanderScryfallId = cmdCard.scryfall_id;
+
+            // Attach card preview hover to commander label and portrait
+            CardPreview.attach(cmdLabel, cmdCard.scryfall_id);
+            CardPreview.attach(portrait, cmdCard.scryfall_id);
         } else {
             img.style.display = 'none';
             placeholder.style.display = '';
@@ -571,6 +643,7 @@ const DeckBuilder = {
     _showDeckControls() {
         qs('#deck-quickadd-row').style.display = '';
         qs('#deck-stats-footer').style.display = '';
+        qs('#deck-delete-btn').style.display = this.deckId ? '' : 'none';
     },
 
     /* ── Card Groups Rendering ────────────────────────────── */
@@ -709,27 +782,20 @@ const DeckBuilder = {
         // Owned dot
         const ownedDot = el('span', `deck-card-owned-dot${(card.owned_quantity || 0) > 0 ? '' : ' unowned'}`);
         ownedDot.title = `Owned: ${card.owned_quantity || 0}`;
+        row.appendChild(ownedDot);
 
-        // Commander badge
-        if (isCmd) {
-            const cmdBadge = el('span', 'deck-card-commander-badge', 'CMD');
-            row.appendChild(ownedDot);
-            row.appendChild(cmdBadge);
-        } else {
-            row.appendChild(ownedDot);
-        }
-
-        // Name (hoverable for card preview)
-        const nameEl = el('span', 'deck-card-row-name', card.card_name);
-        CardPreview.attach(nameEl, card.scryfall_id);
-        row.appendChild(nameEl);
-
-        // Mana cost
+        // Mana cost (before name)
         if (card.mana_cost) {
             const manaEl = buildManaCost(card.mana_cost);
             manaEl.className = 'deck-card-row-mana';
             row.appendChild(manaEl);
         }
+
+        // Name (hoverable for card preview)
+        const nameEl = el('span', 'deck-card-row-name', card.card_name);
+        const hoverSfId = card.scryfall_id || (isCmd ? this.commanderScryfallId : null);
+        if (hoverSfId) CardPreview.attach(nameEl, hoverSfId);
+        row.appendChild(nameEl);
 
         // Role chip (only for non-commander)
         if (!isCmd) {
@@ -754,6 +820,12 @@ const DeckBuilder = {
             qtyWrap.appendChild(qtyNum);
             qtyWrap.appendChild(plusBtn);
             row.appendChild(qtyWrap);
+        }
+
+        // Commander badge (after other controls, at end of row)
+        if (isCmd) {
+            const cmdBadge = el('span', 'deck-card-commander-badge', 'Commander');
+            row.appendChild(cmdBadge);
         }
 
         // Remove button
@@ -1979,6 +2051,624 @@ const DeckBuilder = {
             btn.disabled = false;
             btn.innerHTML = originalText;
         }
+    },
+
+    /* ── AI Panels (Perplexity) ──────────────────────────── */
+
+    async _checkPplxStatus() {
+        try {
+            const status = await apiGet('/api/pplx/status');
+            this.pplxConfigured = status && status.configured;
+        } catch {
+            this.pplxConfigured = false;
+        }
+        const researchPanel = qs('#deck-ai-research-panel');
+        const generatePanel = qs('#deck-ai-generate-panel');
+        if (researchPanel) researchPanel.style.display = this.pplxConfigured ? '' : 'none';
+        if (generatePanel) generatePanel.style.display = this.pplxConfigured ? '' : 'none';
+    },
+
+    _bindAIPanels() {
+        // Research button
+        const researchBtn = qs('#ai-research-btn');
+        if (researchBtn) {
+            researchBtn.addEventListener('click', () => this._runAIResearch());
+        }
+
+        // Generate button
+        const genBtn = qs('#ai-gen-btn');
+        if (genBtn) {
+            genBtn.addEventListener('click', () => this._runAIGenerate());
+        }
+
+        // Commander autocomplete for AI Generate
+        this._bindAIGenCommanderSearch();
+    },
+
+    /** Update the research button state — call after deck changes */
+    _updateAIResearchBtn() {
+        const btn = qs('#ai-research-btn');
+        if (!btn) return;
+        btn.disabled = !this.deckId || !this.pplxConfigured;
+    },
+
+    /* ── AI Research Flow ─────────────────────────────────── */
+
+    async _runAIResearch() {
+        if (!this.deckId) {
+            ToastManager.show('Load a deck first.', 'warning');
+            return;
+        }
+        const btn = qs('#ai-research-btn');
+        const loading = qs('#ai-research-loading');
+        const results = qs('#ai-research-results');
+        const controls = qs('#deck-ai-research-body .deck-ai-controls');
+
+        const goal = qs('#ai-research-goal').value.trim() || undefined;
+        const budgetRaw = qs('#ai-research-budget').value;
+        const budget = budgetRaw ? parseFloat(budgetRaw) : undefined;
+        const omitRaw = qs('#ai-research-omit').value.trim();
+        const omitCards = omitRaw ? omitRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const useCollection = qs('#ai-research-use-collection').checked;
+
+        btn.disabled = true;
+        loading.style.display = 'flex';
+        results.style.display = 'none';
+        results.innerHTML = '';
+
+        try {
+            const data = await apiPost('/api/deck-research', {
+                deck_id: this.deckId,
+                goal,
+                budget_usd: budget,
+                omit_cards: omitCards,
+                use_collection: useCollection,
+            });
+
+            if (data.error) {
+                results.innerHTML = '<div class="deck-ai-error">AI returned an error: ' + this._esc(data.error) + '</div>';
+                results.style.display = 'block';
+                return;
+            }
+
+            this._renderResearchResults(data, results);
+            results.style.display = 'block';
+
+            // Expand the panel body max-height so results are visible
+            const body = qs('#deck-ai-research-body');
+            if (body) body.style.maxHeight = body.scrollHeight + 2000 + 'px';
+        } catch (err) {
+            results.innerHTML = '<div class="deck-ai-error">Research failed: ' + this._esc(err.message) + '</div>';
+            results.style.display = 'block';
+            ToastManager.show('AI research failed: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            loading.style.display = 'none';
+        }
+    },
+
+    _renderResearchResults(data, container) {
+        let html = '';
+        const esc = (t) => this._esc(t);
+
+        // ── Header: Rating + Bracket + Archetype ──────────────────
+        const ratingNum = parseInt(data.overall_rating, 10);
+        const ratingClass = isNaN(ratingNum) ? '' : (ratingNum >= 7 ? 'high' : ratingNum >= 4 ? 'mid' : 'low');
+        const bracketLvl = data.bracket_level && data.bracket_level.level;
+        const bracketCls = bracketLvl <= 1 ? 'bracket-1' : bracketLvl <= 2 ? 'bracket-2' : bracketLvl <= 3 ? 'bracket-3' : 'bracket-4';
+
+        html += '<div class="deck-ai-header-row">';
+        html += '<div class="deck-ai-rating"><span class="deck-ai-rating-num ' + ratingClass + '">' + (isNaN(ratingNum) ? '?' : ratingNum) + '</span><span class="deck-ai-rating-sublabel">/10</span></div>';
+        if (bracketLvl) html += '<span class="deck-ai-bracket-badge ' + bracketCls + '">Bracket ' + bracketLvl + '</span>';
+        if (data.archetype) html += '<span class="deck-ai-archetype-badge">' + esc(data.archetype.replace('_', ' ')) + '</span>';
+        html += '</div>';
+
+        // Rating explanation
+        if (data.rating_explanation) {
+            html += '<div class="deck-ai-notes deck-ai-rating-explanation">' + esc(data.rating_explanation) + '</div>';
+        }
+
+        // ── Deck Description ──────────────────────────────────────
+        if (data.deck_description) {
+            html += '<div class="deck-ai-section">';
+            html += '<div class="deck-ai-section-title">Deck Overview</div>';
+            html += '<div class="deck-ai-strategy">' + esc(data.deck_description) + '</div>';
+            html += '</div>';
+        }
+
+        // ── Bracket Details ───────────────────────────────────────
+        if (data.bracket_level) {
+            const b = data.bracket_level;
+            html += '<div class="deck-ai-section">';
+            html += '<div class="deck-ai-section-title">Bracket Assessment</div>';
+            html += '<div class="deck-ai-bracket-detail">';
+            if (b.reasoning) html += '<div class="deck-ai-notes"><strong>Why Bracket ' + (b.level || '?') + ':</strong> ' + esc(b.reasoning) + '</div>';
+            if (b.power_ceiling) html += '<div class="deck-ai-notes"><strong>Power Ceiling:</strong> ' + esc(b.power_ceiling) + '</div>';
+            html += '</div></div>';
+        }
+
+        // ── Win Conditions ────────────────────────────────────────
+        if (data.win_conditions && data.win_conditions.length) {
+            html += '<div class="deck-ai-section">';
+            html += '<div class="deck-ai-section-title">Win Conditions</div>';
+            for (const wc of data.win_conditions) {
+                const relCls = wc.reliability === 'high' ? 'high' : wc.reliability === 'medium' ? 'mid' : 'low';
+                html += '<div class="deck-ai-wincon">';
+                html += '<div class="deck-ai-wincon-header">';
+                html += '<span class="deck-ai-wincon-name">' + esc(wc.name) + '</span>';
+                if (wc.reliability) html += '<span class="deck-ai-reliability-badge ' + relCls + '">' + esc(wc.reliability) + '</span>';
+                html += '</div>';
+                if (wc.cards_involved && wc.cards_involved.length) {
+                    html += '<div class="deck-ai-wincon-cards">';
+                    for (const cn of wc.cards_involved) html += '<span class="deck-ai-card-chip">' + esc(cn) + '</span>';
+                    html += '</div>';
+                }
+                if (wc.description) html += '<div class="deck-ai-notes">' + esc(wc.description) + '</div>';
+                html += '</div>';
+            }
+            html += '</div>';
+        }
+
+        // ── Synergy Packages ──────────────────────────────────────
+        if (data.synergy_packages && data.synergy_packages.length) {
+            html += '<div class="deck-ai-section">';
+            html += '<div class="deck-ai-section-title">Synergy Packages</div>';
+            for (const sp of data.synergy_packages) {
+                const strCls = sp.strength === 'strong' ? 'high' : sp.strength === 'moderate' ? 'mid' : 'low';
+                html += '<div class="deck-ai-synergy-pkg">';
+                html += '<div class="deck-ai-synergy-header">';
+                html += '<span class="deck-ai-synergy-name">' + esc(sp.package_name) + '</span>';
+                if (sp.strength) html += '<span class="deck-ai-reliability-badge ' + strCls + '">' + esc(sp.strength) + '</span>';
+                html += '</div>';
+                if (sp.cards && sp.cards.length) {
+                    html += '<div class="deck-ai-wincon-cards">';
+                    for (const cn of sp.cards) html += '<span class="deck-ai-card-chip">' + esc(cn) + '</span>';
+                    html += '</div>';
+                }
+                if (sp.description) html += '<div class="deck-ai-notes">' + esc(sp.description) + '</div>';
+                html += '</div>';
+            }
+            html += '</div>';
+        }
+
+        // ── Threat Assessment (game phases) ───────────────────────
+        if (data.threat_assessment) {
+            const ta = data.threat_assessment;
+            html += '<div class="deck-ai-section">';
+            html += '<div class="deck-ai-section-title">Threat Assessment</div>';
+            html += '<div class="deck-ai-phases">';
+            if (ta.early_game) html += '<div class="deck-ai-phase"><span class="deck-ai-phase-label">Early (T1-3)</span><span class="deck-ai-phase-text">' + esc(ta.early_game) + '</span></div>';
+            if (ta.mid_game) html += '<div class="deck-ai-phase"><span class="deck-ai-phase-label">Mid (T4-7)</span><span class="deck-ai-phase-text">' + esc(ta.mid_game) + '</span></div>';
+            if (ta.late_game) html += '<div class="deck-ai-phase"><span class="deck-ai-phase-label">Late (T8+)</span><span class="deck-ai-phase-text">' + esc(ta.late_game) + '</span></div>';
+            if (ta.vulnerability) html += '<div class="deck-ai-phase deck-ai-phase-vuln"><span class="deck-ai-phase-label">Vulnerable To</span><span class="deck-ai-phase-text">' + esc(ta.vulnerability) + '</span></div>';
+            html += '</div></div>';
+        }
+
+        // ── Strengths / Weaknesses ────────────────────────────────
+        if ((data.strengths && data.strengths.length) || (data.weaknesses && data.weaknesses.length)) {
+            html += '<div class="deck-ai-section deck-ai-sw-grid">';
+            if (data.strengths && data.strengths.length) {
+                html += '<div class="deck-ai-sw-col">';
+                html += '<div class="deck-ai-section-title deck-ai-sw-title-good">Strengths</div>';
+                html += '<ul class="deck-ai-list">';
+                for (const s of data.strengths) html += '<li>' + esc(s) + '</li>';
+                html += '</ul></div>';
+            }
+            if (data.weaknesses && data.weaknesses.length) {
+                html += '<div class="deck-ai-sw-col">';
+                html += '<div class="deck-ai-section-title deck-ai-sw-title-bad">Weaknesses</div>';
+                html += '<ul class="deck-ai-list">';
+                for (const w of data.weaknesses) html += '<li>' + esc(w) + '</li>';
+                html += '</ul></div>';
+            }
+            html += '</div>';
+        }
+
+        // ── Role Gaps ────────────────────────────────────────────
+        if (data.role_gaps && typeof data.role_gaps === 'object') {
+            html += '<div class="deck-ai-section">';
+            html += '<div class="deck-ai-section-title">Role Analysis</div>';
+            html += '<div class="deck-ai-role-gaps">';
+            for (const [role, info] of Object.entries(data.role_gaps)) {
+                if (!info || typeof info !== 'object') continue;
+                const cur = info.current || 0;
+                const rec = info.recommended || 0;
+                const diff = cur - rec;
+                const barPct = rec > 0 ? Math.min(100, Math.round((cur / rec) * 100)) : 100;
+                const barCls = diff >= 0 ? 'good' : (diff >= -2 ? 'warn' : 'bad');
+                html += '<div class="deck-ai-role-row">';
+                html += '<span class="deck-ai-role-name">' + esc(role.replace('_', ' ')) + '</span>';
+                html += '<div class="deck-ai-role-bar-wrap"><div class="deck-ai-role-bar ' + barCls + '" style="width:' + barPct + '%"></div></div>';
+                html += '<span class="deck-ai-role-nums">' + cur + '/' + rec + '</span>';
+                html += '</div>';
+                if (info.note) html += '<div class="deck-ai-role-note">' + esc(info.note) + '</div>';
+            }
+            html += '</div></div>';
+        }
+
+        // ── Mana Analysis ────────────────────────────────────────
+        if (data.mana_analysis && typeof data.mana_analysis === 'object') {
+            const ma = data.mana_analysis;
+            html += '<div class="deck-ai-section">';
+            html += '<div class="deck-ai-section-title">Mana Base Analysis</div>';
+            if (ma.land_count) html += '<div class="deck-ai-notes"><strong>Lands:</strong> ' + esc(ma.land_count) + '</div>';
+            if (ma.color_fixing) html += '<div class="deck-ai-notes"><strong>Color Fixing:</strong> ' + esc(ma.color_fixing) + '</div>';
+            if (ma.ramp_package) html += '<div class="deck-ai-notes"><strong>Ramp:</strong> ' + esc(ma.ramp_package) + '</div>';
+            if (ma.curve_assessment) html += '<div class="deck-ai-notes"><strong>Curve:</strong> ' + esc(ma.curve_assessment) + '</div>';
+            if (ma.problem_cards && ma.problem_cards.length) {
+                html += '<div class="deck-ai-notes"><strong>Problem Cards:</strong> ';
+                html += ma.problem_cards.map(c => '<span class="deck-ai-card-chip deck-ai-card-chip-warn">' + esc(c) + '</span>').join(' ');
+                html += '</div>';
+            }
+            html += '</div>';
+        }
+
+        // ── Cuts ─────────────────────────────────────────────────
+        if (data.cuts && data.cuts.length) {
+            html += '<div class="deck-ai-section">';
+            html += '<div class="deck-ai-section-title">Suggested Cuts (' + data.cuts.length + ')</div>';
+            for (const c of data.cuts) {
+                const sevCls = c.severity === 'must_cut' ? 'sev-must' : c.severity === 'should_cut' ? 'sev-should' : 'sev-consider';
+                html += '<div class="deck-ai-card-row cut-row">';
+                html += '<span class="deck-ai-card-name">' + esc(c.name) + '</span>';
+                if (c.severity) html += '<span class="deck-ai-severity-badge ' + sevCls + '">' + esc(c.severity.replace('_', ' ')) + '</span>';
+                html += '</div>';
+                if (c.reason) html += '<div class="deck-ai-card-detail">' + esc(c.reason) + '</div>';
+            }
+            html += '</div>';
+        }
+
+        // ── Adds ─────────────────────────────────────────────────
+        if (data.adds && data.adds.length) {
+            html += '<div class="deck-ai-section">';
+            html += '<div class="deck-ai-section-title">Suggested Adds (' + data.adds.length + ')</div>';
+            for (const a of data.adds) {
+                const priCls = a.priority === 'critical' ? 'pri-critical' : a.priority === 'high' ? 'pri-high' : a.priority === 'medium' ? 'pri-medium' : 'pri-nice';
+                html += '<div class="deck-ai-card-row add-row" data-card-name="' + esc(a.name) + '" data-scryfall-id="' + (a.scryfall_id || '') + '">';
+                html += '<span class="deck-ai-card-name">' + esc(a.name) + '</span>';
+                if (a.role) html += '<span class="deck-ai-card-role">' + esc(a.role.replace('_', ' ')) + '</span>';
+                if (a.priority) html += '<span class="deck-ai-priority-badge ' + priCls + '">' + esc(a.priority.replace('_', ' ')) + '</span>';
+                if (a.from_collection) html += '<span class="deck-ai-card-owned-badge">Owned</span>';
+                if (a.estimated_price_usd) html += '<span class="deck-ai-card-price">$' + a.estimated_price_usd.toFixed(2) + '</span>';
+                if (a.scryfall_id) html += '<button class="deck-ai-card-add-btn" data-sfid="' + a.scryfall_id + '" data-name="' + esc(a.name) + '">+</button>';
+                html += '</div>';
+                // Reason + synergy line
+                let detail = '';
+                if (a.reason) detail += esc(a.reason);
+                if (a.synergy_with && a.synergy_with.length) {
+                    detail += (detail ? ' ' : '') + '<span class="deck-ai-synergy-tag">Synergizes with: ' + a.synergy_with.map(c => esc(c)).join(', ') + '</span>';
+                }
+                if (detail) html += '<div class="deck-ai-card-detail">' + detail + '</div>';
+            }
+            if (data.adds_total_usd) {
+                html += '<div class="deck-ai-total"><span>Total adds cost</span><strong>$' + data.adds_total_usd.toFixed(2) + '</strong></div>';
+            }
+            html += '</div>';
+        }
+
+        // ── Strategy Notes ────────────────────────────────────────
+        if (data.strategy_notes) {
+            html += '<div class="deck-ai-section">';
+            html += '<div class="deck-ai-section-title">Strategy Notes</div>';
+            html += '<div class="deck-ai-strategy">' + esc(data.strategy_notes) + '</div>';
+            html += '</div>';
+        }
+
+        container.innerHTML = html;
+
+        // Bind add buttons
+        qsa('.deck-ai-card-add-btn', container).forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const sfid = btn.dataset.sfid;
+                const name = btn.dataset.name;
+                if (sfid) this.addCardToDeck(sfid, name);
+            });
+        });
+
+        // Attach card preview on hover for add rows with scryfall_id
+        qsa('.deck-ai-card-row[data-scryfall-id]', container).forEach(row => {
+            const sfid = row.dataset.scryfallId;
+            if (sfid) {
+                const nameEl = qs('.deck-ai-card-name', row);
+                if (nameEl) CardPreview.attach(nameEl, sfid);
+            }
+        });
+    },
+
+    /* ── AI Generate Flow ─────────────────────────────────── */
+
+    _bindAIGenCommanderSearch() {
+        const input = qs('#ai-gen-commander');
+        const dropdown = qs('#ai-gen-commander-dropdown');
+        if (!input || !dropdown) return;
+
+        const debouncedSearch = debounce(async (q) => {
+            if (!q || q.length < 2) { dropdown.style.display = 'none'; return; }
+            const cards = await scryfallSearchCards(q + ' is:commander');
+            this._aiGenSuggestions = cards.slice(0, 8);
+            this._aiGenActiveIndex = -1;
+            this._renderAIGenDropdown();
+        }, 350);
+
+        input.addEventListener('input', (e) => {
+            // Clear selection if user edits after selecting
+            this.aiGenCommanderName = '';
+            const sel = qs('#ai-gen-commander-selected');
+            if (sel) sel.style.display = 'none';
+            debouncedSearch(e.target.value.trim());
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                this._aiGenActiveIndex = Math.min(this._aiGenActiveIndex + 1, this._aiGenSuggestions.length - 1);
+                this._renderAIGenDropdown();
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                this._aiGenActiveIndex = Math.max(this._aiGenActiveIndex - 1, -1);
+                this._renderAIGenDropdown();
+                e.preventDefault();
+            } else if (e.key === 'Enter' && this._aiGenActiveIndex >= 0) {
+                e.preventDefault();
+                const card = this._aiGenSuggestions[this._aiGenActiveIndex];
+                if (card) this._selectAIGenCommander(card);
+            } else if (e.key === 'Escape') {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        dropdown.addEventListener('click', (e) => {
+            const item = e.target.closest('.deck-ai-commander-option');
+            if (!item) return;
+            const idx = parseInt(item.dataset.index, 10);
+            const card = this._aiGenSuggestions[idx];
+            if (card) this._selectAIGenCommander(card);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+    },
+
+    _renderAIGenDropdown() {
+        const dropdown = qs('#ai-gen-commander-dropdown');
+        dropdown.innerHTML = '';
+        if (this._aiGenSuggestions.length === 0) { dropdown.style.display = 'none'; return; }
+        for (let i = 0; i < this._aiGenSuggestions.length; i++) {
+            const card = this._aiGenSuggestions[i];
+            const item = el('div', 'deck-ai-commander-option' + (i === this._aiGenActiveIndex ? ' active' : ''));
+            item.dataset.index = i;
+
+            const nameEl = el('span', 'deck-ai-commander-option-name', card.name);
+            const colorWrap = el('span', 'deck-commander-option-color');
+            for (const c of (card.color_identity || [])) {
+                colorWrap.appendChild(buildColorChip(c));
+            }
+            item.appendChild(nameEl);
+            item.appendChild(colorWrap);
+            dropdown.appendChild(item);
+        }
+        dropdown.style.display = 'block';
+    },
+
+    _selectAIGenCommander(card) {
+        this.aiGenCommanderName = card.name;
+        const input = qs('#ai-gen-commander');
+        const dropdown = qs('#ai-gen-commander-dropdown');
+        input.value = card.name;
+        dropdown.style.display = 'none';
+    },
+
+    async _runAIGenerate() {
+        const commander = this.aiGenCommanderName || qs('#ai-gen-commander').value.trim();
+        if (!commander) {
+            ToastManager.show('Enter a commander name.', 'warning');
+            qs('#ai-gen-commander').focus();
+            return;
+        }
+
+        const btn = qs('#ai-gen-btn');
+        const loading = qs('#ai-gen-loading');
+        const results = qs('#ai-gen-results');
+        const controls = qs('#deck-ai-generate-body .deck-ai-controls');
+
+        const budgetRaw = qs('#ai-gen-budget').value;
+        const budget = budgetRaw ? parseFloat(budgetRaw) : undefined;
+        const omitRaw = qs('#ai-gen-omit').value.trim();
+        const omitCards = omitRaw ? omitRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const useCollection = qs('#ai-gen-use-collection').checked;
+
+        btn.disabled = true;
+        loading.style.display = 'flex';
+        results.style.display = 'none';
+        results.innerHTML = '';
+
+        try {
+            const data = await apiFetch('/api/deck-generate', {
+                method: 'POST',
+                body: JSON.stringify({
+                    commander,
+                    budget_usd: budget,
+                    omit_cards: omitCards,
+                    use_collection: useCollection,
+                }),
+            });
+
+            if (data.error) {
+                results.innerHTML = '<div class="deck-ai-error">AI returned an error: ' + this._esc(data.error) + '</div>';
+                results.style.display = 'block';
+                return;
+            }
+
+            this._lastGenResult = data;
+            this._renderGenerateResults(data, results);
+            results.style.display = 'block';
+
+            // Expand panel
+            const body = qs('#deck-ai-generate-body');
+            if (body) body.style.maxHeight = body.scrollHeight + 5000 + 'px';
+        } catch (err) {
+            results.innerHTML = '<div class="deck-ai-error">Generation failed: ' + this._esc(err.message) + '</div>';
+            results.style.display = 'block';
+            ToastManager.show('AI generation failed: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            loading.style.display = 'none';
+        }
+    },
+
+    _renderGenerateResults(data, container) {
+        let html = '';
+
+        // Strategy
+        if (data.strategy) {
+            html += '<div class="deck-ai-strategy">' + this._esc(data.strategy) + '</div>';
+        }
+
+        // Stats row
+        html += '<div class="deck-ai-stats">';
+        html += '<div class="deck-ai-stat"><span class="deck-ai-stat-value">' + (data.total_cards || '?') + '</span><span class="deck-ai-stat-label">Cards</span></div>';
+        html += '<div class="deck-ai-stat"><span class="deck-ai-stat-value">$' + (data.real_total_usd || 0).toFixed(0) + '</span><span class="deck-ai-stat-label">Total</span></div>';
+        html += '<div class="deck-ai-stat"><span class="deck-ai-stat-value">' + (data.from_collection_count || 0) + '</span><span class="deck-ai-stat-label">Owned</span></div>';
+        html += '</div>';
+
+        // Cards grouped by role
+        if (data.cards && data.cards.length) {
+            const groups = {};
+            for (const c of data.cards) {
+                const role = c.role || 'other';
+                if (!groups[role]) groups[role] = [];
+                groups[role].push(c);
+            }
+
+            const roleOrder = ['commander', 'creature', 'ramp', 'draw', 'removal', 'land', 'utility', 'win_condition', 'other'];
+            const sortedRoles = Object.keys(groups).sort((a, b) => {
+                const ai = roleOrder.indexOf(a);
+                const bi = roleOrder.indexOf(b);
+                return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+            });
+
+            for (const role of sortedRoles) {
+                const cards = groups[role];
+                html += '<div class="deck-ai-section">';
+                html += '<div class="deck-ai-section-title">' + this._esc(role.replace('_', ' ')) + ' (' + cards.length + ')</div>';
+                for (const c of cards) {
+                    html += '<div class="deck-ai-card-row add-row" data-scryfall-id="' + (c.scryfall_id || '') + '">';
+                    html += '<span class="deck-ai-card-name">' + this._esc(c.name) + '</span>';
+                    if (c.from_collection) html += '<span class="deck-ai-card-owned-badge">Owned</span>';
+                    if (c.estimated_price_usd) html += '<span class="deck-ai-card-price">$' + c.estimated_price_usd.toFixed(2) + '</span>';
+                    html += '</div>';
+                }
+                html += '</div>';
+            }
+        }
+
+        // Reasoning
+        if (data.reasoning) {
+            const r = data.reasoning;
+            html += '<div class="deck-ai-section">';
+            html += '<div class="deck-ai-section-title">AI Reasoning</div>';
+            if (r.strategy) html += '<div class="deck-ai-notes"><strong>Strategy:</strong> ' + this._esc(r.strategy) + '</div>';
+            if (r.mana_curve) html += '<div class="deck-ai-notes"><strong>Mana Curve:</strong> ' + this._esc(r.mana_curve) + '</div>';
+            if (r.key_synergies) html += '<div class="deck-ai-notes"><strong>Key Synergies:</strong> ' + this._esc(r.key_synergies) + '</div>';
+            if (r.budget_notes) html += '<div class="deck-ai-notes"><strong>Budget:</strong> ' + this._esc(r.budget_notes) + '</div>';
+            if (r.collection_usage_notes) html += '<div class="deck-ai-notes"><strong>Collection Usage:</strong> ' + this._esc(r.collection_usage_notes) + '</div>';
+            html += '</div>';
+        }
+
+        // Apply button
+        html += '<button class="deck-btn deck-btn-apply-ai deck-btn-full" id="ai-gen-apply-btn">✅ Create Deck from AI Results</button>';
+
+        container.innerHTML = html;
+
+        // Bind apply button
+        const applyBtn = qs('#ai-gen-apply-btn', container);
+        if (applyBtn) {
+            applyBtn.addEventListener('click', () => this._applyGeneratedDeck());
+        }
+
+        // Attach card preview on hover
+        qsa('.deck-ai-card-row[data-scryfall-id]', container).forEach(row => {
+            const sfid = row.dataset.scryfallId;
+            if (sfid) {
+                const nameEl = qs('.deck-ai-card-name', row);
+                if (nameEl) CardPreview.attach(nameEl, sfid);
+            }
+        });
+    },
+
+    async _applyGeneratedDeck() {
+        const data = this._lastGenResult;
+        if (!data || !data.cards || !data.cards.length) {
+            ToastManager.show('No generated deck to apply.', 'warning');
+            return;
+        }
+
+        const applyBtn = qs('#ai-gen-apply-btn');
+        if (applyBtn) { applyBtn.disabled = true; applyBtn.textContent = 'Creating deck...'; }
+
+        try {
+            // Create a new deck
+            const deckName = (data.commander || 'AI Deck') + ' (AI)';
+            const deck = await apiPost('/api/decks', { name: deckName });
+            this.deckId = deck.id;
+            this.deckName = deck.name;
+
+            // Add cards one at a time
+            let added = 0;
+            let failed = 0;
+            for (const card of data.cards) {
+                if (!card.scryfall_id && !card.name) continue;
+
+                try {
+                    let sfid = card.scryfall_id;
+                    // If no scryfall_id, try fuzzy Scryfall lookup
+                    if (!sfid) {
+                        const scryCard = await scryfallFuzzySearch(card.name);
+                        if (scryCard) sfid = scryCard.id;
+                    }
+                    if (!sfid) { failed++; continue; }
+
+                    const isCommander = (card.role === 'commander') ? 1 : 0;
+                    await apiPost('/api/decks/' + deck.id + '/cards', {
+                        scryfall_id: sfid,
+                        card_name: card.name,
+                        quantity: card.count || 1,
+                        is_commander: isCommander,
+                    });
+                    added++;
+                } catch (cardErr) {
+                    console.warn('Failed to add ' + card.name + ':', cardErr.message);
+                    failed++;
+                }
+            }
+
+            // Reload
+            await this.loadDecks();
+            await this.loadDeck(deck.id);
+            qs('#deck-selector').value = deck.id;
+
+            const msg = 'Created "' + deckName + '" with ' + added + ' cards';
+            if (failed) {
+                ToastManager.show(msg + ' (' + failed + ' failed to resolve)', 'warning', 5000);
+            } else {
+                ToastManager.show(msg, 'success', 4000);
+            }
+        } catch (err) {
+            ToastManager.show('Failed to create deck: ' + err.message, 'error');
+        } finally {
+            if (applyBtn) { applyBtn.disabled = false; applyBtn.textContent = '\u2705 Create Deck from AI Results'; }
+        }
+    },
+
+    /** HTML-escape helper */
+    _esc(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
     },
 };
 
