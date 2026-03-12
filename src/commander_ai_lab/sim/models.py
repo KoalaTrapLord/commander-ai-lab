@@ -306,12 +306,37 @@ class GameResult:
         return p.eliminated if p else False
 
     def to_dict(self) -> dict:
-        """Serialize to dict matching Java BatchResult.GameResult schema."""
-        d = {
-            "winningSeat": self.winner_seat,
+        """Serialize to dict.
+
+        Returns both the legacy 2-player keys (winner, playerA, playerB)
+        that the existing UI and lab_api consumers expect AND the new
+        N-player 'playerResults' array for the Java BatchResult schema.
+        """
+        d: dict = {
+            # Legacy keys (UI expects these)
+            "winner": self.winner_seat,
             "turns": self.turns,
+            # New N-player keys (Java BatchResult schema)
+            "winningSeat": self.winner_seat,
             "playerResults": [p.to_dict() for p in self.players],
         }
+
+        # Legacy playerA / playerB dicts for the UI
+        pa = self.player(0)
+        pb = self.player(1)
+        d["playerA"] = {
+            "name": pa.name if pa else "",
+            "life": pa.life if pa else 0,
+            "eliminated": pa.eliminated if pa else False,
+            "stats": pa.stats.to_dict() if pa and pa.stats else {},
+        }
+        d["playerB"] = {
+            "name": pb.name if pb else "",
+            "life": pb.life if pb else 0,
+            "eliminated": pb.eliminated if pb else False,
+            "stats": pb.stats.to_dict() if pb and pb.stats else {},
+        }
+
         if self.game_log:
             d["gameLog"] = self.game_log
         return d
