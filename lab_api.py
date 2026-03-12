@@ -7021,10 +7021,41 @@ async def coach_status():
 
 @app.get("/api/coach/decks")
 async def coach_list_decks():
-    """List all decks with available reports."""
-    if _coach_service is None:
-        raise HTTPException(500, "Coach service not initialized")
-    return {"decks": _coach_service.list_deck_reports()}
+    """List all decks available for coaching (from deck builder DB)."""
+    conn = _get_db_conn()
+    rows = conn.execute(
+        """SELECT d.id as deck_id, d.name as deck_name, d.commander,
+                  COUNT(dc.id) as card_count
+           FROM decks d
+           LEFT JOIN deck_cards dc ON dc.deck_id = d.id
+           GROUP BY d.id
+           ORDER BY d.name"""
+    ).fetchall()
+
+    # Also get report availability from coach service
+    report_ids = set()
+    if _coach_service:
+        report_ids = set(_coach_service.list_deck_reports())
+
+    decks = []
+    for r in rows:
+        deck_name = r["deck_name"]
+        # Check if a report exists (by deck name slug match)
+        has_report = any(
+            deck_name.lower().replace(" ", "-") == rid.lower() or
+            deck_name.lower() == rid.lower()
+            for rid in report_ids
+        )
+        decks.append({
+            "deck_id": r["deck_id"],
+            "deck_name": r["deck_name"],
+            "commander": r["commander"] or "",
+            "card_count": r["card_count"],
+            "has_report": has_report,
+            "report_count": 1 if has_report else 0,
+            "last_report_date": None,
+        })
+    return decks
 
 
 @app.get("/api/coach/decks/{deck_id}/report")
@@ -7040,6 +7071,29 @@ async def coach_get_report(deck_id: str):
 
 class CoachRequestBody(BaseModel):
     goals: Optional[dict] = None
+
+
+class CoachChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+class CoachChatRequest(BaseModel):
+    deck_id: str
+    messages: list[dict]  # conversation history [{role, content}]
+    goals: Optional[dict] = None
+    stream: Optional[bool] = False
+
+class CoachApplyRequest(BaseModel):
+    session_id: str
+    deck_id: int  # numeric deck ID in the DB
+    accepted_cuts: list[str] = []  # card names to remove
+    accepted_adds: list[str] = []  # card names to add
+
+class CoachGoalsRequest(BaseModel):
+    target_power_level: Optional[int] = None  # 1-10
+    meta_focus: Optional[str] = None  # aggro, control, combo, midrange, stax
+    budget: Optional[str] = None  # budget, medium, no-limit
+    focus_areas: list[str] = []  # e.g., ["ramp", "card draw"]
 
 
 @app.post("/api/coach/decks/{deck_id}")
@@ -7119,6 +7173,271 @@ async def coach_search_similar(card: str, colors: str = None, top_n: int = 10):
         query_card=card, color_filter=color_filter, top_n=top_n
     )
     return {"query": card, "matches": [m.to_dict() for m in matches]}
+
+
+@app.post("/api/coach/chat")
+async def coach_chat(body: CoachChatRequest):
+    """Multi-turn coaching chat. Sends conversation history to LLM and returns response."""
+    if _coach_service is None:
+        raise HTTPException(500, "Coach service not initialized")
+
+    # Load deck report for context
+    report = _coach_service.load_deck_report(body.deck_id)
+
+    # Build system prompt with report context
+    from coach.prompt_template import build_system_prompt
+    from coach.models import CoachGoals
+
+    goals = None
+    if body.goals:
+        try:
+            goals = CoachGoals(**body.goals)
+        except Exception:
+            goals = None
+
+    system_prompt = ""
+    if report:
+        system_prompt = build_system_prompt(report, goals)
+    else:
+        system_prompt = (
+            "You are an expert Magic: The Gathering Commander deck coach. "
+            "Answer questions about deck building, strategy, card choices, and game theory. "
+            "Be specific and actionable in your advice."
+        )
+
+    # Build messages array for LLM
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in body.messages:
+        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+
+    # Call LLM with multi-turn messages
+    try:
+        import json
+        from urllib.request import urlopen, Request as UrlRequest
+        from coach.config import LM_STUDIO_URL, LM_STUDIO_TIMEOUT
+
+        model_name = _coach_llm._resolve_model()
+        llm_body = {
+            "model": model_name,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 4096,
+        }
+
+        if body.stream:
+            # SSE streaming response
+            llm_body["stream"] = True
+
+            async def generate():
+                import asyncio
+                def _stream():
+                    req = UrlRequest(
+                        f"{_coach_llm.base_url}/chat/completions",
+                        data=json.dumps(llm_body).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    import http.client
+                    import urllib.parse
+                    parsed = urllib.parse.urlparse(f"{_coach_llm.base_url}/chat/completions")
+                    conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=LM_STUDIO_TIMEOUT)
+                    conn.request("POST", parsed.path, body=json.dumps(llm_body).encode("utf-8"),
+                                 headers={"Content-Type": "application/json"})
+                    resp = conn.getresponse()
+                    chunks = []
+                    while True:
+                        line = resp.readline()
+                        if not line:
+                            break
+                        line = line.decode("utf-8").strip()
+                        if line.startswith("data: "):
+                            data = line[6:]
+                            if data == "[DONE]":
+                                chunks.append("[DONE]")
+                                break
+                            chunks.append(data)
+                    conn.close()
+                    return chunks
+
+                loop = asyncio.get_event_loop()
+                chunks = await loop.run_in_executor(None, _stream)
+
+                for chunk_str in chunks:
+                    if chunk_str == "[DONE]":
+                        yield f"data: [DONE]\n\n"
+                        break
+                    try:
+                        chunk = json.loads(chunk_str)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            # Strip think tags from streaming chunks
+                            yield f"data: {json.dumps({'content': content})}\n\n"
+                    except json.JSONDecodeError:
+                        continue
+
+            return StreamingResponse(generate(), media_type="text/event-stream")
+        else:
+            # Non-streaming: regular call
+            req = UrlRequest(
+                f"{_coach_llm.base_url}/chat/completions",
+                data=json.dumps(llm_body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+
+            import asyncio
+            loop = asyncio.get_event_loop()
+            def _call():
+                with urlopen(req, timeout=LM_STUDIO_TIMEOUT) as resp:
+                    return json.loads(resp.read().decode("utf-8"))
+
+            raw = await loop.run_in_executor(None, _call)
+
+            content = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
+            # Strip think tags
+            content = _coach_llm._strip_think_tags(content)
+            usage = raw.get("usage", {})
+
+            return {
+                "content": content,
+                "model": raw.get("model", ""),
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+            }
+
+    except Exception as e:
+        raise HTTPException(500, f"Chat failed: {e}")
+
+
+@app.post("/api/coach/apply")
+async def coach_apply_suggestions(body: CoachApplyRequest):
+    """Apply accepted coaching suggestions to a deck — remove cuts, add adds."""
+    conn = _get_db_conn()
+
+    # Verify deck exists
+    deck = conn.execute("SELECT * FROM decks WHERE id = ?", (body.deck_id,)).fetchone()
+    if not deck:
+        raise HTTPException(404, f"Deck {body.deck_id} not found")
+
+    results = {"cuts": [], "adds": [], "errors": []}
+
+    # Process cuts: remove cards by name
+    for card_name in body.accepted_cuts:
+        row = conn.execute(
+            "SELECT id FROM deck_cards WHERE deck_id = ? AND card_name = ? LIMIT 1",
+            (body.deck_id, card_name)
+        ).fetchone()
+        if row:
+            conn.execute("DELETE FROM deck_cards WHERE id = ?", (row["id"],))
+            results["cuts"].append({"name": card_name, "status": "removed"})
+        else:
+            # Try case-insensitive
+            row = conn.execute(
+                "SELECT id, card_name FROM deck_cards WHERE deck_id = ? AND LOWER(card_name) = LOWER(?) LIMIT 1",
+                (body.deck_id, card_name)
+            ).fetchone()
+            if row:
+                conn.execute("DELETE FROM deck_cards WHERE id = ?", (row["id"],))
+                results["cuts"].append({"name": row["card_name"], "status": "removed"})
+            else:
+                results["errors"].append({"name": card_name, "error": "Card not found in deck"})
+
+    # Process adds: look up in collection first, then Scryfall
+    for card_name in body.accepted_adds:
+        # Try to find in collection
+        ce = conn.execute(
+            "SELECT scryfall_id, name FROM collection_entries WHERE LOWER(name) = LOWER(?) LIMIT 1",
+            (card_name,)
+        ).fetchone()
+
+        scryfall_id = None
+        resolved_name = card_name
+
+        if ce:
+            scryfall_id = ce["scryfall_id"]
+            resolved_name = ce["name"]
+        else:
+            # Try Scryfall API lookup
+            try:
+                import urllib.parse
+                encoded = urllib.parse.quote(card_name)
+                scry_req = UrlRequest(
+                    f"https://api.scryfall.com/cards/named?fuzzy={encoded}",
+                    headers={"User-Agent": "commander-ai-lab/1.0"}
+                )
+                with urlopen(scry_req, timeout=10) as resp:
+                    card_data = json.loads(resp.read().decode("utf-8"))
+                    scryfall_id = card_data.get("id")
+                    resolved_name = card_data.get("name", card_name)
+            except Exception:
+                pass
+
+        if scryfall_id:
+            # Check if already in deck
+            existing = conn.execute(
+                "SELECT id FROM deck_cards WHERE deck_id = ? AND scryfall_id = ?",
+                (body.deck_id, scryfall_id)
+            ).fetchone()
+            if not existing:
+                conn.execute(
+                    "INSERT INTO deck_cards (deck_id, scryfall_id, card_name, quantity) VALUES (?, ?, ?, 1)",
+                    (body.deck_id, scryfall_id, resolved_name)
+                )
+                results["adds"].append({"name": resolved_name, "scryfall_id": scryfall_id, "status": "added"})
+            else:
+                results["adds"].append({"name": resolved_name, "status": "already_in_deck"})
+        else:
+            results["errors"].append({"name": card_name, "error": "Could not resolve card"})
+
+    conn.execute("UPDATE decks SET updated_at = datetime('now') WHERE id = ?", (body.deck_id,))
+    conn.commit()
+
+    results["total_cuts"] = len(results["cuts"])
+    results["total_adds"] = len([a for a in results["adds"] if a["status"] == "added"])
+    return results
+
+
+@app.get("/api/coach/cards-like")
+async def coach_cards_like(card: str, colors: str = None, top_n: int = 10):
+    """Find cards similar to a given card using embeddings. UI-friendly version."""
+    if _coach_embeddings is None or not _coach_embeddings.loaded:
+        raise HTTPException(503, "Embeddings not loaded")
+
+    color_filter = list(colors.upper()) if colors else None
+    matches = _coach_embeddings.search_similar(
+        query_card=card, color_filter=color_filter, top_n=top_n
+    )
+
+    conn = _get_db_conn()
+    results = []
+    for m in matches:
+        # Check if card is in collection
+        owned = conn.execute(
+            "SELECT SUM(quantity) as qty FROM collection_entries WHERE LOWER(name) = LOWER(?)",
+            (m.name,)
+        ).fetchone()
+        owned_qty = (owned["qty"] or 0) if owned else 0
+
+        # Get image URL and price
+        ce = conn.execute(
+            "SELECT image_url, tcg_price FROM collection_entries WHERE LOWER(name) = LOWER(?) LIMIT 1",
+            (m.name,)
+        ).fetchone()
+
+        results.append({
+            "name": m.name,
+            "similarity": round(m.similarity, 4),
+            "types": m.types,
+            "mana_value": m.mana_value,
+            "mana_cost": m.mana_cost,
+            "text": m.text[:200] if m.text else "",
+            "owned_qty": owned_qty,
+            "image_url": ce["image_url"] if ce else None,
+            "tcg_price": ce["tcg_price"] if ce else None,
+        })
+
+    return {"query": card, "results": results}
 
 
 @app.post("/api/coach/reports/generate")

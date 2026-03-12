@@ -345,31 +345,102 @@ export interface PreconDeck {
 // ── Coach ────────────────────────────────────────────────────
 
 export interface CoachStatus {
-  llm_connected: boolean
-  active_model: string | null
-  embeddings_loaded: boolean
-  embedding_cards: number
+  llmConnected: boolean
+  llmModel: string | null
+  llmModels: string[]
+  embeddingsLoaded: boolean
+  embeddingCards: number
+  deckReportsAvailable: number
+  error: string | null
 }
 
 export interface CoachDeck {
   deck_id: number
   deck_name: string
   commander: string
+  card_count: number
+  has_report: boolean
   report_count: number
   last_report_date: string | null
 }
 
-export interface CoachSession {
-  session_id: string
-  deck_name: string
-  created_at: string
-  messages: CoachMessage[]
+export interface CoachGoals {
+  targetPowerLevel?: number | null
+  metaFocus?: string | null
+  budget?: string | null
+  focusAreas?: string[]
 }
 
 export interface CoachMessage {
   role: 'user' | 'assistant'
   content: string
+}
+
+export interface CoachChatResponse {
+  content: string
+  model: string
+  prompt_tokens: number
+  completion_tokens: number
+}
+
+export interface CoachSession {
+  sessionId: string
+  deckId: string
   timestamp: string
+  summary: string
+  suggestedCuts: CoachSuggestedCut[]
+  suggestedAdds: CoachSuggestedAdd[]
+  heuristicHints: string[]
+  manaBaseAdvice: string | null
+  rawTextExplanation: string
+  modelUsed: string
+  promptTokens: number
+  completionTokens: number
+  goals: CoachGoals | null
+}
+
+export interface CoachSuggestedCut {
+  cardName: string
+  reason: string
+  replacementOptions: string[]
+  currentImpactScore: number
+}
+
+export interface CoachSuggestedAdd {
+  cardName: string
+  role: string
+  reason: string
+  synergyWith: string[]
+  estimatedManaValue: number | null
+}
+
+export interface CoachSessionSummary {
+  sessionId: string
+  deckId: string
+  timestamp: string
+  summary: string
+  cutsCount: number
+  addsCount: number
+}
+
+export interface CoachApplyResult {
+  cuts: { name: string; status: string }[]
+  adds: { name: string; scryfall_id?: string; status: string }[]
+  errors: { name: string; error: string }[]
+  total_cuts: number
+  total_adds: number
+}
+
+export interface CoachCardLikeResult {
+  name: string
+  similarity: number
+  types: string
+  mana_value: number
+  mana_cost: string
+  text: string
+  owned_qty: number
+  image_url: string | null
+  tcg_price: number | null
 }
 
 // ── ML Training ──────────────────────────────────────────────
