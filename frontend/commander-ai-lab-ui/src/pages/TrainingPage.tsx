@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Brain, Play, Square, RotateCw, Database, Trophy, AlertCircle,
+  Brain, Play, RotateCw, Database, Trophy, AlertCircle,
   Activity, Zap, Swords, FileText, Cpu, CheckCircle,
-  ChevronDown, ChevronUp, Download, HardDrive, Layers, Settings
+  ChevronDown, ChevronUp, Settings
 } from 'lucide-react'
 import { Spinner, StatusBadge } from '../components/common'
 import { trainingApi } from '../api'
 import { usePolling } from '../hooks/usePolling'
 import type {
   MLStatus, MLDataStatus, MLTrainStatus, PPOTrainStatus,
-  TournamentStatus, TournamentResults, MLModelInfo
+  TournamentStatus, MLModelInfo
 } from '../types'
 
 // ── Progress Bar ──────────────────────────────────────────────
@@ -111,7 +111,7 @@ export function TrainingPage() {
   const [ppoClipEps, setPpoClipEps] = useState(0.2)
   const [ppoEntropy, setPpoEntropy] = useState(0.01)
   const [ppoOpponent, setPpoOpponent] = useState('heuristic')
-  const [ppoPlaystyle, setPpoPlaystyle] = useState('midrange')
+  const [ppoPlaystyle, _setPpoPlaystyle] = useState('midrange') // eslint-disable-line
 
   // Tournament config
   const [tournEpisodes, setTournEpisodes] = useState(50)
@@ -269,7 +269,6 @@ export function TrainingPage() {
 
   const trainDataset = dataStatus?.datasets?.['train']
   const hasDecisions = (mlStatus?.total_decisions ?? 0) > 0
-  const hasDataset = !!trainDataset
   const hasModel = modelInfo?.loaded === true
 
   return (
