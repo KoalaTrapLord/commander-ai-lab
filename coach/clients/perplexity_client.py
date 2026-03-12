@@ -268,7 +268,92 @@ class PerplexityClient:
                         return json.loads(text[start:i+1])
                     except (json.JSONDecodeError, TypeError):
                         return None
-        return None
+
+        # If we get here, JSON was truncated (depth > 0). Try to repair.
+        return PerplexityClient._repair_truncated_json(text[start:])
+
+    @staticmethod
+    def _repair_truncated_json(text: str) -> Optional[dict]:
+        """
+        Attempt to repair truncated JSON from max_tokens cutoff.
+        Strategy: find the last complete array element in "cards",
+        then close all open brackets/braces.
+        """
+        logger.info("Attempting truncated JSON repair (%d chars)...", len(text))
+
+        # Find the last complete card object (ends with }) in the cards array
+        # Walk backwards to find the last closing brace that ends a valid card
+        last_good = -1
+        depth = 0
+        in_string = False
+        escape_next = False
+
+        for i in range(len(text)):
+            ch = text[i]
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\' and in_string:
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth >= 1:
+                    # This closes a nested object (like a card) — mark as potential cutoff
+                    last_good = i
+
+        if last_good == -1:
+            return None
+
+        # Take text up to the last complete nested object
+        truncated = text[:last_good + 1]
+
+        # Now figure out what we need to close.
+        # Re-scan to get the closing sequence.
+        close_depth = 0
+        in_arr = 0
+        in_str = False
+        esc = False
+        for ch in truncated:
+            if esc:
+                esc = False
+                continue
+            if ch == '\\' and in_str:
+                esc = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                continue
+            if in_str:
+                continue
+            if ch == '{':
+                close_depth += 1
+            elif ch == '}':
+                close_depth -= 1
+            elif ch == '[':
+                in_arr += 1
+            elif ch == ']':
+                in_arr -= 1
+
+        # Build closing sequence
+        suffix = ']' * in_arr + '}' * close_depth
+        repaired = truncated + suffix
+
+        try:
+            result = json.loads(repaired)
+            card_count = len(result.get('cards', []))
+            logger.info("JSON repair succeeded: recovered %d cards", card_count)
+            return result
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.warning("JSON repair failed: %s", e)
+            return None
 
     def check_status(self) -> dict:
         """Quick health check — try a minimal API call."""

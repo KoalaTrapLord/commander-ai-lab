@@ -45,7 +45,7 @@ DECK_GEN_PROVIDER = os.environ.get("DECK_GEN_PROVIDER", "perplexity")
 # Model for deck generation (sonar = fast/$0.004, sonar-pro = deep/$0.04)
 DECK_GEN_MODEL = os.environ.get("DECK_GEN_MODEL", "sonar")
 DECK_GEN_TEMPERATURE = float(os.environ.get("DECK_GEN_TEMPERATURE", "0.2"))
-DECK_GEN_MAX_TOKENS = int(os.environ.get("DECK_GEN_MAX_TOKENS", "8192"))
+DECK_GEN_MAX_TOKENS = int(os.environ.get("DECK_GEN_MAX_TOKENS", "16384"))
 
 # ── Smart Substitution Settings ───────────────────────────────
 # Minimum embedding similarity to accept a substitute without Perplexity fallback
