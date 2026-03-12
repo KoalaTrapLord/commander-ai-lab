@@ -2,7 +2,8 @@ import { get, post } from './client'
 import type { LabDeck, LabStatus, LabResult, LabHistoryEntry, PreconDeck } from '../types'
 
 export async function getLabDecks() {
-  return get<LabDeck[]>('/api/lab/decks')
+  const res = await get<{ decks: LabDeck[] } | LabDeck[]>('/api/lab/decks')
+  return Array.isArray(res) ? res : (res as { decks: LabDeck[] }).decks || []
 }
 
 export async function startBatchSim(config: { decks: string[]; games: number; threads?: number; use_deepseek?: boolean; deepseek_deck?: string }) {
@@ -22,11 +23,13 @@ export async function getLabResult() {
 }
 
 export async function getLabHistory() {
-  return get<LabHistoryEntry[]>('/api/lab/history')
+  const res = await get<{ results: LabHistoryEntry[] } | LabHistoryEntry[]>('/api/lab/history')
+  return Array.isArray(res) ? res : (res as { results: LabHistoryEntry[] }).results || []
 }
 
 export async function getPrecons() {
-  return get<PreconDeck[]>('/api/lab/precons')
+  const res = await get<{ precons: PreconDeck[] } | PreconDeck[]>('/api/lab/precons')
+  return Array.isArray(res) ? res : (res as { precons: PreconDeck[] }).precons || []
 }
 
 export async function installPrecon(name: string) {

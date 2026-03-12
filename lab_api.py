@@ -129,14 +129,19 @@ class StartResponse(BaseModel):
     message: str = ""
 
 class StatusResponse(BaseModel):
-    batchId: str
-    running: bool
-    completed: int
-    total: int
-    threads: int
-    elapsedMs: int
+    batchId: str = ""
+    running: bool = False
+    completed: int = 0
+    total: int = 0
+    threads: int = 0
+    elapsedMs: int = 0
     error: Optional[str] = None
-    simsPerSec: float = 0.0  # v24 (Issue #5): Real-time throughput
+    simsPerSec: float = 0.0
+    # React SPA aliases (same data, expected field names)
+    run_id: str = ""
+    games_completed: int = 0
+    total_games: int = 0
+    current_decks: list = []
 
 class DeckInfo(BaseModel):
     name: str
@@ -431,8 +436,10 @@ async def get_status(batchId: Optional[str] = None):
         return StatusResponse(
             batchId="", running=False, completed=0, total=0,
             threads=0, elapsedMs=0, error=None, simsPerSec=0.0,
+            run_id="", games_completed=0, total_games=0, current_decks=[],
         )
     elapsed = int((datetime.now() - state.start_time).total_seconds() * 1000)
+    deck_names = getattr(state, 'deck_names', []) if hasattr(state, 'deck_names') else []
     return StatusResponse(
         batchId=state.batch_id,
         running=state.running,
@@ -442,6 +449,11 @@ async def get_status(batchId: Optional[str] = None):
         elapsedMs=elapsed if state.running else state.elapsed_ms,
         error=state.error,
         simsPerSec=state.sims_per_sec,
+        # React SPA fields
+        run_id=state.batch_id,
+        games_completed=state.completed_games,
+        total_games=state.total_games,
+        current_decks=deck_names,
     )
 
 
