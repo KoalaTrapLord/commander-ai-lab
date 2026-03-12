@@ -75,7 +75,7 @@ public class LabCli implements Callable<Integer> {
     private int numGames;
 
     @Option(names = {"--threads", "-t"}, defaultValue = "1",
-            description = "Number of parallel threads (default: 1)")
+            description = "Number of parallel threads (default: 1, 0 or -1 for auto-detect based on CPU cores)")
     private int threads;
 
     @Option(names = {"--seed", "-s"}, defaultValue = "",
@@ -166,6 +166,24 @@ public class LabCli implements Callable<Integer> {
             description = "Use greedy (argmax) action selection for learned policy (default: true)")
     private boolean policyGreedy;
 
+    // ── v6 Options — Performance (Issues #3-#5) ─────────────────
+
+    @Option(names = {"--ai-simplified"}, defaultValue = "false",
+            description = "Use simplified/faster AI profile for simulations (less lookahead, faster games)")
+    private boolean aiSimplified;
+
+    @Option(names = {"--ai-think-time"}, defaultValue = "-1",
+            description = "Cap AI think time in ms per decision (-1 for unlimited, 500-2000 recommended)")
+    private int aiThinkTimeMs;
+
+    @Option(names = {"--max-queue"}, defaultValue = "-1",
+            description = "Max concurrent Forge subprocesses for backpressure (-1 for unlimited)")
+    private int maxQueueDepth;
+
+    @Option(names = {"--benchmark"}, defaultValue = "false",
+            description = "Run a single-game benchmark before the batch and report throughput metrics")
+    private boolean benchmark;
+
     @Option(names = {"--java17"}, defaultValue = "",
             description = "Path to Java 17 executable for running Forge (Forge requires Java 17, not 25+)")
     private String java17Path;
@@ -213,7 +231,13 @@ public class LabCli implements Callable<Integer> {
             }
         }
         System.out.printf("Games:     %d%n", numGames);
-        System.out.printf("Threads:   %d%n", threads);
+        // Issue #5: Auto-detect thread count
+        int effectiveThreads = threads;
+        if (threads <= 0) {
+            effectiveThreads = MultiThreadBatchRunner.detectOptimalThreads();
+        }
+        System.out.printf("Threads:   %d%s%n", effectiveThreads,
+                threads <= 0 ? " (auto-detected)" : "");
         System.out.printf("Clock:     %ds per game%n", clockSeconds);
 
         Long masterSeed = seed.isEmpty() ? null : Long.parseLong(seed);
@@ -276,17 +300,49 @@ public class LabCli implements Callable<Integer> {
 
         // Resolve Java 17 path for Forge subprocess
         String resolvedJava = resolveJava17Path();
-        System.out.printf("Java:      %s%n%n", resolvedJava);
+        System.out.printf("Java:      %s%n", resolvedJava);
 
-        if (threads > 1) {
-            System.out.printf("Running %d games across %d threads...%n%n", numGames, threads);
+        // Issue #4: Print AI optimization settings
+        if (aiSimplified || aiThinkTimeMs > 0) {
+            System.out.printf("AI Opts:   simplified=%s, thinkTime=%s%n",
+                    aiSimplified, aiThinkTimeMs > 0 ? aiThinkTimeMs + "ms" : "unlimited");
+        }
+        System.out.println();
+
+        // Issue #4: Single-game benchmark if requested
+        if (benchmark) {
+            System.out.println("═══ BENCHMARK (single game) ═══");
+            BatchRunner benchRunner = new BatchRunner(
+                    forgeJarPath, forgeWorkDir, decks, policy, quietMode, clockSeconds, resolvedJava);
+            benchRunner.setAiOptimization(aiSimplified, aiThinkTimeMs);
+            long benchStart = System.currentTimeMillis();
+            List<GameResult> benchGames = benchRunner.runBatchSingleThread(1, 42L);
+            long benchElapsed = System.currentTimeMillis() - benchStart;
+            if (!benchGames.isEmpty()) {
+                GameResult bg = benchGames.get(0);
+                System.out.printf("  Wall time:    %dms%n", benchElapsed);
+                System.out.printf("  Forge time:   %dms%n", bg.elapsedMs);
+                System.out.printf("  JVM overhead: ~%dms%n", benchElapsed - bg.elapsedMs);
+                System.out.printf("  Turns:        %d%n", bg.totalTurns);
+                System.out.printf("  Throughput:   %.4f sims/sec%n", 1000.0 / benchElapsed);
+            }
+            System.out.println();
+        }
+
+        if (effectiveThreads > 1) {
+            System.out.printf("Running %d games across %d threads...%n%n", numGames, effectiveThreads);
             MultiThreadBatchRunner mtRunner = new MultiThreadBatchRunner(
-                    forgeJarPath, forgeWorkDir, decks, policy, threads, quietMode, clockSeconds, resolvedJava);
+                    forgeJarPath, forgeWorkDir, decks, policy, effectiveThreads, quietMode, clockSeconds, resolvedJava);
+            mtRunner.setAiOptimization(aiSimplified, aiThinkTimeMs);
+            if (maxQueueDepth > 0) {
+                mtRunner.setMaxQueueDepth(maxQueueDepth);
+            }
             games = mtRunner.runBatch(numGames, masterSeed);
         } else {
             System.out.printf("Running %d games (single thread)...%n%n", numGames);
             BatchRunner runner = new BatchRunner(
                     forgeJarPath, forgeWorkDir, decks, policy, quietMode, clockSeconds, resolvedJava);
+            runner.setAiOptimization(aiSimplified, aiThinkTimeMs);
 
             // v4: Enable ML decision logging if requested
             if (mlLog) {

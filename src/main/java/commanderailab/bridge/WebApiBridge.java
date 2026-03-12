@@ -31,13 +31,35 @@ public class WebApiBridge {
     private volatile BatchResult lastResult;
     private volatile boolean isRunning;
     private volatile int progress;
+    private volatile double currentSimsPerSec;
     private String policyServerUrl = "http://localhost:8080";
+
+    // Issue #4/#5: Performance settings
+    private boolean aiSimplified = false;
+    private int aiThinkTimeMs = -1;
+    private int maxQueueDepth = -1;
 
     public WebApiBridge(String forgeJarPath, String forgeWorkDir) {
         this.forgeJarPath = forgeJarPath;
         this.forgeWorkDir = forgeWorkDir;
         this.isRunning = false;
         this.progress = 0;
+        this.currentSimsPerSec = 0.0;
+    }
+
+    /**
+     * Configure AI optimization settings (Issue #4).
+     */
+    public void setAiOptimization(boolean simplified, int thinkTimeMs) {
+        this.aiSimplified = simplified;
+        this.aiThinkTimeMs = thinkTimeMs;
+    }
+
+    /**
+     * Set max concurrent Forge processes for backpressure (Issue #5).
+     */
+    public void setMaxQueueDepth(int maxDepth) {
+        this.maxQueueDepth = maxDepth;
     }
 
     /**
@@ -91,10 +113,23 @@ public class WebApiBridge {
                 if (threads > 1) {
                     MultiThreadBatchRunner runner = new MultiThreadBatchRunner(
                             forgeJarPath, forgeWorkDir, decks, policy, threads);
+                    runner.setAiOptimization(aiSimplified, aiThinkTimeMs);
+                    if (maxQueueDepth > 0) runner.setMaxQueueDepth(maxQueueDepth);
+                    // Issue #5: Progress callback for real-time sims/sec
+                    runner.setProgressCallback((completed, total, pct, simsPerSec, lastResult) -> {
+                        progress = pct;
+                        currentSimsPerSec = simsPerSec;
+                    });
                     games = runner.runBatch(numGames, seed);
                 } else {
                     BatchRunner runner = new BatchRunner(
                             forgeJarPath, forgeWorkDir, decks, policy);
+                    runner.setAiOptimization(aiSimplified, aiThinkTimeMs);
+                    // Issue #5: Progress callback
+                    runner.setProgressCallback((completed, total, pct, simsPerSec, lastResult) -> {
+                        progress = pct;
+                        currentSimsPerSec = simsPerSec;
+                    });
                     games = runner.runBatchSingleThread(numGames, seed);
                 }
 
@@ -134,6 +169,7 @@ public class WebApiBridge {
 
     public int getProgress() { return progress; }
     public boolean isRunning() { return isRunning; }
+    public double getCurrentSimsPerSec() { return currentSimsPerSec; }
 
     public String getLastResultJson() {
         if (lastResult == null) return "{}";
