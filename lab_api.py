@@ -7058,7 +7058,7 @@ async def coach_list_decks():
     """List all decks available for coaching (from deck builder DB)."""
     conn = _get_db_conn()
     rows = conn.execute(
-        """SELECT d.id as deck_id, d.name as deck_name, d.commander,
+        """SELECT d.id as deck_id, d.name as deck_name, d.commander_name,
                   COUNT(dc.id) as card_count
            FROM decks d
            LEFT JOIN deck_cards dc ON dc.deck_id = d.id
@@ -7083,7 +7083,7 @@ async def coach_list_decks():
         decks.append({
             "deck_id": r["deck_id"],
             "deck_name": r["deck_name"],
-            "commander": r["commander"] or "",
+            "commander": r["commander_name"] or "",
             "card_count": r["card_count"],
             "has_report": has_report,
             "report_count": 1 if has_report else 0,
