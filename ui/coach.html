@@ -15,7 +15,7 @@
     <div class="page">
         <div class="page-header">
             <h1>Deck Coach</h1>
-            <p>LLM-powered deck analysis &amp; improvement suggestions</p>
+            <p>LLM-powered deck analysis, multi-turn coaching chat, and card discovery</p>
         </div>
 
         <!-- Status Bar -->
@@ -106,7 +106,7 @@
                 </div>
             </div>
 
-            <!-- Run Button -->
+            <!-- Action Buttons Row -->
             <div class="coach-run-row">
                 <button id="coach-run-btn" class="btn btn-primary btn-lg" disabled>
                     <span class="coach-run-icon">&#9889;</span> Run Coach
@@ -121,8 +121,75 @@
             </div>
         </section>
 
-        <!-- Results Section -->
+        <!-- ═══ Multi-turn Chat Panel ═══ -->
+        <section class="panel coach-chat-section" id="coach-chat-section">
+            <div class="panel-header coach-chat-header">
+                <h2>Chat with Coach</h2>
+                <div class="coach-chat-actions">
+                    <button id="coach-chat-clear" class="btn btn-ghost btn-sm" title="Clear chat history">Clear Chat</button>
+                </div>
+            </div>
+            <div class="coach-chat-messages" id="coach-chat-messages">
+                <div class="coach-chat-welcome">
+                    <div class="coach-chat-welcome-icon">&#129302;</div>
+                    <p>Select a deck above and ask me anything about your strategy, card choices, or upgrades.</p>
+                </div>
+            </div>
+            <div class="coach-chat-input-row">
+                <textarea id="coach-chat-input" class="coach-chat-input" placeholder="Ask the coach a question..." rows="2"></textarea>
+                <button id="coach-chat-send" class="btn btn-primary coach-chat-send-btn" disabled>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                </button>
+            </div>
+        </section>
+
+        <!-- ═══ Cards-Like Search Panel ═══ -->
+        <section class="panel coach-cardslike-section" id="coach-cardslike-section">
+            <div class="panel-header coach-panel-collapsible" id="cardslike-header">
+                <h2>Find Similar Cards</h2>
+                <span class="coach-collapse-arrow" id="cardslike-arrow">&#9660;</span>
+            </div>
+            <div class="coach-cardslike-body" id="cardslike-body">
+                <div class="coach-cardslike-controls">
+                    <div class="form-group coach-cardslike-name-group">
+                        <input type="text" id="cardslike-input" class="form-input" placeholder="Enter a card name (e.g. Sol Ring)" autocomplete="off" />
+                    </div>
+                    <div class="coach-cardslike-filters">
+                        <div class="coach-cardslike-colors">
+                            <button class="coach-color-pip coach-pip-W" data-color="W" title="White">W</button>
+                            <button class="coach-color-pip coach-pip-U" data-color="U" title="Blue">U</button>
+                            <button class="coach-color-pip coach-pip-B" data-color="B" title="Black">B</button>
+                            <button class="coach-color-pip coach-pip-R" data-color="R" title="Red">R</button>
+                            <button class="coach-color-pip coach-pip-G" data-color="G" title="Green">G</button>
+                        </div>
+                        <div class="form-group coach-cardslike-topn">
+                            <label class="form-label">Results</label>
+                            <input type="number" id="cardslike-topn" class="form-input" value="10" min="1" max="50" />
+                        </div>
+                        <button id="cardslike-search-btn" class="btn btn-accent btn-sm">Search</button>
+                    </div>
+                </div>
+                <div class="coach-cardslike-results" id="cardslike-results"></div>
+            </div>
+        </section>
+
+        <!-- ═══ One-Shot Results Section ═══ -->
         <section id="coach-results" class="coach-results" style="display:none;">
+
+            <!-- Apply Suggestions Bar -->
+            <div class="panel coach-apply-bar" id="coach-apply-bar">
+                <div class="coach-apply-info">
+                    <span id="coach-apply-count">0 cuts, 0 adds selected</span>
+                </div>
+                <div class="coach-apply-actions">
+                    <select id="coach-apply-deck-select" class="form-select coach-apply-deck-sel">
+                        <option value="">-- Apply to DB Deck --</option>
+                    </select>
+                    <button id="coach-apply-btn" class="btn btn-success btn-sm" disabled>
+                        Apply Suggestions
+                    </button>
+                </div>
+            </div>
 
             <!-- Summary Card -->
             <div class="panel" id="coach-summary-card">
@@ -209,6 +276,9 @@
                 <p class="coach-empty">No coaching sessions yet. Run the coach to get started.</p>
             </div>
         </section>
+
+        <!-- Toast Container -->
+        <div class="coach-toast-container" id="coach-toast-container"></div>
     </div>
 
     <script src="coach.js"></script>
