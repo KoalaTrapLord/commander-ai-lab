@@ -118,8 +118,10 @@ def build_game_state_snapshot(
     # ── Mana by Color (Enhancement #8) ──────────────────────────
     mana_total = 0
     mana_by_color = {"W": 0, "U": 0, "B": 0, "R": 0, "G": 0, "C": 0}
-    for c in sim_state.battlefield:
-        if c.owner_id == player_index and not c.tapped and c.is_land():
+    my_bf = sim_state.get_battlefield(player_index)
+    opp_bf = sim_state.get_battlefield(1 - player_index)
+    for c in my_bf:
+        if not c.tapped and c.is_land():
             mana_total += 1
             land_name = c.name.lower().strip()
             if land_name in _LAND_COLOR_MAP:
@@ -176,9 +178,7 @@ def build_game_state_snapshot(
 
     # ── My Board — with keywords and oracle for synergy ───────
     my_board = []
-    for c in sim_state.battlefield:
-        if c.owner_id != player_index:
-            continue
+    for c in my_bf:
         if c.is_land():
             continue
         entry = {
@@ -200,9 +200,7 @@ def build_game_state_snapshot(
     opp_total_power = 0
     opp_evasion_count = 0
     opp_protected_count = 0
-    for c in sim_state.battlefield:
-        if c.owner_id != (1 - player_index):
-            continue
+    for c in opp_bf:
         if c.is_land():
             continue
         entry = {
@@ -241,9 +239,7 @@ def build_game_state_snapshot(
 
     # ── Draw Tracking (Enhancement #7) ─────────────────────────
     total_deck_size = ctx.get("deck_size", 100)
-    cards_seen = len(me.hand) + len(me.graveyard) + sum(
-        1 for c in sim_state.battlefield if c.owner_id == player_index
-    )
+    cards_seen = len(me.hand) + len(me.graveyard) + len(my_bf)
     cards_remaining = len(me.library)
     pct_drawn = round(cards_seen / max(total_deck_size, 1) * 100)
 
@@ -287,8 +283,8 @@ def build_game_state_snapshot(
             if c.name.lower() == cmd_name_lower:
                 cmd_zone = "hand"
                 break
-        for c in sim_state.battlefield:
-            if c.owner_id == player_index and c.name.lower() == cmd_name_lower:
+        for c in my_bf:
+            if c.name.lower() == cmd_name_lower:
                 cmd_zone = "battlefield"
                 break
         for c in me.graveyard:

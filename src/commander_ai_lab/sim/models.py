@@ -1,8 +1,11 @@
 """
 Commander AI Lab — Simulator Models
 ====================================
-Data classes for Card, Player, PlayerStats, and SimState.
+Data classes for Card, Player, PlayerResult, PlayerStats, SimState, and GameResult.
 Ported from mtg-commander-lan JavaScript (dtCreatePlayer, dtSimGame structs).
+
+N-player ready: GameResult.players is a list[PlayerResult] (no hardcoded seat count).
+SimState.battlefields is per-player: battlefields[seat_index] holds that player's permanents.
 """
 
 from __future__ import annotations
@@ -142,47 +145,172 @@ class Player:
 
 @dataclass
 class SimState:
-    """Full simulation state for a headless game."""
+    """Full simulation state for a headless game.
+
+    battlefields is a list-of-lists: battlefields[seat_index] holds
+    the permanents controlled by that player. Legacy single-list code
+    should use the helpers get_battlefield() / all_battlefield_cards().
+    """
 
     players: list[Player] = field(default_factory=list)
-    battlefield: list[Card] = field(default_factory=list)
+    battlefields: list[list[Card]] = field(default_factory=list)
     turn: int = 0
     max_turns: int = 25
     next_card_id: int = 90000
 
+    # ── Battlefield helpers ──────────────────────────────────
+
+    def get_battlefield(self, seat: int) -> list[Card]:
+        """Return the battlefield list for a given seat index."""
+        while len(self.battlefields) <= seat:
+            self.battlefields.append([])
+        return self.battlefields[seat]
+
+    def all_battlefield_cards(self) -> list[Card]:
+        """Return a flat list of every card on every player's battlefield."""
+        cards: list[Card] = []
+        for bf in self.battlefields:
+            cards.extend(bf)
+        return cards
+
+    def add_to_battlefield(self, seat: int, card: Card) -> None:
+        """Place a card onto the given player's battlefield."""
+        while len(self.battlefields) <= seat:
+            self.battlefields.append([])
+        self.battlefields[seat].append(card)
+
+    def remove_from_battlefield(self, card_id: int) -> Optional[Card]:
+        """Remove a card by id from any player's battlefield. Returns the card or None."""
+        for bf in self.battlefields:
+            for i, c in enumerate(bf):
+                if c.id == card_id:
+                    return bf.pop(i)
+        return None
+
+    def filter_battlefield(self, seat: int, predicate) -> list[Card]:
+        """Remove cards from seat's battlefield that don't match predicate, return removed."""
+        bf = self.get_battlefield(seat)
+        keep = []
+        removed = []
+        for c in bf:
+            if predicate(c):
+                keep.append(c)
+            else:
+                removed.append(c)
+        self.battlefields[seat] = keep
+        return removed
+
+    def init_battlefields(self, num_players: int) -> None:
+        """Ensure battlefields list has one empty list per player."""
+        while len(self.battlefields) < num_players:
+            self.battlefields.append([])
+
+
+# ══════════════════════════════════════════════════════════════
+# Game Results — N-player ready
+# ══════════════════════════════════════════════════════════════
+
+@dataclass
+class PlayerResult:
+    """Post-game result snapshot for one player.
+
+    Matches the Java BatchResult.PlayerResult schema structure.
+    """
+
+    seat_index: int = 0
+    name: str = ""
+    life: int = 0
+    eliminated: bool = False
+    finish_position: int = 0  # 1 = winner, 2+ = elimination order
+    stats: Optional[PlayerStats] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "seatIndex": self.seat_index,
+            "name": self.name,
+            "finalLife": self.life,
+            "eliminated": self.eliminated,
+            "finishPosition": self.finish_position,
+            "isWinner": self.finish_position == 1,
+            "stats": self.stats.to_dict() if self.stats else {},
+        }
+
 
 @dataclass
 class GameResult:
-    """Result of a single simulated game."""
+    """Result of a single simulated game (N-player ready).
 
-    winner: int = -1  # 0 or 1 (player index), -1 = draw
+    - players: list of PlayerResult, one per seat
+    - winner_seat: index of the winning player (-1 = draw)
+    - Backward-compat properties player_a_stats / player_b_stats delegate to players[0] / players[1]
+    """
+
+    winner_seat: int = -1
     turns: int = 0
-    player_a_name: str = ""
-    player_a_life: int = 0
-    player_a_eliminated: bool = False
-    player_a_stats: Optional[PlayerStats] = None
-    player_b_name: str = ""
-    player_b_life: int = 0
-    player_b_eliminated: bool = False
-    player_b_stats: Optional[PlayerStats] = None
-    game_log: list = field(default_factory=list)  # turn-by-turn log (populated when record_log=True)
+    players: list[PlayerResult] = field(default_factory=list)
+    game_log: list = field(default_factory=list)
+
+    # ── Convenience accessors ────────────────────────────────
+
+    def player(self, seat: int) -> Optional[PlayerResult]:
+        """Safe accessor for a seat's result."""
+        if 0 <= seat < len(self.players):
+            return self.players[seat]
+        return None
+
+    # Backward-compat properties so existing code referencing
+    # result.player_a_stats or result.winner keeps working.
+
+    @property
+    def winner(self) -> int:
+        return self.winner_seat
+
+    @property
+    def player_a_stats(self) -> Optional[PlayerStats]:
+        p = self.player(0)
+        return p.stats if p else None
+
+    @property
+    def player_b_stats(self) -> Optional[PlayerStats]:
+        p = self.player(1)
+        return p.stats if p else None
+
+    @property
+    def player_a_name(self) -> str:
+        p = self.player(0)
+        return p.name if p else ""
+
+    @property
+    def player_b_name(self) -> str:
+        p = self.player(1)
+        return p.name if p else ""
+
+    @property
+    def player_a_life(self) -> int:
+        p = self.player(0)
+        return p.life if p else 0
+
+    @property
+    def player_b_life(self) -> int:
+        p = self.player(1)
+        return p.life if p else 0
+
+    @property
+    def player_a_eliminated(self) -> bool:
+        p = self.player(0)
+        return p.eliminated if p else False
+
+    @property
+    def player_b_eliminated(self) -> bool:
+        p = self.player(1)
+        return p.eliminated if p else False
 
     def to_dict(self) -> dict:
+        """Serialize to dict matching Java BatchResult.GameResult schema."""
         d = {
-            "winner": self.winner,
+            "winningSeat": self.winner_seat,
             "turns": self.turns,
-            "playerA": {
-                "name": self.player_a_name,
-                "life": self.player_a_life,
-                "eliminated": self.player_a_eliminated,
-                "stats": self.player_a_stats.to_dict() if self.player_a_stats else {},
-            },
-            "playerB": {
-                "name": self.player_b_name,
-                "life": self.player_b_life,
-                "eliminated": self.player_b_eliminated,
-                "stats": self.player_b_stats.to_dict() if self.player_b_stats else {},
-            },
+            "playerResults": [p.to_dict() for p in self.players],
         }
         if self.game_log:
             d["gameLog"] = self.game_log
