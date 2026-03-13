@@ -617,7 +617,7 @@
 
 .lab-deck-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: var(--sp-3);
     margin-bottom: var(--sp-5);
 }
@@ -887,7 +887,7 @@
 
 .lab-stats-cards {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: var(--sp-3);
     margin-bottom: var(--sp-4);
 }
@@ -972,6 +972,7 @@
 .seat-0-color { background: var(--accent); }
 .seat-1-color { background: var(--error); }
 .seat-2-color { background: var(--success); }
+.seat-3-color { background: #d29922; }
 
 /* ── Win Condition Breakdown ───────────────────────────── */
 
@@ -1172,7 +1173,7 @@
 
 .lab-combat-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: var(--sp-4);
 }
 
@@ -1456,6 +1457,16 @@
 
 /* ── Responsive ────────────────────────────────────────── */
 
+
+@media (max-width: 900px) {
+    .lab-deck-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .lab-combat-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
 @media (max-width: 768px) {
     .lab-deck-grid,
     .lab-stats-cards {
@@ -1488,321 +1499,59 @@
         width: 95%;
         padding: var(--sp-4);
     }
-    .lab-combat-grid {
-        grid-template-columns: 1fr;
-    }
     .lab-charts-grid {
         grid-template-columns: 1fr;
     }
+    .lab-combat-grid {
+        grid-template-columns: 1fr;
+    }
+    .lab-h2h-table th,
+    .lab-h2h-table td {
+        padding: var(--sp-2);
+        font-size: 11px;
+    }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Precon Decks — Grid + Cards
-   ═══════════════════════════════════════════════════════════ */
+/* ── Seat Color Overrides ──────────────────────────────── */
 
-.lab-precon-btn {
-    background: linear-gradient(135deg, var(--surface-0), var(--surface-2)) !important;
-    border-color: var(--border) !important;
+.lab-deck-slot[data-seat="0"] {
+    --seat-accent: var(--accent);
 }
 
-.lab-precon-btn:hover {
-    background: linear-gradient(135deg, var(--surface-2), var(--surface-3)) !important;
-    border-color: var(--error) !important;
-}
-
-.lab-precon-controls {
-    display: flex;
-    gap: var(--sp-3);
-    padding: 0 var(--sp-5) var(--sp-3);
-    align-items: center;
-}
-
-.lab-precon-controls input {
-    flex: 1;
-    background: var(--surface-0);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--radius-sm);
-    font-size: 14px;
-}
-
-.lab-precon-controls input:focus {
-    outline: none;
-    border-color: var(--error);
-}
-
-.lab-precon-install-all-btn {
-    background: var(--surface-3);
-    color: var(--text);
-    border: 1px solid var(--border);
-    padding: var(--sp-2) var(--sp-4);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 13px;
-    white-space: nowrap;
-    transition: all var(--duration) var(--ease);
-}
-
-.lab-precon-install-all-btn:hover {
-    background: var(--surface-hover);
-    border-color: var(--error);
-}
-
-.lab-precon-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: var(--sp-3);
-    padding: 0 var(--sp-5) var(--sp-5);
-    max-height: 55vh;
-    overflow-y: auto;
-}
-
-.lab-precon-card {
-    background: var(--surface-0);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: var(--sp-4);
-    cursor: pointer;
-    transition: all 0.2s var(--ease);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    position: relative;
-}
-
-.lab-precon-card:hover {
-    border-color: var(--error);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px var(--error-dim);
-}
-
-.lab-precon-card-installed {
-    border-color: var(--success);
-    opacity: 0.8;
-}
-
-.lab-precon-card-installed .lab-precon-install-btn {
-    background: var(--success);
-    border-color: var(--success);
-    cursor: default;
-}
-
-.precon-card-colors {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 2px;
-}
-
-.precon-card-name {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text);
-    line-height: 1.2;
-}
-
-.precon-card-commander {
-    font-size: 12px;
-    color: var(--error);
-    font-style: italic;
-}
-
-.precon-card-set {
-    font-size: 11px;
-    color: var(--text-secondary);
-}
-
-.precon-card-theme {
-    font-size: 11px;
-    color: var(--text-tertiary);
-    line-height: 1.3;
-    margin-top: auto;
-}
-
-.lab-precon-install-btn {
-    margin-top: var(--sp-2);
-    width: 100%;
-    background: var(--surface-3);
-    color: var(--text);
-    border: 1px solid var(--border);
-    padding: 6px var(--sp-3);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 12px;
-    transition: all var(--duration) var(--ease);
-}
-
-.lab-precon-install-btn:hover {
-    background: var(--surface-hover);
-    border-color: var(--error);
-}
-
-.badge-precon {
-    background: var(--surface-3);
-    border-color: var(--border);
-}
-
-/* ══════════════════════════════════════════════════════════════
-   v5: Analytics & Trends Panels
-   ══════════════════════════════════════════════════════════════ */
-
-.lab-empty-hint {
-    color: var(--text-tertiary);
-    font-size: 13px;
-    padding: var(--sp-4) 0;
-    text-align: center;
-}
-
-.lab-loading-hint {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--sp-3);
-    color: var(--text-secondary);
-    font-size: 13px;
-    padding: var(--sp-6) 0;
-}
-
-/* Analytics Grid */
-.lab-analytics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: var(--sp-4);
-    padding: var(--sp-2) 0;
-}
-
-.lab-analytics-card {
-    background: var(--surface-0);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: var(--sp-4);
-}
-
-.lab-analytics-card:hover {
-    border-color: var(--border-focus);
-}
-
-.lab-analytics-error {
-    opacity: 0.6;
-}
-
-.lab-analytics-name {
-    font-weight: 700;
-    color: #fff;
-    font-size: 15px;
-    margin-bottom: var(--sp-1);
-}
-
-.lab-analytics-commander {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-bottom: var(--sp-3);
-}
-
-.lab-analytics-err-msg {
-    color: var(--error);
-    font-size: 12px;
-}
-
-.lab-analytics-stat {
-    display: flex;
-    justify-content: space-between;
-    padding: var(--sp-1) 0;
-    border-bottom: 1px solid var(--border-subtle);
-    font-size: 13px;
-}
-
-.lab-analytics-label {
-    color: var(--text-secondary);
-}
-
-.lab-analytics-value {
-    color: var(--text);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-.lab-analytics-sections {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--sp-1);
-    margin-top: var(--sp-3);
-}
-
-.lab-analytics-section-pill {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    padding: 2px var(--sp-2);
-    font-size: 11px;
-    color: var(--text-secondary);
-}
-
-/* Trends */
-.lab-trends-summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: var(--sp-4);
-    padding: var(--sp-2) 0;
-}
-
-.lab-trends-card {
-    background: var(--surface-0);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: var(--sp-4);
-}
-
-.lab-trends-card:hover {
-    border-color: var(--border-focus);
-}
-
-.lab-trends-deck-name {
-    font-weight: 700;
-    color: #fff;
-    font-size: 14px;
-    margin-bottom: var(--sp-3);
-}
-
-.lab-trends-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--sp-2);
-}
-
-.lab-trends-stat {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.lab-trends-stat-label {
-    font-size: 11px;
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.lab-trends-stat-value {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--text);
-    font-variant-numeric: tabular-nums;
-}
-
-/* Precon Refresh Button */
-.lab-precon-refresh-btn {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    color: var(--text-secondary);
-    padding: 6px 14px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    transition: all 180ms ease;
-}
-
-.lab-precon-refresh-btn:hover {
+.lab-deck-slot[data-seat="0"].filled {
     border-color: var(--accent);
-    color: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
 }
+
+.lab-deck-slot[data-seat="1"] {
+    --seat-accent: var(--error);
+}
+
+.lab-deck-slot[data-seat="1"].filled {
+    border-color: var(--error);
+    box-shadow: 0 0 8px var(--error-glow, rgba(248, 81, 73, 0.25));
+}
+
+.lab-deck-slot[data-seat="2"] {
+    --seat-accent: var(--success);
+}
+
+.lab-deck-slot[data-seat="2"].filled {
+    border-color: var(--success);
+    box-shadow: 0 0 8px var(--success-glow, rgba(63, 185, 80, 0.25));
+}
+
+.lab-deck-slot[data-seat="3"] {
+    --seat-accent: #d29922;
+}
+
+.lab-deck-slot[data-seat="3"].filled {
+    border-color: #d29922;
+    box-shadow: 0 0 8px rgba(210, 153, 34, 0.25);
+}
+
+/* Seat label coloring */
+.lab-deck-slot[data-seat="0"] .seat-label { color: var(--accent); }
+.lab-deck-slot[data-seat="1"] .seat-label { color: var(--error); }
+.lab-deck-slot[data-seat="2"] .seat-label { color: var(--success); }
+.lab-deck-slot[data-seat="3"] .seat-label { color: #d29922; }
