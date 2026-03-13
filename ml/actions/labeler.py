@@ -240,12 +240,12 @@ def print_label_distribution(labels: np.ndarray) -> Dict[str, int]:
         dist[action.value] = count
 
     total = len(labels)
-    print(f"\n{'Action':<25} {'Count':>8} {'Pct':>8}")
-    print("─" * 43)
+    log.info(f"\n{'Action':<25} {'Count':>8} {'Pct':>8}")
+    log.info("─" * 43)
     for action_name, count in sorted(dist.items(), key=lambda x: -x[1]):
         pct = (count / total * 100) if total > 0 else 0
-        print(f"  {action_name:<23} {count:>8} {pct:>7.1f}%")
-    print(f"{'─' * 43}")
-    print(f"  {'TOTAL':<23} {total:>8}")
+        log.info(f"  {action_name:<23} {count:>8} {pct:>7.1f}%")
+    log.info(f"{'─' * 43}")
+    log.info(f"  {'TOTAL':<23} {total:>8}")
 
     return dist

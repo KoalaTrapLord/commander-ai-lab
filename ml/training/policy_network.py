@@ -16,6 +16,10 @@ The network is designed for:
 import os
 import sys
 from pathlib import Path
+import logging
+
+log = logging.getLogger("commander_ai_lab.ml.training")
+
 
 # Conditional torch import — graceful failure if not installed
 try:
@@ -25,7 +29,7 @@ try:
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
-    print("[ML] PyTorch not installed. Install with: pip install torch")
+    log.warning("PyTorch not installed. Install with: pip install torch")
 
 import numpy as np
 
@@ -204,7 +208,7 @@ def save_checkpoint(
             "dropout": TRAINING_CONFIG.dropout,
         },
     }, path)
-    print(f"[ML] Checkpoint saved: {path}")
+    log.info(f"Checkpoint saved: {path}")
 
 
 def load_checkpoint(path: str, device: str = "cpu"):

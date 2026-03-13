@@ -49,8 +49,7 @@ from ml.training.policy_network import (
     PolicyNetwork, save_checkpoint, load_checkpoint,
 )
 
-logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
-logger = logging.getLogger("ml.trainer")
+logger = logging.getLogger("commander_ai_lab.ml.training")
 
 
 # ══════════════════════════════════════════════════════════
@@ -502,40 +501,40 @@ def evaluate_model(
 
 def print_evaluation(results: Dict):
     """Pretty-print evaluation results."""
-    print()
-    print("=" * 65)
-    print("  Test Set Evaluation")
-    print("=" * 65)
-    print(f"  Overall Accuracy: {results['overall_accuracy']:.1%}")
-    print(f"  Total Samples:    {results['total_samples']:,}")
-    print()
-    print(f"  {'Action':<20} {'Support':>8} {'Prec':>7} {'Recall':>7} {'F1':>7}")
-    print("  " + "-" * 55)
+    logger.info("")
+    logger.info("=" * 65)
+    logger.info("  Test Set Evaluation")
+    logger.info("=" * 65)
+    logger.info(f"  Overall Accuracy: {results['overall_accuracy']:.1%}")
+    logger.info(f"  Total Samples:    {results['total_samples']:,}")
+    logger.info("")
+    logger.info(f"  {'Action':<20} {'Support':>8} {'Prec':>7} {'Recall':>7} {'F1':>7}")
+    logger.info("  " + "-" * 55)
 
     for action_name, m in results["per_class"].items():
-        print(
+        logger.info(
             f"  {action_name:<20} {m['support']:>8} "
             f"{m['precision']:>7.3f} {m['recall']:>7.3f} {m['f1']:>7.3f}"
         )
 
-    print("  " + "-" * 55)
+    logger.info("  " + "-" * 55)
 
     # Confusion matrix
-    print()
-    print("  Confusion Matrix (rows=true, cols=predicted):")
+    logger.info("")
+    logger.info("  Confusion Matrix (rows=true, cols=predicted):")
     header = "  " + " " * 18
     for c in range(NUM_ACTIONS):
         short_name = IDX_TO_ACTION[c].value[:6]
         header += f" {short_name:>6}"
-    print(header)
+    logger.info(header)
 
     for r in range(NUM_ACTIONS):
         row_name = IDX_TO_ACTION[r].value[:16]
         row_str = f"  {row_name:<18}"
         for c in range(NUM_ACTIONS):
             row_str += f" {results['confusion_matrix'][r][c]:>6}"
-        print(row_str)
-    print()
+        logger.info(row_str)
+    logger.info("")
 
 
 # ══════════════════════════════════════════════════════════
@@ -605,8 +604,8 @@ def main():
     args = parser.parse_args()
 
     if not TORCH_AVAILABLE:
-        print("PyTorch not installed. Install with:")
-        print("  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121")
+        logger.info("PyTorch not installed. Install with:")
+        logger.info("  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121")
         sys.exit(1)
 
     device = args.device or get_best_device()
@@ -621,13 +620,13 @@ def main():
     if args.eval_only:
         # Evaluation only
         if not os.path.exists(test_path):
-            print(f"Test data not found: {test_path}")
-            print("Run: python -m ml.scripts.ml_cli build")
+            logger.info(f"Test data not found: {test_path}")
+            logger.info("Run: python -m ml.scripts.ml_cli build")
             sys.exit(1)
 
         ckpt_path = args.checkpoint or os.path.join(ckpt_dir, "best_policy.pt")
         if not os.path.exists(ckpt_path):
-            print(f"Checkpoint not found: {ckpt_path}")
+            logger.info(f"Checkpoint not found: {ckpt_path}")
             sys.exit(1)
 
         test_states, test_labels = load_npz_split(test_path)
@@ -641,15 +640,15 @@ def main():
         eval_path = os.path.join(ckpt_dir, "eval_results.json")
         with open(eval_path, "w") as f:
             json.dump(results, f, indent=2)
-        print(f"  Results saved: {eval_path}")
+        logger.info(f"  Results saved: {eval_path}")
         return
 
     # Training mode
     for path, label in [(train_path, "train"), (val_path, "val")]:
         if not os.path.exists(path):
-            print(f"{label} data not found: {path}")
-            print("Build the dataset first:")
-            print("  python -m ml.scripts.ml_cli build --results-dir results/")
+            logger.info(f"{label} data not found: {path}")
+            logger.info("Build the dataset first:")
+            logger.info("  python -m ml.scripts.ml_cli build --results-dir results/")
             sys.exit(1)
 
     train_states, train_labels = load_npz_split(train_path)

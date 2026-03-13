@@ -19,6 +19,8 @@ import asyncio
 import csv
 import io
 import json
+import logging
+import logging.handlers
 import os
 import re
 import sqlite3
@@ -60,6 +62,61 @@ class Config:
     pplx_api_key: str = ""  # Perplexity API key for deck research/generation
 
 CFG = Config()
+
+
+# ══════════════════════════════════════════════════════════════
+# Logging Setup
+# ══════════════════════════════════════════════════════════════
+
+_LOG_FORMAT = "%(asctime)s %(levelname)-5s [%(name)s] %(message)s"
+_LOG_DATE_FMT = "%Y-%m-%d %H:%M:%S"
+_LOG_DIR = Path(os.environ.get("CAL_LOG_DIR", "logs"))
+_LOG_MAX_BYTES = int(os.environ.get("CAL_LOG_MAX_MB", "25")) * 1024 * 1024
+_LOG_BACKUP_COUNT = int(os.environ.get("CAL_LOG_BACKUP_COUNT", "5"))
+
+
+def setup_logging(level: int = logging.INFO) -> None:
+    """Configure the root 'commander_ai_lab' logger with console + rotating file."""
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+    root_logger = logging.getLogger("commander_ai_lab")
+    root_logger.setLevel(level)
+
+    # Avoid duplicate handlers if called again
+    if root_logger.handlers:
+        return
+
+    formatter = logging.Formatter(_LOG_FORMAT, datefmt=_LOG_DATE_FMT)
+
+    # Console handler — matches previous print() behaviour
+    console = logging.StreamHandler(sys.stdout)
+    console.setLevel(level)
+    console.setFormatter(formatter)
+    root_logger.addHandler(console)
+
+    # Rotating file handler — 25 MB × 5 backups = 125 MB max
+    file_handler = logging.handlers.RotatingFileHandler(
+        _LOG_DIR / "commander-ai-lab.log",
+        maxBytes=_LOG_MAX_BYTES,
+        backupCount=_LOG_BACKUP_COUNT,
+        encoding="utf-8",
+    )
+    file_handler.setLevel(level)
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
+
+
+# Named loggers — import these where needed
+log = logging.getLogger("commander_ai_lab.api")          # API endpoints, server lifecycle
+log_batch = logging.getLogger("commander_ai_lab.batch")   # Batch sim (Java + DeepSeek)
+log_sim = logging.getLogger("commander_ai_lab.sim")       # DeepSeek game simulation
+log_coach = logging.getLogger("commander_ai_lab.coach")   # Coach + report generation
+log_deckgen = logging.getLogger("commander_ai_lab.deckgen")  # Deck generation (all versions)
+log_collect = logging.getLogger("commander_ai_lab.collection")  # Collection management
+log_scan = logging.getLogger("commander_ai_lab.scanner")  # Card scanner
+log_ml = logging.getLogger("commander_ai_lab.ml")         # ML training + inference
+log_cache = logging.getLogger("commander_ai_lab.cache")   # Scryfall cache
+log_pplx = logging.getLogger("commander_ai_lab.pplx")     # Perplexity API
 
 
 # ══════════════════════════════════════════════════════════════
@@ -512,7 +569,7 @@ async def list_decks():
                 })
                 seen_names.add(db_name.lower())
     except Exception as e:
-        print(f"  WARNING: Failed to load DB decks for /api/lab/decks: {e}")
+        log.warning(f"  WARNING: Failed to load DB decks for /api/lab/decks: {e}")
 
     return {"decks": decks}
 
@@ -719,10 +776,10 @@ def load_precon_index():
     if idx_path.exists():
         with open(idx_path, "r", encoding="utf-8") as f:
             PRECON_INDEX = json.load(f)
-        print(f"  Precons:      {len(PRECON_INDEX)} precon decks loaded")
+        log.info(f"  Precons:      {len(PRECON_INDEX)} precon decks loaded")
     else:
         PRECON_INDEX = []
-        print(f"  Precons:      index not found at {idx_path}")
+        log.info(f"  Precons:      index not found at {idx_path}")
 
 
 @app.get("/api/lab/precons")
@@ -866,7 +923,7 @@ def download_precon_database(force: bool = False) -> dict:
             if len(existing) > 50:
                 age_hours = (time.time() - idx_path.stat().st_mtime) / 3600
                 if age_hours < PRECON_CACHE_HOURS:
-                    print(f"  Precons:      {len(existing)} decks cached "
+                    log.info(f"  Precons:      {len(existing)} decks cached "
                           f"({age_hours:.0f}h old, refresh after {PRECON_CACHE_HOURS}h)")
                     PRECON_INDEX = existing
                     return {"downloaded": 0, "skipped": True, "total": len(existing),
@@ -875,7 +932,7 @@ def download_precon_database(force: bool = False) -> dict:
             pass  # Fall through to download
 
     # ── Download ─────────────────────────────────────────────
-    print("  Precons:      Downloading full precon database from GitHub...")
+    log.info("  Precons:      Downloading full precon database from GitHub...")
     try:
         req = Request(GITHUB_PRECON_URL, headers={"User-Agent": "CommanderAILab/3.0"})
         with urlopen(req, timeout=120) as resp:
@@ -883,7 +940,7 @@ def download_precon_database(force: bool = False) -> dict:
         all_decks = json.loads(raw)
     except Exception as e:
         msg = f"Failed to download precon database: {e}"
-        print(f"  Precons:      ERROR — {msg}")
+        log.error(f"  Precons:      ERROR — {msg}")
         # Fall back to whatever we have locally
         if idx_path.exists():
             load_precon_index()
@@ -895,7 +952,7 @@ def download_precon_database(force: bool = False) -> dict:
         if d.get('type') == 'Commander Deck'
         and (d.get('format') or '').lower() == 'commander'
     ]
-    print(f"  Precons:      Found {len(commander_decks)} Commander precon decks")
+    log.info(f"  Precons:      Found {len(commander_decks)} Commander precon decks")
 
     # ── Ensure precon-decks dir exists ───────────────────────
     PRECON_DIR.mkdir(parents=True, exist_ok=True)
@@ -953,7 +1010,7 @@ def download_precon_database(force: bool = False) -> dict:
         json.dump(index, f, indent=2, ensure_ascii=False)
 
     PRECON_INDEX = index
-    print(f"  Precons:      {written} .dck files written, index saved")
+    log.info(f"  Precons:      {written} .dck files written, index saved")
     return {"downloaded": written, "skipped": False, "total": written, "error": None}
 
 
@@ -1195,7 +1252,7 @@ def _save_profile_to_dck(profile: dict) -> Path:
 
     out_path = Path(save_dir) / f"{safe_name}.dck"
     out_path.write_text(content, encoding="utf-8")
-    print(f"  [Import] Saved .dck: {out_path}")
+    log_collect.info(f"  Saved .dck: {out_path}")
     return out_path
 
 
@@ -1239,7 +1296,7 @@ async def run_batch_subprocess(
             ai_think_time_ms=ai_think_time_ms,
             max_queue_depth=max_queue_depth,
         )
-        print(f"[Lab API] Starting batch {state.batch_id}: {' '.join(cmd[:6])}...")
+        log_batch.info(f"Starting batch {state.batch_id}: {' '.join(cmd[:6])}...")
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None,
@@ -1248,7 +1305,7 @@ async def run_batch_subprocess(
     except Exception as e:
         state.error = str(e)
         state.running = False
-        print(f"[Lab API] Batch {state.batch_id} ERROR: {e}")
+        log_batch.error(f"Batch {state.batch_id} ERROR: {e}")
 
 
 def _run_process_blocking(state: BatchState, cmd: list[str]):
@@ -1266,9 +1323,9 @@ def _run_process_blocking(state: BatchState, cmd: list[str]):
             dbg.write(f"Forge JAR exists: {os.path.exists(CFG.forge_jar)}\n")
             dbg.write(f"Forge Dir exists: {os.path.isdir(CFG.forge_dir)}\n")
             dbg.write(f"{'-'*60}\n")
-        print(f"[Lab API] Debug log: {debug_log_path}")
+        log_batch.warning(f"Debug log: {debug_log_path}")
     except Exception as e:
-        print(f"[Lab API] Could not write debug log header: {e}")
+        log_batch.warning(f"Could not write debug log header: {e}")
 
     # Ensure Forge subprocesses use Java 17 (Forge crashes on Java 25+)
     env = os.environ.copy()
@@ -1278,7 +1335,7 @@ def _run_process_blocking(state: BatchState, cmd: list[str]):
         java17_home = os.path.dirname(java17_bin)
         env['JAVA_HOME'] = java17_home
         env['PATH'] = java17_bin + os.pathsep + env.get('PATH', '')
-        print(f'[Lab API] Using Java 17: {java17}')
+        log_batch.info(f'Using Java 17: {java17}')
 
     # NOTE: Do NOT set _JAVA_OPTIONS=-Djava.awt.headless=true here.
     # Forge sim mode needs AWT classes for card data initialization;
@@ -1309,7 +1366,7 @@ def _run_process_blocking(state: BatchState, cmd: list[str]):
                 time.sleep(30)
                 elapsed_since_activity = time.time() - last_activity[0]
                 if elapsed_since_activity > stall_limit:
-                    print(f'[Lab API] WATCHDOG: No output for {int(elapsed_since_activity)}s. Killing process.')
+                    log_batch.warning(f'WATCHDOG: No output for {int(elapsed_since_activity)}s. Killing process.')
                     state.log_lines.append(f'[WATCHDOG] Process stalled ({int(elapsed_since_activity)}s with no output). Killed.')
                     proc.kill()
                     return
@@ -1345,7 +1402,7 @@ def _run_process_blocking(state: BatchState, cmd: list[str]):
                     except ValueError:
                         pass
 
-            print(f"  [{state.batch_id}] {line}")
+            log_batch.info(f"  [{state.batch_id}] {line}")
 
         proc.wait()
 
@@ -1367,7 +1424,7 @@ def _run_process_blocking(state: BatchState, cmd: list[str]):
                     dbg.write("<< NO OUTPUT >>\n")
                 dbg.write(f"-- END OUTPUT --\n\n")
         except Exception as e:
-            print(f"[Lab API] Could not write debug log output: {e}")
+            log_batch.warning(f"Could not write debug log output: {e}")
 
         if proc.returncode != 0:
             if proc.returncode == -9 or proc.returncode == 137:
@@ -1376,7 +1433,7 @@ def _run_process_blocking(state: BatchState, cmd: list[str]):
                 state.error = f'Java process exited with code {proc.returncode}. Check forge-sim-debug.log for details.'
         else:
             state.completed_games = state.total_games
-            print(f"[Lab API] Batch {state.batch_id} completed in {elapsed}ms")
+            log_batch.info(f"Batch {state.batch_id} completed in {elapsed}ms")
 
             # Auto-generate deck reports for the coach
             if state.result_path and os.path.exists(state.result_path):
@@ -1386,9 +1443,9 @@ def _run_process_blocking(state: BatchState, cmd: list[str]):
                     reports_dir = str(lab_root / "deck-reports")
                     updated = generate_single_deck_report(state.result_path, reports_dir)
                     if updated:
-                        print(f"[Lab API] Deck reports updated: {', '.join(updated)}")
+                        log_batch.info(f"Deck reports updated: {', '.join(updated)}")
                 except Exception as rpt_err:
-                    print(f"[Lab API] Deck report generation failed (non-fatal): {rpt_err}")
+                    log_batch.info(f"Deck report generation failed (non-fatal): {rpt_err}")
 
     except Exception as e:
         state.error = str(e)
@@ -1451,7 +1508,7 @@ def _load_deck_cards_by_name(deck_name: str) -> list[dict]:
             if result:
                 return result
     except Exception as e:
-        print(f"[DeepSeek Batch] DB lookup failed for '{deck_name}': {e}")
+        log_sim.error(f"DB lookup failed for '{deck_name}': {e}")
 
     # 2. Try .dck file
     if CFG.forge_decks_dir and os.path.isdir(CFG.forge_decks_dir):
@@ -1752,7 +1809,7 @@ def _run_deepseek_batch_thread(
         for ds in all_deck_results:
             state.log_lines.append(f'  {ds["deckName"]}: {ds["wins"]}W-{ds["losses"]}L ({ds["winRate"]}% WR)')
 
-        print(f'[DeepSeek Batch] Batch {state.batch_id} complete: {completed} games in {elapsed:.1f}s')
+        log_sim.info(f'Batch {state.batch_id} complete: {completed} games in {elapsed:.1f}s')
 
     except Exception as e:
         import traceback
@@ -2015,10 +2072,10 @@ def init_collection_db():
     for col_name, col_def in _migrate_columns:
         if col_name not in existing_cols:
             conn.execute(f"ALTER TABLE collection_entries ADD COLUMN {col_name} {col_def}")
-            print(f"  Migration: added column '{col_name}' to collection_entries")
+            log_collect.info(f"  Migration: added column '{col_name}' to collection_entries")
     conn.commit()
     conn.close()
-    print(f"  Collection DB: {COLLECTION_DB_PATH}")
+    log_collect.info(f"  Collection DB: {COLLECTION_DB_PATH}")
 
 
 # Fields stored as JSON strings in SQLite that should be returned as parsed arrays
@@ -4181,7 +4238,7 @@ async def export_deck_to_sim(deck_id: int):
 
     out_path = Path(save_dir) / f"{safe_name}.dck"
     out_path.write_text(content, encoding="utf-8")
-    print(f"  [DeckBuilder] Exported deck {deck_id} to {out_path}")
+    log_deckgen.info(f"  Exported deck {deck_id} to {out_path}")
 
     return {
         "success": True,
@@ -4507,7 +4564,7 @@ async def scan_card_image(request: FastAPIRequest):
     if len(image_bytes) > 20 * 1024 * 1024:
         raise HTTPException(400, "Image file too large (max 20 MB)")
 
-    print(f"  [SCAN] Processing {len(image_bytes)} bytes, mode={mode} (Ximilar AI)")
+    log_scan.info(f"  Processing {len(image_bytes)} bytes, mode={mode} (Ximilar AI)")
 
     if mode == "multi":
         results = scan_multi(image_bytes, _scryfall_fuzzy_lookup, ximilar_api_key=api_key)
@@ -4918,7 +4975,7 @@ async def get_card_edhrec(cardId: int):
                     })
 
     except Exception as e:
-        print(f"  [EDHREC] Error fetching data for '{name}': {e}")
+        log_deckgen.error(f"  Error fetching data for '{name}': {e}")
         # Graceful degradation — return empty results
 
     result = {
@@ -5345,7 +5402,7 @@ def _get_deepseek_brain():
                     cfg.log_dir = _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)), 'logs', 'decisions')
                     _deepseek_brain = DeepSeekBrain(cfg)
                 except Exception as e:
-                    print(f'[DeepSeek] Failed to initialize brain: {e}')
+                    log_sim.error(f'Failed to initialize brain: {e}')
                     return None
     return _deepseek_brain
 
@@ -5844,11 +5901,11 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
         return {"error": "Commander not found. Please check the name or Scryfall ID."}
 
     color_identity = req.color_identity or commander.get("color_identity", [])
-    print(f"  [DECKGEN] Commander: {commander['name']}, CI: {color_identity}")
+    log_deckgen.info(f"  Commander: {commander['name']}, CI: {color_identity}")
 
     # 2. Load collection
     collection = _get_collection_for_colors(color_identity)
-    print(f"  [DECKGEN] {len(collection)} cards in collection match color identity")
+    log_deckgen.info(f"  {len(collection)} cards in collection match color identity")
 
     # 3. Call source adapters (currently stubbed)
     template_cards = []  # list of (name, weight, source_name)
@@ -5861,7 +5918,7 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
                 for tc in td.cards:
                     template_cards.append((tc.name, tc.quantity, "archidekt"))
     except Exception as e:
-        print(f"  [DECKGEN] Archidekt adapter error: {e}")
+        log_deckgen.error(f"  Archidekt adapter error: {e}")
 
     try:
         if sources.use_edhrec:
@@ -5870,7 +5927,7 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
                 for tc in td.cards:
                     template_cards.append((tc.name, tc.quantity, "edhrec"))
     except Exception as e:
-        print(f"  [DECKGEN] EDHREC adapter error: {e}")
+        log_deckgen.error(f"  EDHREC adapter error: {e}")
 
     try:
         if sources.use_moxfield:
@@ -5879,7 +5936,7 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
                 for tc in td.cards:
                     template_cards.append((tc.name, tc.quantity, "moxfield"))
     except Exception as e:
-        print(f"  [DECKGEN] Moxfield adapter error: {e}")
+        log_deckgen.error(f"  Moxfield adapter error: {e}")
 
     try:
         if sources.use_mtggoldfish:
@@ -5888,7 +5945,7 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
                 for tc in td.cards:
                     template_cards.append((tc.name, tc.quantity, "mtggoldfish"))
     except Exception as e:
-        print(f"  [DECKGEN] MTGGoldfish adapter error: {e}")
+        log_deckgen.error(f"  MTGGoldfish adapter error: {e}")
 
     # 4. Build candidate pool from collection, scored by type need
     #    Build a map: name_lower -> card dict (deduped)
@@ -6076,8 +6133,8 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
             "is_proxy": card.get("is_proxy", False),
         })
 
-    print(f"  [DECKGEN] Generated deck: {len(clean_cards)} cards + commander")
-    print(f"  [DECKGEN] Stats: {stats}")
+    log_deckgen.info(f"  Generated deck: {len(clean_cards)} cards + commander")
+    log_deckgen.info(f"  Stats: {stats}")
 
     return {
         "commander": commander,
@@ -6208,11 +6265,11 @@ async def deck_generator_commit(req: DeckGenerationRequest):
                     dck_lines.append(f"{card.get('quantity', 1)} {card_name}")
             with open(dck_path, "w", encoding="utf-8") as f:
                 f.write("\n".join(dck_lines))
-            print(f"  [DECKGEN] Exported .dck file: {dck_path}")
+            log_deckgen.info(f"  Exported .dck file: {dck_path}")
     except Exception as e:
-        print(f"  [DECKGEN] Warning: Failed to export .dck file: {e}")
+        log_deckgen.warning(f"  Warning: Failed to export .dck file: {e}")
 
-    print(f"  [DECKGEN] Saved deck '{deck_name}' (ID: {deck_id}) with {len(cards)} cards + commander")
+    log_deckgen.info(f"  Saved deck '{deck_name}' (ID: {deck_id}) with {len(cards)} cards + commander")
 
     result["deck_id"] = deck_id
     result["deck_name"] = deck_name
@@ -6291,7 +6348,7 @@ async def deck_generator_commander_search(q: str = ""):
                     "image_url": image_uris.get("normal", image_uris.get("small", "")),
                 })
         except Exception as e:
-            print(f"  [DECKGEN] Scryfall search error: {e}")
+            log_deckgen.error(f"  Scryfall search error: {e}")
 
     return {"results": results[:20]}
 
@@ -6461,7 +6518,7 @@ def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperature: fl
             raise ValueError('Empty response from Perplexity API')
         content = choices[0].get('message', {}).get('content', '')
         usage = data.get('usage', {})
-        print(f'[pplx-api] tokens: prompt={usage.get("prompt_tokens","?")}, '
+        log_pplx.debug(f'tokens: prompt={usage.get("prompt_tokens","?")}, '
               f'completion={usage.get("completion_tokens","?")}, '
               f'model={data.get("model","?")}')
         return content
@@ -6776,7 +6833,7 @@ async def deck_generate_ai(req: DeckGenerateAIRequest):
         commander = scry_data.get('name', commander)  # Use canonical name
         commander_type = scry_data.get('type_line', '')
     except Exception as e:
-        print(f'[pplx-gen] Scryfall lookup failed for "{commander}": {e}')
+        log_pplx.error(f'Scryfall lookup failed for "{commander}": {e}')
 
     # Build collection summary
     collection_block = ''
@@ -6951,7 +7008,7 @@ async def deck_gen_v3_generate(req: DeckGenV3Request):
     except ValueError as e:
         return JSONResponse({'error': str(e)}, status_code=422)
     except Exception as e:
-        print(f'[deck-gen-v3] Error: {e}')
+        log_deckgen.error(f'Error: {e}')
         import traceback
         traceback.print_exc()
         raise HTTPException(500, f'Deck generation failed: {str(e)}')
@@ -7058,19 +7115,19 @@ async def deck_gen_v3_commit(req: DeckGenV3Request):
                         dck_lines.append(f"{card.get('count', 1)} {cname}")
                 with open(dck_path, 'w', encoding='utf-8') as f:
                     f.write('\n'.join(dck_lines))
-                print(f"  [DeckGenV3] Exported .dck: {dck_path}")
+                log_deckgen.info(f"  Exported .dck: {dck_path}")
         except Exception as e:
-            print(f"  [DeckGenV3] .dck export failed: {e}")
+            log_deckgen.error(f"  .dck export failed: {e}")
 
         result['deck_id'] = deck_id
         result['deck_name'] = deck_name
-        print(f"  [DeckGenV3] Committed deck '{deck_name}' (ID: {deck_id})")
+        log_deckgen.info(f"  Committed deck '{deck_name}' (ID: {deck_id})")
         return result
 
     except ValueError as e:
         return JSONResponse({'error': str(e)}, status_code=422)
     except Exception as e:
-        print(f'[deck-gen-v3] Commit error: {e}')
+        log_deckgen.error(f'Commit error: {e}')
         import traceback
         traceback.print_exc()
         raise HTTPException(500, f'Deck generation/commit failed: {str(e)}')
@@ -7276,22 +7333,22 @@ def init_coach_service():
             from coach.config import EMBEDDINGS_NPZ
             if EMBEDDINGS_NPZ.exists():
                 _coach_embeddings.load()
-                print(f"  Coach:        Embeddings loaded ({_coach_embeddings.card_count} cards)")
+                log_coach.info(f"  Coach:        Embeddings loaded ({_coach_embeddings.card_count} cards)")
             else:
-                print("  Coach:        Embeddings not yet downloaded (will download on first use)")
+                log_coach.warning("  Coach:        Embeddings not yet downloaded (will download on first use)")
         except Exception as e:
-            print(f"  Coach:        Embeddings load failed: {e}")
+            log_coach.error(f"  Coach:        Embeddings load failed: {e}")
 
         _coach_service = CoachService(_coach_llm, _coach_embeddings)
 
         # Check LLM connection
         llm_status = _coach_llm.check_connection()
         if llm_status.get("connected"):
-            print(f"  Coach LLM:    Connected ({llm_status.get('active_model', 'unknown')})")
+            log_coach.info(f"  Coach LLM:    Connected ({llm_status.get('active_model', 'unknown')})")
         else:
-            print(f"  Coach LLM:    Not connected (start LM Studio on 192.168.0.122:1234)")
+            log_coach.warning(f"  Coach LLM:    Not connected (start LM Studio on 192.168.0.122:1234)")
 
-        print("  Coach:        Service initialized")
+        log_coach.info("  Coach:        Service initialized")
 
         # Initialize V3 Deck Generator (Perplexity)
         _deck_gen_v3_error = None
@@ -7310,21 +7367,21 @@ def init_coach_service():
                     db_conn_factory=_get_db_conn,
                     embedding_index=_coach_embeddings,
                 )
-                print(f"  Deck Gen V3:  Initialized (model: {DECK_GEN_MODEL})")
+                log_deckgen.info(f"  Deck Gen V3:  Initialized (model: {DECK_GEN_MODEL})")
             except ImportError as e:
                 _deck_gen_v3_error = f"Missing dependency: {e}. Run: pip install openai"
-                print(f"  Deck Gen V3:  {_deck_gen_v3_error}")
+                log_deckgen.error(f"  Deck Gen V3:  {_deck_gen_v3_error}")
                 _deck_gen_v3 = None
             except Exception as e:
                 _deck_gen_v3_error = str(e)
-                print(f"  Deck Gen V3:  Failed to initialize: {e}")
+                log_deckgen.error(f"  Deck Gen V3:  Failed to initialize: {e}")
                 _deck_gen_v3 = None
         else:
             _deck_gen_v3_error = "PPLX_API_KEY not set"
-            print("  Deck Gen V3:  Skipped (no PPLX_API_KEY)")
+            log_deckgen.info("  Deck Gen V3:  Skipped (no PPLX_API_KEY)")
 
     except Exception as e:
-        print(f"  Coach:        Failed to initialize: {e}")
+        log_coach.error(f"  Coach:        Failed to initialize: {e}")
         _coach_service = None
 
 
@@ -7427,7 +7484,7 @@ async def coach_run_session(deck_id: str, body: CoachRequestBody = None):
         try:
             _coach_embeddings.load(force_download=True)
         except Exception as e:
-            print(f"  Coach: Embeddings download failed: {e}")
+            log_coach.error(f"  Coach: Embeddings download failed: {e}")
 
     goals = None
     if body and body.goals:
@@ -7442,7 +7499,7 @@ async def coach_run_session(deck_id: str, body: CoachRequestBody = None):
     try:
         fallback_report = _build_deck_report_from_db(deck_id)
     except Exception as e:
-        print(f"  Coach: Fallback report build failed for '{deck_id}': {e}")
+        log_coach.error(f"  Coach: Fallback report build failed for '{deck_id}': {e}")
 
     try:
         session = await _coach_service.run_coaching_session(deck_id, goals, fallback_report=fallback_report)
@@ -7998,11 +8055,11 @@ def _get_policy_service():
             from ml.serving.policy_server import PolicyInferenceService
             _policy_service = PolicyInferenceService()
             if _policy_service.load():
-                print(f"[ML] Policy model loaded on {_policy_service.device}")
+                log_ml.info(f"Policy model loaded on {_policy_service.device}")
             else:
-                print(f"[ML] Policy model not available: {_policy_service._load_error}")
+                log_ml.error(f"Policy model not available: {_policy_service._load_error}")
         except Exception as e:
-            print(f"[ML] Policy service init failed: {e}")
+            log_ml.error(f"Policy service init failed: {e}")
     return _policy_service
 
 
@@ -8162,7 +8219,7 @@ def _run_training_pipeline(
         if rebuild_dataset or not os.path.exists(train_path):
             _training_state["phase"] = "building"
             _training_state["message"] = "Loading card embeddings & building dataset..."
-            print("[ML Train] Building dataset (loading embeddings, may auto-download)...")
+            log_ml.info("Building dataset (loading embeddings, may auto-download)...")
 
             from ml.data.dataset_builder import build_dataset, split_dataset, save_dataset
             dataset = build_dataset(results_dir=results_dir)
@@ -8174,14 +8231,14 @@ def _run_training_pipeline(
             save_dataset(test_ds, os.path.join(data_dir, "test.npz"))
             total_samples = len(dataset["states"])
             _training_state["message"] = f"Dataset built: {total_samples} samples"
-            print(f"[ML Train] Dataset built: {total_samples} samples")
+            log_ml.info(f"Dataset built: {total_samples} samples")
 
         # --- Phase 2: Train ---
         _training_state["phase"] = "training"
         _training_state["total_epochs"] = epochs
         _training_state["current_epoch"] = 0
         _training_state["message"] = f"Training policy network ({epochs} epochs)..."
-        print(f"[ML Train] Starting training: {epochs} epochs, lr={lr}, bs={batch_size}")
+        log_ml.info(f"Starting training: {epochs} epochs, lr={lr}, bs={batch_size}")
 
         import numpy as np
         import torch
@@ -8253,13 +8310,13 @@ def _run_training_pipeline(
             "device": device,
         }
         _training_state["message"] = f"Training complete! Best val acc: {summary.get('best_val_accuracy', 0):.1%}"
-        print(f"[ML Train] Complete: {summary.get('best_val_accuracy', 0):.1%} val accuracy")
+        log_ml.info(f"Complete: {summary.get('best_val_accuracy', 0):.1%} val accuracy")
 
         # Auto-reload policy server with new checkpoint
         global _policy_service, _policy_service_init_attempted
         if _policy_service and _policy_service._loaded:
             _policy_service.reload(summary.get("checkpoint_path"))
-            print("[ML Train] Policy server reloaded with new checkpoint")
+            log_ml.info("Policy server reloaded with new checkpoint")
         elif not _policy_service_init_attempted:
             _policy_service_init_attempted = False  # Allow re-init with new model
 
@@ -8269,7 +8326,7 @@ def _run_training_pipeline(
         _training_state["running"] = False
         _training_state["error"] = str(e)
         _training_state["message"] = f"Training failed: {e}"
-        print(f"[ML Train] ERROR: {e}")
+        log_ml.error(f"ERROR: {e}")
         traceback.print_exc()
 
 
@@ -8678,6 +8735,8 @@ def parse_args():
                         help="Ximilar API key for card scanner (visual AI recognition)")
     parser.add_argument("--pplx-key", default=os.environ.get("PPLX_API_KEY", "REDACTED_PPLX_KEY"),
                         help="Perplexity API key for AI deck research/generation (env: PPLX_API_KEY)")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Enable DEBUG-level logging (default: INFO)")
     return parser.parse_args()
 
 
@@ -8721,17 +8780,18 @@ def load_commander_meta():
         try:
             with open(meta_path, "r", encoding="utf-8") as f:
                 COMMANDER_META = json.load(f)
-            print(f"  Meta:         Loaded {len(COMMANDER_META)} commanders from {meta_path}")
+            log.info(f"  Meta:         Loaded {len(COMMANDER_META)} commanders from {meta_path}")
             return
         except Exception as e:
-            print(f"  WARNING: Failed to load commander-meta.json: {e}")
+            log.warning(f"  WARNING: Failed to load commander-meta.json: {e}")
 
     COMMANDER_META = BUILTIN_COMMANDERS
-    print(f"  Meta:         {len(COMMANDER_META)} built-in commanders")
+    log.info(f"  Meta:         {len(COMMANDER_META)} built-in commanders")
 
 
 def main():
     args = parse_args()
+    setup_logging(logging.DEBUG if getattr(args, 'verbose', False) else logging.INFO)
 
     CFG.forge_jar = args.forge_jar
     CFG.forge_dir = args.forge_dir
@@ -8741,21 +8801,21 @@ def main():
     CFG.ximilar_api_key = args.ximilar_key
     CFG.pplx_api_key = args.pplx_key
 
-    print("╔══════════════════════════════════════════════════╗")
-    print("║      Commander AI Lab — API Server  v3.0.0      ║")
-    print("╚══════════════════════════════════════════════════╝")
-    print()
-    print(f"  Forge JAR:    {CFG.forge_jar}")
-    print(f"  Forge Dir:    {CFG.forge_dir}")
-    print(f"  Decks Dir:    {CFG.forge_decks_dir}")
-    print(f"  Lab JAR:      {CFG.lab_jar}")
-    print(f"  Results Dir:  {CFG.results_dir}")
-    print(f"  Port:         {CFG.port}")
-    print(f"  Ximilar:      {'configured' if CFG.ximilar_api_key else 'NOT SET (scanner will fail)'}")
-    print(f"  Perplexity:   {'configured' if CFG.pplx_api_key else 'NOT SET (AI research/gen disabled)'}")
+    log.info("╔══════════════════════════════════════════════════╗")
+    log.info("║      Commander AI Lab — API Server  v3.0.0      ║")
+    log.info("╚══════════════════════════════════════════════════╝")
+    log.info("")
+    log.info(f"  Forge JAR:    {CFG.forge_jar}")
+    log.info(f"  Forge Dir:    {CFG.forge_dir}")
+    log.info(f"  Decks Dir:    {CFG.forge_decks_dir}")
+    log.info(f"  Lab JAR:      {CFG.lab_jar}")
+    log.info(f"  Results Dir:  {CFG.results_dir}")
+    log.info(f"  Port:         {CFG.port}")
+    log.info(f"  Ximilar:      {'configured' if CFG.ximilar_api_key else 'NOT SET (scanner will fail)'}")
+    log.info(f"  Perplexity:   {'configured' if CFG.pplx_api_key else 'NOT SET (AI research/gen disabled)'}")
     j17 = get_java17()
-    print(f"  Java 17:      {j17 if j17 != 'java' else 'NOT FOUND (batch sim may fail on Java 25+)'}")
-    print(f"  LM Studio:    http://192.168.0.122:1234")
+    log.info(f"  Java 17:      {j17 if j17 != 'java' else 'NOT FOUND (batch sim may fail on Java 25+)'}")
+    log.info(f"  LM Studio:    http://192.168.0.122:1234")
 
     load_commander_meta()
     download_precon_database()  # Auto-downloads all 163+ Commander precons on first run
@@ -8764,27 +8824,27 @@ def main():
 
     # Ximilar API key check
     if not CFG.ximilar_api_key:
-        print("  WARNING: --ximilar-key not set. Card scanner will not work.")
-        print("           Set via CLI: --ximilar-key YOUR_KEY")
-        print("           Or env var:  XIMILAR_API_KEY=YOUR_KEY")
+        log_scan.warning("  WARNING: --ximilar-key not set. Card scanner will not work.")
+        log.info("           Set via CLI: --ximilar-key YOUR_KEY")
+        log.info("           Or env var:  XIMILAR_API_KEY=YOUR_KEY")
 
     if not CFG.forge_jar:
-        print("WARNING: --forge-jar not set. /api/lab/start will fail.")
+        log.warning("WARNING: --forge-jar not set. /api/lab/start will fail.")
     if not CFG.lab_jar:
-        print("WARNING: Lab JAR not found. Build with: mvn package -DskipTests")
+        log.warning("WARNING: Lab JAR not found. Build with: mvn package -DskipTests")
     if not CFG.forge_decks_dir:
-        print("WARNING: Commander decks dir not found. /api/lab/decks will return empty.")
+        log.warning("WARNING: Commander decks dir not found. /api/lab/decks will return empty.")
 
-    print()
-    print(f"  Starting server on http://localhost:{CFG.port}")
+    log.info("")
+    log.info(f"  Starting server on http://localhost:{CFG.port}")
     if _spa_dir.exists():
-        print(f"  Web UI:       http://localhost:{CFG.port}/  (React SPA)")
-        print(f"  Routes:       / (Batch Sim), /collection, /decks, /autogen, /simulator, /coach, /training")
+        log.info(f"  Web UI:       http://localhost:{CFG.port}/  (React SPA)")
+        log.info(f"  Routes:       / (Batch Sim), /collection, /decks, /autogen, /simulator, /coach, /training")
     else:
-        print(f"  Web UI:       http://localhost:{CFG.port}/index.html  (legacy HTML)")
-        print(f"  NOTE: React SPA not built. Run: cd frontend/commander-ai-lab-ui && npm install && npm run build")
-    print(f"  API docs:     http://localhost:{CFG.port}/docs")
-    print()
+        log.info(f"  Web UI:       http://localhost:{CFG.port}/index.html  (legacy HTML)")
+        log.info(f"  NOTE: React SPA not built. Run: cd frontend/commander-ai-lab-ui && npm install && npm run build")
+    log.info(f"  API docs:     http://localhost:{CFG.port}/docs")
+    log.info("")
 
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=CFG.port, log_level="info")

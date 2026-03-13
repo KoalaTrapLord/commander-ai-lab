@@ -13,6 +13,10 @@ Functions:
 """
 
 from __future__ import annotations
+import logging
+
+log = logging.getLogger("commander_ai_lab.lab.experiments")
+
 
 import time
 from typing import Optional
@@ -238,27 +242,27 @@ def _generate_training_deck() -> list[Card]:
 
 def _print_stats(stats: dict) -> None:
     """Pretty-print simulation stats."""
-    print()
-    print("=" * 60)
-    print(f"  SIMULATION RESULTS: {stats['deck_name']} vs {stats['opponent_name']}")
-    print("=" * 60)
-    print(f"  Games played:      {stats['total_games']}")
-    print(f"  Wins / Losses:     {stats['wins']} / {stats['losses']}")
-    print(f"  Win Rate:          {stats['win_rate']}%")
-    print(f"  Avg Turns:         {stats['avg_turns']}")
-    print("-" * 60)
-    print(f"  Avg Damage Dealt:     {stats['avg_damage_dealt']}")
-    print(f"  Avg Damage Received:  {stats['avg_damage_received']}")
-    print(f"  Avg Spells Cast:      {stats['avg_spells_cast']}")
-    print(f"  Avg Creatures Played: {stats['avg_creatures_played']}")
-    print(f"  Avg Removal Used:     {stats['avg_removal_used']}")
-    print(f"  Avg Ramp Played:      {stats['avg_ramp_played']}")
-    print(f"  Avg Cards Drawn:      {stats['avg_cards_drawn']}")
-    print(f"  Avg Max Board Size:   {stats['avg_max_board_size']}")
-    print("-" * 60)
-    print(f"  Elapsed:           {stats['elapsed_seconds']}s")
-    print("=" * 60)
-    print()
+    log.info("")
+    log.info("=" * 60)
+    log.info(f"  SIMULATION RESULTS: {stats['deck_name']} vs {stats['opponent_name']}")
+    log.info("=" * 60)
+    log.info(f"  Games played:      {stats['total_games']}")
+    log.info(f"  Wins / Losses:     {stats['wins']} / {stats['losses']}")
+    log.info(f"  Win Rate:          {stats['win_rate']}%")
+    log.info(f"  Avg Turns:         {stats['avg_turns']}")
+    log.info("-" * 60)
+    log.info(f"  Avg Damage Dealt:     {stats['avg_damage_dealt']}")
+    log.info(f"  Avg Damage Received:  {stats['avg_damage_received']}")
+    log.info(f"  Avg Spells Cast:      {stats['avg_spells_cast']}")
+    log.info(f"  Avg Creatures Played: {stats['avg_creatures_played']}")
+    log.info(f"  Avg Removal Used:     {stats['avg_removal_used']}")
+    log.info(f"  Avg Ramp Played:      {stats['avg_ramp_played']}")
+    log.info(f"  Avg Cards Drawn:      {stats['avg_cards_drawn']}")
+    log.info(f"  Avg Max Board Size:   {stats['avg_max_board_size']}")
+    log.info("-" * 60)
+    log.info(f"  Elapsed:           {stats['elapsed_seconds']}s")
+    log.info("=" * 60)
+    log.info("")
 
 
 def _cli_main() -> None:
@@ -294,15 +298,15 @@ def _run_smoke_test() -> None:
         "Harmonize", "Read the Bones", "Phyrexian Arena",
     ]
 
-    print("Building test deck (Korvold Aristocrats)...")
+    log.info("Building test deck (Korvold Aristocrats)...")
     test_deck = build_deck(test_decklist)
-    print(f"  Deck size: {len(test_deck)} cards")
+    log.info(f"  Deck size: {len(test_deck)} cards")
 
-    print("\nRunning single game...")
+    log.info("\nRunning single game...")
     single = run_single_game(test_deck, name_a="Korvold")
-    print(f"  Winner: {single['winner_name']} in {single['turns']} turns")
+    log.info(f"  Winner: {single['winner_name']} in {single['turns']} turns")
 
-    print("\nRunning Monte Carlo simulation (10 games)...")
+    log.info("\nRunning Monte Carlo simulation (10 games)...")
     stats = run_simulation(test_deck, num_games=10, name_a="Korvold")
     _print_stats(stats)
 

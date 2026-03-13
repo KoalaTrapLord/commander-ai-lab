@@ -7,6 +7,10 @@ Currently returns a hardcoded sample for end-to-end wiring.
 Real implementation will parse EDHREC commander pages.
 """
 from .models import TemplateDeck, TemplateDeckCard
+import logging
+
+log = logging.getLogger("commander_ai_lab.deckgen.edhrec")
+
 
 
 def fetch_template_decks(commander_name: str, color_identity: list, config: dict = None) -> list:
@@ -27,5 +31,5 @@ def fetch_template_decks(commander_name: str, color_identity: list, config: dict
     # 2. Fetch the "Average Deck" or "Top Cards" list
     # 3. Parse card names and inclusion percentages
     # 4. Return as a single TemplateDeck with weighted cards
-    print(f"    [EDHREC] Stub: No recommendations for '{commander_name}' (not yet implemented)")
+    log.info(f"    Stub: No recommendations for '{commander_name}' (not yet implemented)")
     return []

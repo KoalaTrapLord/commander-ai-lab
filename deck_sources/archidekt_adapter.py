@@ -7,6 +7,10 @@ Currently returns a hardcoded sample for end-to-end wiring.
 Real implementation will call the Archidekt API.
 """
 from .models import TemplateDeck, TemplateDeckCard
+import logging
+
+log = logging.getLogger("commander_ai_lab.deckgen.archidekt")
+
 
 
 def fetch_template_decks(commander_name: str, color_identity: list, config: dict = None) -> list:
@@ -26,5 +30,5 @@ def fetch_template_decks(commander_name: str, color_identity: list, config: dict
     # 1. Search Archidekt for popular decks with this commander
     # 2. Fetch the top 3-5 decklists
     # 3. Normalize card names and return as TemplateDeck
-    print(f"    [ARCHIDEKT] Stub: No template decks for '{commander_name}' (not yet implemented)")
+    log.info(f"    Stub: No template decks for '{commander_name}' (not yet implemented)")
     return []

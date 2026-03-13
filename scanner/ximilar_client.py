@@ -13,6 +13,10 @@ import json
 from typing import Optional, List
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
+import logging
+
+log = logging.getLogger("commander_ai_lab.scanner.ximilar")
+
 
 XIMILAR_ENDPOINT = "https://api.ximilar.com/collectibles/v2/tcg_id"
 
@@ -82,7 +86,7 @@ def identify_cards(image_bytes: bytes, api_key: str,
     )
 
     try:
-        print(f"    [XIMILAR] Sending {len(image_bytes):,} bytes to API (analyze_all={analyze_all})")
+        log.info(f"    Sending {len(image_bytes):,} bytes to API (analyze_all={analyze_all})")
         with urlopen(req, timeout=60) as resp:
             resp_data = json.loads(resp.read().decode("utf-8"))
     except HTTPError as e:
@@ -168,12 +172,12 @@ def _parse_response(resp_data: dict) -> List[XimilarResult]:
     if not results:
         results.append(XimilarResult(error="Ximilar could not identify any cards"))
 
-    print(f"    [XIMILAR] Identified {len(results)} card(s)")
+    log.info(f"    Identified {len(results)} card(s)")
     for r in results:
         if r.name:
-            print(f"    [XIMILAR]   - {r.name} ({r.set_code}) conf={r.confidence:.2f}")
+            log.info(f"    - {r.name} ({r.set_code}) conf={r.confidence:.2f}")
         elif r.error:
-            print(f"    [XIMILAR]   - ERROR: {r.error}")
+            log.error(f"    - ERROR: {r.error}")
 
     return results
 
