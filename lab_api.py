@@ -690,7 +690,11 @@ def parse_dck_file(deck_path: str) -> dict:
                 qty = int(m.group(1))
                 name = m.group(2).strip()
                 set_code = m.group(3).strip() if m.group(3) else ""
-                cards.append({"quantity": qty, "name": name, "set": set_code, "section": section})
+                cards.append({
+                    "quantity": qty, "name": name, "set": set_code,
+                    "section": section,
+                    "is_commander": 1 if section == "Commander" else 0,
+                })
                 if section == "Commander":
                     commander = name
     total = sum(c["quantity"] for c in cards)
@@ -1515,25 +1519,34 @@ def _load_deck_cards_by_name(deck_name: str) -> list[dict]:
         dck_path = Path(CFG.forge_decks_dir) / f"{deck_name}.dck"
         if dck_path.exists():
             cards = []
-            in_cards = False  # True when inside [Main], [Deck], or [Commander]
+            current_section = None
             with open(dck_path, 'r', encoding='utf-8') as f:
                 for line in f:
                     line = line.strip()
                     low = line.lower()
-                    if low in ('[main]', '[deck]', '[commander]'):
-                        in_cards = True
+                    if low == '[commander]':
+                        current_section = 'commander'
                         continue
-                    if line.startswith('['):
-                        in_cards = False
+                    elif low in ('[main]', '[deck]'):
+                        current_section = 'main'
                         continue
-                    if in_cards and line:
+                    elif line.startswith('['):
+                        current_section = None
+                        continue
+                    if current_section and line:
                         parts = line.split(' ', 1)
                         if len(parts) == 2:
                             try:
                                 qty = int(parts[0])
                                 name = parts[1].strip()
+                                is_cmdr = 1 if current_section == 'commander' else 0
                                 for _ in range(qty):
-                                    cards.append({'name': name, 'type_line': '', 'cmc': 0})
+                                    cards.append({
+                                        'name': name,
+                                        'type_line': '',
+                                        'cmc': 0,
+                                        'is_commander': is_cmdr,
+                                    })
                             except ValueError:
                                 pass
             if cards:
