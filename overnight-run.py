@@ -22,11 +22,15 @@ Configuration:
 
 import argparse
 import json
+import logging
+import logging.handlers
+import os
 import sys
 import time
 import urllib.request
 import urllib.error
 from datetime import datetime, timedelta
+from pathlib import Path
 
 
 # ── Default Config ──────────────────────────────────────────────
@@ -51,10 +55,48 @@ DEFAULT_CONFIG = {
 }
 
 
-def log(msg):
-    ts = datetime.now().strftime("%H:%M:%S")
-    print(f"[{ts}] {msg}")
-    sys.stdout.flush()
+# ── Logging ──────────────────────────────────────────────────
+_LOG_DIR = Path(os.environ.get("CAL_LOG_DIR", "logs"))
+
+
+def setup_overnight_logging() -> logging.Logger:
+    """Configure logging for the overnight runner.
+
+    Outputs to both console and a rotating log file so that
+    unattended runs always have a persistent record.
+    """
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+    logger = logging.getLogger("commander_ai_lab.overnight")
+    logger.setLevel(logging.INFO)
+
+    if logger.handlers:
+        return logger
+
+    fmt = logging.Formatter(
+        "%(asctime)s %(levelname)-5s [%(name)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    console = logging.StreamHandler(sys.stdout)
+    console.setLevel(logging.INFO)
+    console.setFormatter(fmt)
+    logger.addHandler(console)
+
+    file_handler = logging.handlers.RotatingFileHandler(
+        _LOG_DIR / "overnight-run.log",
+        maxBytes=10 * 1024 * 1024,  # 10 MB
+        backupCount=5,
+        encoding="utf-8",
+    )
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(fmt)
+    logger.addHandler(file_handler)
+
+    return logger
+
+
+log = setup_overnight_logging()
 
 
 def api_get(base_url, path):
@@ -129,8 +171,8 @@ def wait_for_batch(base_url, batch_id, engine="deepseek", deadline=None):
     while True:
         # Hard deadline check — stop waiting if we've run out of time
         if deadline and time.time() >= deadline:
-            log(f"  Time limit reached while batch {batch_id} was running.")
-            log(f"  The batch will continue on the server but we're moving on.")
+            log.info(f"  Time limit reached while batch {batch_id} was running.")
+            log.info(f"  The batch will continue on the server but we're moving on.")
             return {"completed": 0, "timed_out": True}
 
         try:
@@ -144,12 +186,12 @@ def wait_for_batch(base_url, batch_id, engine="deepseek", deadline=None):
             elapsed = status.get("elapsedMs", 0)
 
             if error:
-                log(f"  Batch {batch_id} ERROR: {error}")
+                log.error(f"  Batch {batch_id} ERROR: {error}")
                 return None
 
             if not running and completed > 0:
                 elapsed_s = elapsed / 1000 if elapsed else 0
-                log(f"  Batch {batch_id} complete: {completed} games in {elapsed_s:.0f}s")
+                log.info(f"  Batch {batch_id} complete: {completed} games in {elapsed_s:.0f}s")
                 try:
                     result = api_get(base_url, f"/api/lab/result?batchId={batch_id}")
                     return result
@@ -160,15 +202,15 @@ def wait_for_batch(base_url, batch_id, engine="deepseek", deadline=None):
             if not running and completed == 0:
                 stall_checks += 1
                 if stall_checks > 20:  # 5 min with no progress
-                    log(f"  Batch {batch_id} never started. Aborting.")
+                    log.info(f"  Batch {batch_id} never started. Aborting.")
                     return None
 
             # Progress log with ETA
             if deadline:
                 mins_left = (deadline - time.time()) / 60
-                log(f"  Progress: {completed}/{total} games ({elapsed / 1000:.0f}s) — {mins_left:.0f}min left in run")
+                log.info(f"  Progress: {completed}/{total} games ({elapsed / 1000:.0f}s) — {mins_left:.0f}min left in run")
             else:
-                log(f"  Progress: {completed}/{total} games ({elapsed / 1000:.0f}s)")
+                log.info(f"  Progress: {completed}/{total} games ({elapsed / 1000:.0f}s)")
 
             # Track stall
             if completed == last_completed:
@@ -180,9 +222,9 @@ def wait_for_batch(base_url, batch_id, engine="deepseek", deadline=None):
         except Exception as e:
             consecutive_errors += 1
             if consecutive_errors > 10:
-                log(f"  Lost connection to server after 10 retries. Aborting batch.")
+                log.info(f"  Lost connection to server after 10 retries. Aborting batch.")
                 return None
-            log(f"  Connection error (retry {consecutive_errors}/10): {e}")
+            log.info(f"  Connection error (retry {consecutive_errors}/10): {e}")
 
         time.sleep(poll_interval)
 
@@ -214,26 +256,26 @@ def wait_for_training(base_url):
             error = status.get("error")
 
             if error:
-                log(f"  Training ERROR: {error}")
+                log.error(f"  Training ERROR: {error}")
                 return False
 
             if not running and phase in ("done", "idle") and epoch > 0:
                 result = status.get("result", {})
-                log(f"  Training complete!")
+                log.info(f"  Training complete!")
                 if result:
-                    log(f"  Final accuracy: {result.get('best_val_accuracy', '?')}")
-                    log(f"  Model saved: {result.get('model_path', '?')}")
+                    log.info(f"  Final accuracy: {result.get('best_val_accuracy', '?')}")
+                    log.info(f"  Model saved: {result.get('model_path', '?')}")
                 return True
 
             if phase == "training" and total > 0:
                 metrics = status.get("metrics", {})
                 val_acc = metrics.get("val_accuracy", "?") if metrics else "?"
-                log(f"  Training: epoch {epoch}/{total} — {message} (val_acc: {val_acc})")
+                log.info(f"  Training: epoch {epoch}/{total} — {message} (val_acc: {val_acc})")
             else:
-                log(f"  [{phase}] {message}")
+                log.info(f"  [{phase}] {message}")
 
         except Exception as e:
-            log(f"  Connection error: {e}")
+            log.info(f"  Connection error: {e}")
 
         time.sleep(poll_interval)
 
@@ -253,46 +295,46 @@ def run_overnight(cfg):
     """Main overnight pipeline."""
     base_url = cfg["lab_url"]
 
-    log("=" * 60)
-    log("  Commander AI Lab — Overnight AFK Runner")
-    log("=" * 60)
+    log.info("=" * 60)
+    log.info("  Commander AI Lab — Overnight AFK Runner")
+    log.info("=" * 60)
 
     # ── Verify server ────────────────────────────────────────
-    log("Checking lab server...")
+    log.info("Checking lab server...")
     if not check_server(base_url):
-        log(f"ERROR: Cannot reach lab server at {base_url}")
-        log("Start the lab first: start-lab.bat")
+        log.error(f"ERROR: Cannot reach lab server at {base_url}")
+        log.info("Start the lab first: start-lab.bat")
         return False
 
-    log(f"Server OK at {base_url}")
+    log.info(f"Server OK at {base_url}")
 
     # ── Get decks ─────────────────────────────────────────────
     available_decks = get_available_decks(base_url)
-    log(f"Found {len(available_decks)} decks: {', '.join(available_decks[:5])}{'...' if len(available_decks) > 5 else ''}")
+    log.info(f"Found {len(available_decks)} decks: {', '.join(available_decks[:5])}{'...' if len(available_decks) > 5 else ''}")
 
     engine = cfg["engine"]
     if engine == "deepseek":
         decks = cfg["ds_decks"] if cfg["ds_decks"] else available_decks
         if not decks:
-            log("ERROR: No decks available. Create decks in the Deck Builder first.")
+            log.error("ERROR: No decks available. Create decks in the Deck Builder first.")
             return False
-        log(f"Using DeepSeek engine with {len(decks)} deck(s)")
+        log.info(f"Using DeepSeek engine with {len(decks)} deck(s)")
     else:
         decks = cfg["java_decks"]
         if len(decks) != 3:
-            log("ERROR: Java engine requires exactly 3 deck names.")
-            log("Set java_decks in the config or use --decks deck1 deck2 deck3")
+            log.error("ERROR: Java engine requires exactly 3 deck names.")
+            log.info("Set java_decks in the config or use --decks deck1 deck2 deck3")
             return False
-        log(f"Using Java/Forge engine with decks: {decks}")
+        log.info(f"Using Java/Forge engine with decks: {decks}")
 
     # ── ML logging ────────────────────────────────────────────
-    log("Enabling ML logging...")
+    log.info("Enabling ML logging...")
     try:
         api_post(base_url, "/api/ml/toggle?enable=true", {})
-        log("ML logging enabled")
+        log.info("ML logging enabled")
     except Exception as e:
-        log(f"WARNING: Could not enable ML logging: {e}")
-        log("(DeepSeek batches always log ML data regardless)")
+        log.warning(f"WARNING: Could not enable ML logging: {e}")
+        log.info("(DeepSeek batches always log ML data regardless)")
         # Try alternate form
         try:
             api_get(base_url, "/api/ml/toggle?enable=true")
@@ -301,7 +343,7 @@ def run_overnight(cfg):
 
     # ── Initial data stats ────────────────────────────────────
     decisions_before, files_before = get_ml_data_summary(base_url)
-    log(f"Current ML data: {decisions_before} decisions in {files_before} files")
+    log.info(f"Current ML data: {decisions_before} decisions in {files_before} files")
 
     # ── Run batches ───────────────────────────────────────────
     games_per_batch = cfg["games_per_batch"]
@@ -315,32 +357,32 @@ def run_overnight(cfg):
     total_games = 0
     total_decisions = 0
 
-    log("")
-    log(f"Starting batch loop:")
+    log.info("")
+    log.info(f"Starting batch loop:")
     if num_batches > 0:
-        log(f"  Mode: {num_batches} batches × {games_per_batch} games")
+        log.info(f"  Mode: {num_batches} batches × {games_per_batch} games")
     else:
-        log(f"  Mode: Run for {cfg['time_limit_hours']}h, {games_per_batch} games/batch")
-    log(f"  Engine: {engine}")
-    log(f"  Auto-train after: {'Yes' if cfg['auto_train'] else 'No'}")
-    log("")
+        log.info(f"  Mode: Run for {cfg['time_limit_hours']}h, {games_per_batch} games/batch")
+    log.info(f"  Engine: {engine}")
+    log.info(f"  Auto-train after: {'Yes' if cfg['auto_train'] else 'No'}")
+    log.info("")
 
     while True:
         # Check stopping conditions
         if num_batches > 0 and batch_num >= num_batches:
-            log(f"Reached target of {num_batches} batches. Stopping.")
+            log.info(f"Reached target of {num_batches} batches. Stopping.")
             break
 
         elapsed = time.time() - start_time
         remaining = deadline - time.time()
         if remaining < 120:  # need at least 2 min for a batch
-            log(f"Time limit approaching ({remaining:.0f}s left). Stopping sim loop.")
+            log.info(f"Time limit approaching ({remaining:.0f}s left). Stopping sim loop.")
             break
 
         batch_num += 1
         elapsed_str = str(timedelta(seconds=int(elapsed)))
         remaining_str = str(timedelta(seconds=int(remaining)))
-        log(f"── Batch {batch_num} ── (elapsed: {elapsed_str}, remaining: {remaining_str})")
+        log.info(f"── Batch {batch_num} ── (elapsed: {elapsed_str}, remaining: {remaining_str})")
 
         try:
             if engine == "deepseek":
@@ -352,12 +394,12 @@ def run_overnight(cfg):
                 )
 
             if not batch_id:
-                log("  ERROR: Failed to start batch (no batchId returned)")
-                log("  Waiting 60s before retry...")
+                log.error("  ERROR: Failed to start batch (no batchId returned)")
+                log.info("  Waiting 60s before retry...")
                 time.sleep(60)
                 continue
 
-            log(f"  Started batch {batch_id}")
+            log.info(f"  Started batch {batch_id}")
             result = wait_for_batch(base_url, batch_id, engine, deadline=deadline)
 
             if result:
@@ -366,19 +408,19 @@ def run_overnight(cfg):
                 for deck in result.get("decks", []):
                     wr = deck.get("winRate", "?")
                     name = deck.get("deckName", "?")
-                    log(f"    {name}: {wr}% WR")
+                    log.info(f"    {name}: {wr}% WR")
             else:
-                log("  Batch failed, continuing to next...")
+                log.info("  Batch failed, continuing to next...")
 
         except Exception as e:
-            log(f"  ERROR starting batch: {e}")
-            log("  Waiting 60s before retry...")
+            log.error(f"  ERROR starting batch: {e}")
+            log.info("  Waiting 60s before retry...")
             time.sleep(60)
             continue
 
         # Pause between batches
         if pause_sec > 0:
-            log(f"  Cooling down {pause_sec}s...")
+            log.info(f"  Cooling down {pause_sec}s...")
             time.sleep(pause_sec)
 
     # ── Summary ───────────────────────────────────────────────
@@ -387,26 +429,26 @@ def run_overnight(cfg):
     new_decisions = decisions_after - decisions_before
     new_files = files_after - files_before
 
-    log("")
-    log("=" * 60)
-    log("  BATCH SIMULATION COMPLETE")
-    log("=" * 60)
-    log(f"  Batches run:       {batch_num}")
-    log(f"  Total games:       ~{total_games}")
-    log(f"  New ML decisions:  {new_decisions} (in {new_files} new files)")
-    log(f"  Total ML data:     {decisions_after} decisions")
-    log(f"  Elapsed time:      {str(timedelta(seconds=int(total_elapsed)))}")
-    log("")
+    log.info("")
+    log.info("=" * 60)
+    log.info("  BATCH SIMULATION COMPLETE")
+    log.info("=" * 60)
+    log.info(f"  Batches run:       {batch_num}")
+    log.info(f"  Total games:       ~{total_games}")
+    log.info(f"  New ML decisions:  {new_decisions} (in {new_files} new files)")
+    log.info(f"  Total ML data:     {decisions_after} decisions")
+    log.info(f"  Elapsed time:      {str(timedelta(seconds=int(total_elapsed)))}")
+    log.info("")
 
     # ── Auto-train ────────────────────────────────────────────
     if cfg["auto_train"]:
         if decisions_after < 100:
-            log("Skipping training — too few decisions (need at least 100)")
+            log.info("Skipping training — too few decisions (need at least 100)")
             return True
 
-        log("Starting ML training pipeline...")
-        log(f"  Epochs: {cfg['train_epochs']}, LR: {cfg['train_lr']}, "
-            f"Batch: {cfg['train_batch_size']}, Patience: {cfg['train_patience']}")
+        log.info("Starting ML training pipeline...")
+        log.info(f"  Epochs: {cfg['train_epochs']}, LR: {cfg['train_lr']}, "
+                 f"Batch: {cfg['train_batch_size']}, Patience: {cfg['train_patience']}")
 
         try:
             start_training(
@@ -416,21 +458,21 @@ def run_overnight(cfg):
                 batch_size=cfg["train_batch_size"],
                 patience=cfg["train_patience"],
             )
-            log("Training started, monitoring progress...")
+            log.info("Training started, monitoring progress...")
             success = wait_for_training(base_url)
             if success:
-                log("")
-                log("=" * 60)
-                log("  TRAINING COMPLETE — model updated!")
-                log("=" * 60)
+                log.info("")
+                log.info("=" * 60)
+                log.info("  TRAINING COMPLETE — model updated!")
+                log.info("=" * 60)
             else:
-                log("Training finished with errors. Check the Training tab for details.")
+                log.info("Training finished with errors. Check the Training tab for details.")
         except Exception as e:
-            log(f"ERROR starting training: {e}")
+            log.error(f"ERROR starting training: {e}")
             return False
 
-    log("")
-    log("Overnight run finished. You can close this window.")
+    log.info("")
+    log.info("Overnight run finished. You can close this window.")
     return True
 
 

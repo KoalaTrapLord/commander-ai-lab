@@ -13,6 +13,10 @@ No local OCR or OpenCV needed — all recognition is done by the
 Ximilar cloud API using visual AI.
 """
 from typing import Callable, Optional
+import logging
+
+log = logging.getLogger("commander_ai_lab.scanner")
+
 
 from .ximilar_client import identify_cards, XimilarResult
 
@@ -160,7 +164,7 @@ def _ximilar_to_scan_result(xr: XimilarResult,
         try:
             scryfall_data = scryfall_lookup(xr.name)
         except Exception as e:
-            print(f"    [SCAN] Scryfall lookup failed for '{xr.name}': {e}")
+            log.error(f"    Scryfall lookup failed for '{xr.name}': {e}")
 
     if scryfall_data and scryfall_data.get("object") != "error":
         result.scryfall_id = scryfall_data.get("id", "")
@@ -181,6 +185,6 @@ def _ximilar_to_scan_result(xr: XimilarResult,
             # Extract image from scryfall URL pattern
             # e.g., https://scryfall.com/card/m11/149/lightning-bolt
             result.image_uri = ""  # Will be fetched by frontend via scryfall_id
-        print(f"    [SCAN] No Scryfall match for '{xr.name}' — using Ximilar data only")
+        log.info(f"    No Scryfall match for '{xr.name}' — using Ximilar data only")
 
     return result
