@@ -5,10 +5,15 @@ Extends the headless GameEngine so that one player (the AI opponent)
 uses the DeepSeek LLM brain for decision-making instead of the static
 heuristic scorer.
 
+N-player ready: accepts 2–4 decks. The AI-controlled seat uses DeepSeek;
+all other seats use the heuristic.
+
 The LLM decides:
   1. Whether to play a land (and which one)
   2. Which spell(s) to cast (up to 2 per turn, same as base engine)
   3. Combat stance: attack_all, attack_safe, or hold
+
+Multiplayer attack targeting uses the weakest-opponent heuristic.
 
 If the LLM is unreachable or times out, falls back to the base-engine
 heuristic transparently.
@@ -77,14 +82,40 @@ class DeepSeekGameEngine:
         color_identity: list[str] | None = None,
         win_rate: float | None = None,
     ) -> GameResult:
-        """Run a single game. The AI player uses DeepSeek for decisions."""
-        sim = self._create_state(deck_a, deck_b, name_a, name_b)
+        """Backward-compatible 2-player entry point."""
+        return self.run_n(
+            decks=[deck_a, deck_b],
+            names=[name_a, name_b],
+            game_id=game_id,
+            archetype=archetype,
+            commander_name=commander_name,
+            color_identity=color_identity,
+            win_rate=win_rate,
+        )
+
+    def run_n(
+        self,
+        decks: list[list[Card]],
+        names: list[str] | None = None,
+        game_id: str | None = None,
+        archetype: str = "midrange",
+        commander_name: str = "",
+        color_identity: list[str] | None = None,
+        win_rate: float | None = None,
+    ) -> GameResult:
+        """Run a single N-player game. The AI player uses DeepSeek for decisions."""
+        n = len(decks)
+        if names is None:
+            names = [f"Player {chr(65 + i)}" for i in range(n)]
+        sim = self._create_state(decks, names)
         game_log: list[dict] = []
+        elimination_order: list[int] = []
         gid = game_id or str(uuid.uuid4())[:12]
-        turn_decisions: list[dict] = []  # raw (snapshot, action_type) pairs
+        turn_decisions: list[dict] = []
 
         # Build deck intelligence context once at game start
-        ai_deck = deck_b if self.ai_player_index == 1 else deck_a
+        ai_idx = min(self.ai_player_index, n - 1)
+        ai_deck = decks[ai_idx]
         self._deck_context = build_deck_context(
             full_deck=ai_deck,
             commander_name=commander_name,
@@ -97,7 +128,7 @@ class DeepSeekGameEngine:
         for turn in range(sim.max_turns):
             turn_entry = {"turn": turn + 1, "phases": []}
 
-            for pi in range(2):
+            for pi in range(len(sim.players)):
                 p = sim.players[pi]
                 if p.eliminated:
                     continue
@@ -118,7 +149,7 @@ class DeepSeekGameEngine:
                     pre_snapshot = self._capture_ml_snapshot(sim, pi, turn)
 
                 # ── Decide: LLM or Heuristic? ──
-                action_type = "pass"  # default
+                action_type = "pass"
                 if pi == self.ai_player_index and self.brain._connected:
                     action_type = self._play_turn_deepseek(sim, pi, turn, phase_events, getattr(self, '_deck_context', None))
                 else:
@@ -141,17 +172,29 @@ class DeepSeekGameEngine:
                     c.tapped = False
 
                 if self.record_log:
-                    turn_entry["phases"].append({
+                    life_dict = {sp.name: sp.life for sp in sim.players}
+                    boards_dict = {
+                        f"board_{si}": [c.name for c in sim.get_battlefield(si) if c.is_creature()]
+                        for si in range(len(sim.players))
+                    }
+                    phase_entry: dict = {
                         "player": p.name,
                         "playerId": pi,
                         "events": phase_events,
-                        "lifeAfter": {
-                            sim.players[0].name: sim.players[0].life,
-                            sim.players[1].name: sim.players[1].life,
-                        },
-                        "boardA": [c.name for c in sim.get_battlefield(0) if c.is_creature()],
-                        "boardB": [c.name for c in sim.get_battlefield(1) if c.is_creature()],
-                    })
+                        "lifeAfter": life_dict,
+                        **boards_dict,
+                    }
+                    if len(sim.players) == 2:
+                        phase_entry["boardA"] = boards_dict.get("board_0", [])
+                        phase_entry["boardB"] = boards_dict.get("board_1", [])
+                    turn_entry["phases"].append(phase_entry)
+
+                # ── Check for new eliminations ──
+                for si, sp in enumerate(sim.players):
+                    if sp.eliminated and si not in elimination_order:
+                        elimination_order.append(si)
+                        if self.record_log:
+                            phase_events.append(f"{sp.name} eliminated!")
 
             # Check game over
             alive = [p for p in sim.players if not p.eliminated]
@@ -159,21 +202,16 @@ class DeepSeekGameEngine:
             if self.record_log:
                 game_log.append(turn_entry)
             if len(alive) <= 1:
-                if self.record_log:
-                    elim_name = next((p.name for p in sim.players if p.eliminated), None)
-                    if elim_name:
-                        game_log[-1]["event"] = f"{elim_name} eliminated!"
                 break
-            if self.record_log:
-                game_log.append(turn_entry) if turn_entry not in game_log else None
 
-        result = self._build_result(sim, final_turn, name_a, name_b)
+        result = self._build_result(sim, final_turn, elimination_order)
         if self.record_log:
             result.game_log = game_log
 
         # Stamp game outcome on all ML decisions and add to engine collection
         if self.ml_log and turn_decisions:
-            outcome = "win" if result.winner == 0 else "loss" if result.winner == 1 else "draw"
+            ai_won = result.winner_seat == self.ai_player_index
+            outcome = "win" if ai_won else "loss"
             for td in turn_decisions:
                 td["game_outcome"] = outcome
             self.ml_decisions.extend(turn_decisions)
@@ -216,7 +254,7 @@ class DeepSeekGameEngine:
 
         if self.record_log:
             events.append(f"[AI Brain: {source}] Action: {action} "
-                         f"{'→ ' + target_card_name if target_card_name else ''} "
+                         f"{'\u2192 ' + target_card_name if target_card_name else ''} "
                          f"({reasoning})")
 
         # ── Phase 1: Land drop ──
@@ -242,7 +280,7 @@ class DeepSeekGameEngine:
         elif action == "hold":
             # LLM chose to hold — no combat
             if self.record_log:
-                events.append("Holds — no attack")
+                events.append("Holds \u2014 no attack")
         else:
             # Default: still attack if we have creatures and it makes sense
             self._resolve_combat_heuristic(sim, pi, turn, events)
@@ -435,21 +473,23 @@ class DeepSeekGameEngine:
         p.stats.mana_spent += card.cmc or 0
         p.stats.spells_cast += 1
 
-        # Handle removal
+        # Handle removal — target the scariest creature across all opponents
         if card.is_removal:
             p.stats.removal_used += 1
-            opp_idx_r = 1 - pi
-            opp_creatures = [
-                c for c in sim.get_battlefield(opp_idx_r)
-                if c.is_creature()
-            ]
-            if opp_creatures:
-                opp_creatures.sort(key=lambda c: -score_card(c, w))
-                killed = opp_creatures[0]
+            all_opp_creatures = []
+            for oi in range(len(sim.players)):
+                if oi == pi or sim.players[oi].eliminated:
+                    continue
+                for c in sim.get_battlefield(oi):
+                    if c.is_creature():
+                        all_opp_creatures.append(c)
+            if all_opp_creatures:
+                all_opp_creatures.sort(key=lambda c: -score_card(c, w))
+                killed = all_opp_creatures[0]
                 sim.remove_from_battlefield(killed.id)
                 sim.players[killed.owner_id].graveyard.append(killed)
                 if events is not None:
-                    events.append(f"Cast {card.name} (removal) — destroyed {killed.name}")
+                    events.append(f"Cast {card.name} (removal) \u2014 destroyed {killed.name}")
             else:
                 if events is not None:
                     events.append(f"Cast {card.name} (removal, no targets)")
@@ -470,7 +510,7 @@ class DeepSeekGameEngine:
                 sim.battlefields[seat_idx] = keep
             p.graveyard.append(card)
             if events is not None:
-                events.append(f"Cast {card.name} (board wipe) — destroyed {len(wiped_names)} creatures")
+                events.append(f"Cast {card.name} (board wipe) \u2014 destroyed {len(wiped_names)} creatures")
 
         else:
             sim.add_to_battlefield(pi, card)
@@ -489,6 +529,23 @@ class DeepSeekGameEngine:
         return self._count_untapped_lands(sim, pi)
 
     # ──────────────────────────────────────────────────────────
+    # Attack target selection (N-player)
+    # ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _select_attack_target(sim: SimState, pi: int) -> int:
+        """Select the weakest non-eliminated opponent (lowest life). Returns seat or -1."""
+        best_seat = -1
+        best_life = float('inf')
+        for si, sp in enumerate(sim.players):
+            if si == pi or sp.eliminated:
+                continue
+            if sp.life < best_life:
+                best_life = sp.life
+                best_seat = si
+        return best_seat
+
+    # ──────────────────────────────────────────────────────────
     # Combat — DeepSeek directed
     # ──────────────────────────────────────────────────────────
 
@@ -502,11 +559,10 @@ class DeepSeekGameEngine:
         attack_safe: only evasive/large creatures
         """
         p = sim.players[pi]
-        opp_idx = 1 - pi
-        opp = sim.players[opp_idx]
-
-        if opp.eliminated:
+        opp_idx = self._select_attack_target(sim, pi)
+        if opp_idx == -1:
             return
+        opp = sim.players[opp_idx]
 
         my_creatures = [
             c for c in sim.get_battlefield(pi)
@@ -526,7 +582,6 @@ class DeepSeekGameEngine:
         if attack_mode == "attack_all":
             attackers = my_creatures[:]
         elif attack_mode == "attack_safe":
-            # Only evasive (flying, trample, menace) or large (power >= 4)
             for atk in my_creatures:
                 if (atk.has_keyword("flying") or atk.has_keyword("trample")
                         or atk.has_keyword("menace") or atk.get_power() >= 4):
@@ -538,7 +593,7 @@ class DeepSeekGameEngine:
         if events is not None and attackers:
             mode_label = "all-in" if attack_mode == "attack_all" else "safe"
             atk_names = [f"{a.name} ({a.pt})" for a in attackers]
-            events.append(f"Attacks ({mode_label}): {', '.join(atk_names)}")
+            events.append(f"Attacks {opp.name} ({mode_label}): {', '.join(atk_names)}")
 
         # Resolve blocking and damage (same logic as base engine)
         self._resolve_damage(sim, pi, attackers, opp_blockers, turn, events)
@@ -546,13 +601,12 @@ class DeepSeekGameEngine:
     def _resolve_combat_heuristic(
         self, sim: SimState, pi: int, turn: int, events: list[str] | None
     ) -> bool:
-        """Heuristic combat (same as base GameEngine._resolve_combat). Returns True if attacked."""
+        """Heuristic combat (N-player ready). Returns True if attacked."""
         p = sim.players[pi]
-        opp_idx = 1 - pi
-        opp = sim.players[opp_idx]
-
-        if opp.eliminated:
+        opp_idx = self._select_attack_target(sim, pi)
+        if opp_idx == -1:
             return False
+        opp = sim.players[opp_idx]
 
         my_creatures = [
             c for c in sim.get_battlefield(pi)
@@ -596,7 +650,7 @@ class DeepSeekGameEngine:
 
         if events is not None and attackers:
             atk_names = [f"{a.name} ({a.pt})" for a in attackers]
-            events.append(f"Attacks with: {', '.join(atk_names)}")
+            events.append(f"Attacks {opp.name} with: {', '.join(atk_names)}")
 
         self._resolve_damage(sim, pi, attackers, opp_blockers, turn, events)
         return len(attackers) > 0
@@ -612,7 +666,9 @@ class DeepSeekGameEngine:
     ):
         """Resolve blocking and combat damage."""
         p = sim.players[pi]
-        opp_idx = 1 - pi
+        opp_idx = self._select_attack_target(sim, pi)
+        if opp_idx == -1:
+            return
         opp = sim.players[opp_idx]
         w = self.weights
 
@@ -693,12 +749,12 @@ class DeepSeekGameEngine:
     def _capture_ml_snapshot(self, sim: SimState, pi: int, turn: int) -> dict:
         """
         Capture the current game state in the format expected by the ML
-        training pipeline (dataset_builder → state_encoder → labeler).
+        training pipeline (dataset_builder \u2192 state_encoder \u2192 labeler).
 
         Returns a dict compatible with ml-decisions-*.jsonl format.
         """
         players_data = []
-        for seat in range(2):
+        for seat in range(len(sim.players)):
             p = sim.players[seat]
             # Count creatures and lands on battlefield
             seat_bf = sim.get_battlefield(seat)
@@ -722,7 +778,7 @@ class DeepSeekGameEngine:
                 c.name for c in seat_bf
                 if not c.is_land()
             ]
-            # Command zone — not explicitly tracked in Python sim, use empty
+            # Command zone \u2014 not explicitly tracked in Python sim, use empty
             command_zone_names = []
 
             players_data.append({
@@ -739,7 +795,7 @@ class DeepSeekGameEngine:
                 "command_zone": command_zone_names,
             })
 
-        # Determine game phase — Python sim is simplified, treat as main_1
+        # Determine game phase \u2014 Python sim is simplified, treat as main_1
         phase = "main_1"
 
         return {
@@ -788,11 +844,12 @@ class DeepSeekGameEngine:
         )
 
     def _create_state(
-        self, deck_a: list[Card], deck_b: list[Card],
-        name_a: str, name_b: str,
+        self, decks: list[list[Card]],
+        names: list[str],
     ) -> SimState:
+        """Create initial simulation state with shuffled decks and opening hands (N players)."""
         sim = SimState(max_turns=self.max_turns)
-        for idx, (deck, name) in enumerate([(deck_a, name_a), (deck_b, name_b)]):
+        for idx, (deck, name) in enumerate(zip(decks, names)):
             cards = [enrich_card(c.clone()) for c in deck]
             random.shuffle(cards)
             hand = cards[:7]
@@ -811,17 +868,35 @@ class DeepSeekGameEngine:
 
     def _build_result(
         self, sim: SimState, final_turn: int,
-        name_a: str, name_b: str,
+        elimination_order: list[int] | None = None,
     ) -> GameResult:
-        pa = sim.players[0]
-        pb = sim.players[1]
+        """Determine winner and build result object (N-player)."""
+        if elimination_order is None:
+            elimination_order = []
+        n = len(sim.players)
 
-        if pa.eliminated and not pb.eliminated:
-            winner = 1
-        elif not pa.eliminated and pb.eliminated:
-            winner = 0
+        alive = [i for i, p in enumerate(sim.players) if not p.eliminated]
+        if len(alive) == 1:
+            winner = alive[0]
+        elif len(alive) == 0:
+            winner = max(range(n), key=lambda i: sim.players[i].life)
         else:
-            winner = 0 if pa.life >= pb.life else 1
+            winner = max(alive, key=lambda i: sim.players[i].life)
+
+        finish: dict[int, int] = {winner: 1}
+        position = 2
+        for seat in reversed(elimination_order):
+            if seat != winner:
+                finish[seat] = position
+                position += 1
+        remaining_alive = sorted(
+            [i for i in alive if i != winner],
+            key=lambda i: -sim.players[i].life,
+        )
+        for seat in remaining_alive:
+            if seat not in finish:
+                finish[seat] = position
+                position += 1
 
         player_results = []
         for seat, p in enumerate(sim.players):
@@ -830,7 +905,7 @@ class DeepSeekGameEngine:
                 name=p.name,
                 life=p.life,
                 eliminated=p.eliminated,
-                finish_position=1 if seat == winner else 2,
+                finish_position=finish.get(seat, n),
                 stats=p.stats,
             ))
 
