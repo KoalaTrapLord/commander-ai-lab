@@ -2488,6 +2488,147 @@ async def update_collection_card(cardId: int, body: dict):
 # Collection Import Helpers
 # ══════════════════════════════════════════════════════════════
 
+# ── Scryfall Response Cache ─────────────────────────────────
+# SQLite-backed cache for Scryfall API responses.
+# Keyed by (name, set_code, collector_number). Default TTL: 7 days.
+# Scryfall data changes infrequently (set releases ~every 3 months).
+# Eliminates redundant HTTP calls across imports and re-enrichments.
+
+SCRYFALL_CACHE_DB_PATH = Path(__file__).parent / "scryfall_cache.db"
+SCRYFALL_CACHE_TTL_SECONDS = int(os.environ.get("SCRYFALL_CACHE_TTL", 7 * 24 * 3600))  # 7 days
+
+
+class _ScryfallCache:
+    """
+    Thread-safe SQLite cache for raw Scryfall JSON responses.
+
+    Schema:
+        cache_key  TEXT PRIMARY KEY  — "name|set|cn" normalised lowercase
+        json_blob  TEXT              — raw Scryfall API JSON response
+        fetched_at TEXT              — ISO-8601 UTC timestamp
+    """
+
+    def __init__(self, db_path: Path = None, ttl_seconds: int = None):
+        self._db_path = db_path or SCRYFALL_CACHE_DB_PATH
+        self._ttl = ttl_seconds or SCRYFALL_CACHE_TTL_SECONDS
+        self._lock = threading.Lock()
+        self._conn: Optional[sqlite3.Connection] = None
+        self._hits = 0
+        self._misses = 0
+        self._init_db()
+
+    # ── internal ────────────────────────────────────────────
+
+    def _init_db(self):
+        self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS scryfall_cache (
+                cache_key  TEXT PRIMARY KEY,
+                json_blob  TEXT    NOT NULL,
+                fetched_at TEXT    NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        self._conn.commit()
+
+    @staticmethod
+    def _make_key(name: str, set_code: str, collector_number: str) -> str:
+        return f"{name.strip().lower()}|{(set_code or '').strip().lower()}|{(collector_number or '').strip()}"
+
+    # ── public API ──────────────────────────────────────────
+
+    def get(self, name: str, set_code: str = "", collector_number: str = "") -> Optional[dict]:
+        """Return cached Scryfall JSON dict, or None if missing / expired."""
+        key = self._make_key(name, set_code, collector_number)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT json_blob, fetched_at FROM scryfall_cache WHERE cache_key = ?",
+                (key,),
+            ).fetchone()
+        if not row:
+            self._misses += 1
+            return None
+        # TTL check
+        try:
+            fetched = datetime.fromisoformat(row[1])
+            age = (datetime.utcnow() - fetched).total_seconds()
+            if age > self._ttl:
+                self._misses += 1
+                return None
+        except (ValueError, TypeError):
+            self._misses += 1
+            return None
+        self._hits += 1
+        try:
+            return json.loads(row[0])
+        except json.JSONDecodeError:
+            self._misses += 1
+            return None
+
+    def put(self, name: str, set_code: str, collector_number: str, card_data: dict):
+        """Store a Scryfall response in the cache."""
+        key = self._make_key(name, set_code, collector_number)
+        blob = json.dumps(card_data, separators=(",", ":"))
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO scryfall_cache (cache_key, json_blob, fetched_at) "
+                "VALUES (?, ?, datetime('now'))",
+                (key, blob),
+            )
+            self._conn.commit()
+
+    def stats(self) -> dict:
+        """Return cache statistics."""
+        with self._lock:
+            total = self._conn.execute("SELECT COUNT(*) FROM scryfall_cache").fetchone()[0]
+            oldest_row = self._conn.execute(
+                "SELECT MIN(fetched_at) FROM scryfall_cache"
+            ).fetchone()
+            newest_row = self._conn.execute(
+                "SELECT MAX(fetched_at) FROM scryfall_cache"
+            ).fetchone()
+            db_size_bytes = os.path.getsize(str(self._db_path)) if self._db_path.exists() else 0
+        return {
+            "total_entries": total,
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": round(self._hits / max(self._hits + self._misses, 1) * 100, 1),
+            "ttl_seconds": self._ttl,
+            "ttl_days": round(self._ttl / 86400, 1),
+            "oldest_entry": oldest_row[0] if oldest_row else None,
+            "newest_entry": newest_row[0] if newest_row else None,
+            "db_size_kb": round(db_size_bytes / 1024, 1),
+            "db_path": str(self._db_path),
+        }
+
+    def clear(self) -> int:
+        """Delete all cached entries. Returns count of deleted rows."""
+        with self._lock:
+            count = self._conn.execute("SELECT COUNT(*) FROM scryfall_cache").fetchone()[0]
+            self._conn.execute("DELETE FROM scryfall_cache")
+            self._conn.commit()
+            self._conn.execute("VACUUM")  # must run outside transaction
+            self._hits = 0
+            self._misses = 0
+        return count
+
+    def evict_expired(self) -> int:
+        """Remove entries older than TTL. Returns count of evicted rows."""
+        cutoff = datetime.utcnow().isoformat()
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM scryfall_cache WHERE "
+                "(julianday(?) - julianday(fetched_at)) * 86400 > ?",
+                (cutoff, self._ttl),
+            )
+            deleted = self._conn.total_changes
+            self._conn.commit()
+        return deleted
+
+
+_scryfall_cache = _ScryfallCache()
+
+
 # Scryfall rate-limit semaphore (max 10 req/sec)
 _scryfall_lock = threading.Lock()
 _scryfall_last_call = 0.0
@@ -2671,20 +2812,26 @@ def _parse_csv_content(content: str, source: str, mapping: Optional[dict]) -> li
     return rows
 
 
-def _enrich_from_scryfall(name: str, set_code: str = "", collector_number: str = "") -> dict:
+def _fetch_scryfall_api(name: str, set_code: str = "", collector_number: str = "") -> dict:
     """
-    Fetch card data from Scryfall and return enriched fields dict.
-    Tries set+collectorNumber first, then exact name lookup.
-    Returns empty dict on failure.
+    Fetch raw card data from Scryfall API (with caching).
+    Returns the raw Scryfall JSON dict, or a dict with '_error' on failure.
+    Cache is checked first; live HTTP call only on miss.
     """
     from urllib.parse import quote
-    _scryfall_rate_limit()
 
+    # ── Cache check ──────────────────────────────────────
+    cached = _scryfall_cache.get(name, set_code, collector_number)
+    if cached is not None:
+        return cached
+
+    # ── Live fetch ───────────────────────────────────────
     card_data = None
     last_error = ""
 
     # Try set + collector number first
     if set_code and collector_number:
+        _scryfall_rate_limit()
         try:
             url = f"https://api.scryfall.com/cards/{set_code.lower()}/{collector_number}"
             req = Request(url, headers=_API_HEADERS)
@@ -2710,6 +2857,27 @@ def _enrich_from_scryfall(name: str, set_code: str = "", collector_number: str =
     if not card_data or card_data.get("object") == "error":
         err_detail = card_data.get("details", "unknown error") if card_data else last_error
         return {"_error": f"Scryfall returned error for '{name}': {err_detail}"}
+
+    # ── Cache the successful response ────────────────────
+    _scryfall_cache.put(name, set_code, collector_number, card_data)
+    # Also cache under the Scryfall-resolved name (handles spelling normalisation)
+    resolved_name = card_data.get("name", "")
+    if resolved_name and resolved_name.lower() != name.strip().lower():
+        _scryfall_cache.put(resolved_name, set_code, collector_number, card_data)
+
+    return card_data
+
+
+def _enrich_from_scryfall(name: str, set_code: str = "", collector_number: str = "") -> dict:
+    """
+    Fetch card data from Scryfall (cached) and return enriched fields dict.
+    Tries set+collectorNumber first, then exact name lookup.
+    Returns empty dict on failure.
+    """
+    card_data = _fetch_scryfall_api(name, set_code, collector_number)
+
+    if not card_data or "_error" in card_data:
+        return card_data or {}
 
     # Extract fields
     type_line = card_data.get("type_line", "")
@@ -2925,6 +3093,31 @@ async def import_collection(body: dict):
         "failedCount": failed_count,
         "errors": errors,
     }
+
+
+# ══════════════════════════════════════════════════════════════
+# Scryfall Cache Management Endpoints
+# ══════════════════════════════════════════════════════════════
+
+
+@app.get("/api/cache/scryfall")
+async def scryfall_cache_stats():
+    """Return Scryfall response cache statistics."""
+    return _scryfall_cache.stats()
+
+
+@app.delete("/api/cache/scryfall")
+async def scryfall_cache_clear():
+    """Clear all cached Scryfall responses."""
+    deleted = _scryfall_cache.clear()
+    return {"cleared": deleted, "message": f"Deleted {deleted} cached entries"}
+
+
+@app.post("/api/cache/scryfall/evict")
+async def scryfall_cache_evict_expired():
+    """Remove only expired entries (older than TTL) from the cache."""
+    evicted = _scryfall_cache.evict_expired()
+    return {"evicted": evicted, "message": f"Evicted {evicted} expired entries"}
 
 
 # ══════════════════════════════════════════════════════════════
