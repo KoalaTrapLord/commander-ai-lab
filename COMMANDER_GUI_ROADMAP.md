@@ -106,6 +106,21 @@ GUI updates board state (Pygame → Web)
 - [ ] Profile Pygame and web render loops for stability during AI thinking phases
 - [ ] Add unit tests for `state_to_prompt()` and `decide_action()` parsing
 
+### Phase 8 — Multiplayer (Human vs Human + AI)
+- [ ] **Lobby system** — create/join game rooms with configurable seat count (2–4 players); assign each seat as Human or AI
+- [ ] **WebSocket game server** — upgrade Flask/FastAPI backend to handle persistent connections for real-time state sync across multiple browser clients
+- [ ] **Player session management** — unique session tokens per human player; reconnect support if connection drops mid-game
+- [ ] **Private hand views** — each human player sees only their own hand; other hands shown as face-down card backs
+- [ ] **Turn notification system** — alert active player when it's their turn (browser notification or in-page indicator)
+- [ ] **Action broadcast** — all players see each action played in real-time (card played, attack declared, ability activated) via WebSocket push
+- [ ] **Mixed lobby support** — allow any combination of human and AI seats (e.g., 2 humans + 2 AIs, or 1 human + 3 AIs)
+- [ ] **Spectator mode** — allow observers to watch a game without participating; full board visible, no hand info
+- [ ] **Local LAN play** — host game server on local network so friends can connect via browser on the same Wi-Fi (no internet required)
+- [ ] **Optional: Remote play** — expose server via ngrok or Tailscale for play over the internet without full deployment
+- [ ] **Multiplayer AI pacing** — add configurable AI decision delay (e.g., 1–3 sec) so human players can follow AI turns without them resolving instantly
+- [ ] **Chat panel** — in-game text chat between human players; AI opponents can optionally post narration lines into the same channel
+- [ ] **End-of-game summary** — show full game recap (turns played, damage dealt, commanders cast count) visible to all players after win condition met
+
 ---
 
 ## Tech Stack
@@ -114,11 +129,13 @@ GUI updates board state (Pygame → Web)
 |---|---|---|
 | GUI (Prototype) | **Pygame** | Pure Python, fast iteration |
 | GUI (Production) | **Flask/FastAPI + HTML/JS** | Polished, browser-based |
+| Multiplayer | **WebSockets (Flask-SocketIO)** | Real-time state sync across clients |
 | LLM Backend | Ollama or LM Studio | Serves GPT-OSS 20B locally |
 | Model | **GPT-OSS 20B (Q4_K_M)** | ~12–14 GB VRAM, strong reasoning |
 | Game State | Python dataclass | Structured, easy to serialize |
 | Async | asyncio / threading | Keep GUI responsive during inference |
 | Card Data | Scryfall API | Free MTG card data + art |
+| LAN Hosting | Local network / ngrok | No deployment needed for local play |
 
 ### GPT-OSS 20B Q4_K_M Notes
 - Q4_K_M quantization balances quality and speed well for a 20B model
