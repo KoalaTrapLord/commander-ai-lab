@@ -18,6 +18,8 @@ Performance features:
   - Response caching for identical game states
   - Structured JSON output with validation
   - Decision logging (JSONL) for future RL training data
+    Each JSONL entry includes game_result (winner_seat, winner_name,
+    player_lives, reward) once flush_log() is called with a GameResult.
 """
 
 from __future__ import annotations
@@ -115,7 +117,7 @@ def build_game_state_snapshot(
     opp = sim_state.players[1 - player_index]
     ctx = deck_context or {}
 
-    # ── Mana by Color (Enhancement #8) ──────────────────────────
+    # ── Mana by Color (Enhancement #8) ────────────────────────────
     mana_total = 0
     mana_by_color = {"W": 0, "U": 0, "B": 0, "R": 0, "G": 0, "C": 0}
     my_bf = sim_state.get_battlefield(player_index)
@@ -127,7 +129,6 @@ def build_game_state_snapshot(
             if land_name in _LAND_COLOR_MAP:
                 mana_by_color[_LAND_COLOR_MAP[land_name]] += 1
             elif c.oracle_text:
-                # Parse oracle text for mana production
                 oracle_lower = c.oracle_text.lower()
                 if "any color" in oracle_lower:
                     for clr in "WUBRG":
@@ -138,14 +139,13 @@ def build_game_state_snapshot(
                         if sym in oracle_lower or f"add {clr.lower()}" in oracle_lower:
                             mana_by_color[clr] += 1
                     if not any(mana_by_color[k] for k in "WUBRG"):
-                        mana_by_color["C"] += 1  # colorless
+                        mana_by_color["C"] += 1
             else:
                 mana_by_color["C"] += 1
 
-    # Only include colors that have sources
     mana_colors = {k: v for k, v in mana_by_color.items() if v > 0}
 
-    # ── My Hand — Full Oracle Text (Enhancement #5) ────────────
+    # ── My Hand — Full Oracle Text (Enhancement #5) ────────────────
     my_hand = []
     for c in me.hand:
         card_info = {
@@ -157,7 +157,6 @@ def build_game_state_snapshot(
             card_info["pt"] = c.pt
         if c.keywords:
             card_info["keywords"] = c.keywords[:5]
-        # Role detection
         roles = []
         if c.is_removal:
             roles.append("removal")
@@ -169,22 +168,17 @@ def build_game_state_snapshot(
             roles.append("commander")
         if roles:
             card_info["roles"] = roles
-        # Full oracle text — no truncation (Enhancement #5)
         if c.oracle_text:
             card_info["oracle"] = c.oracle_text
-        # Castability check against available mana
         card_info["castable"] = (c.cmc or 0) <= mana_total and not c.is_land()
         my_hand.append(card_info)
 
-    # ── My Board — with keywords and oracle for synergy ───────
+    # ── My Board ──
     my_board = []
     for c in my_bf:
         if c.is_land():
             continue
-        entry = {
-            "name": c.name,
-            "type": _short_type(c.type_line),
-        }
+        entry = {"name": c.name, "type": _short_type(c.type_line)}
         if c.pt:
             entry["pt"] = c.pt
         if c.tapped:
@@ -195,7 +189,7 @@ def build_game_state_snapshot(
             entry["is_commander"] = True
         my_board.append(entry)
 
-    # ── Opponent's Board — with Threat Assessment (Enhancement #9)
+    # ── Opponent's Board — with Threat Assessment (Enhancement #9) ──
     opp_board = []
     opp_total_power = 0
     opp_evasion_count = 0
@@ -203,10 +197,7 @@ def build_game_state_snapshot(
     for c in opp_bf:
         if c.is_land():
             continue
-        entry = {
-            "name": c.name,
-            "type": _short_type(c.type_line),
-        }
+        entry = {"name": c.name, "type": _short_type(c.type_line)}
         if c.pt:
             entry["pt"] = c.pt
             opp_total_power += c.get_power()
@@ -221,7 +212,6 @@ def build_game_state_snapshot(
                 opp_protected_count += 1
         opp_board.append(entry)
 
-    # Threat level summary
     if opp_total_power >= me.life:
         threat_level = "LETHAL"
     elif opp_total_power >= me.life * 0.5:
@@ -233,7 +223,7 @@ def build_game_state_snapshot(
     else:
         threat_level = "NONE"
 
-    # ── Graveyard Contents (Enhancement #6) ────────────────────
+    # ── Graveyard Contents (Enhancement #6) ──────────────────────
     my_gy = [{"name": c.name, "type": _short_type(c.type_line)} for c in me.graveyard[:15]]
     opp_gy = [{"name": c.name, "type": _short_type(c.type_line)} for c in opp.graveyard[:10]]
 
@@ -243,7 +233,6 @@ def build_game_state_snapshot(
     cards_remaining = len(me.library)
     pct_drawn = round(cards_seen / max(total_deck_size, 1) * 100)
 
-    # Key cards still in library (if we know the decklist)
     key_cards_in_library = []
     if ctx.get("key_cards"):
         library_names = {c.name.lower() for c in me.library}
@@ -251,7 +240,7 @@ def build_game_state_snapshot(
             if kc.lower() in library_names:
                 key_cards_in_library.append(kc)
 
-    # ── Build the snapshot ─────────────────────────────────────
+    # ── Build the snapshot ────────────────────────────────────
     snapshot = {
         "turn": turn + 1,
         "my_life": me.life,
@@ -274,11 +263,9 @@ def build_game_state_snapshot(
         "deck_drawn_pct": pct_drawn,
     }
 
-    # ── Commander Identity (Enhancement #2) ────────────────────
     if ctx.get("commander_name"):
-        # Determine commander zone
         cmd_name_lower = ctx["commander_name"].lower()
-        cmd_zone = "library"  # default
+        cmd_zone = "library"
         for c in me.hand:
             if c.name.lower() == cmd_name_lower:
                 cmd_zone = "hand"
@@ -291,26 +278,18 @@ def build_game_state_snapshot(
             if c.name.lower() == cmd_name_lower:
                 cmd_zone = "graveyard"
                 break
-
         snapshot["commander"] = {
             "name": ctx["commander_name"],
             "zone": cmd_zone,
             "color_identity": ctx.get("color_identity", []),
         }
 
-    # ── Full Decklist Awareness (Enhancement #1) ───────────────
     if ctx.get("deck_summary"):
         snapshot["deck_summary"] = ctx["deck_summary"]
-
-    # ── Win Conditions & Combos (Enhancement #3) ───────────────
     if ctx.get("combo_pieces"):
         snapshot["combo_pieces"] = ctx["combo_pieces"]
-
-    # ── Key Cards in Library (Enhancement #7) ──────────────────
     if key_cards_in_library:
         snapshot["key_cards_in_library"] = key_cards_in_library[:10]
-
-    # ── Historical Win Rate (Enhancement #10) ──────────────────
     if ctx.get("win_rate") is not None:
         snapshot["historical_win_rate"] = ctx["win_rate"]
 
@@ -340,7 +319,7 @@ def _short_type(type_line: str) -> str:
 
 
 def build_deck_context(
-    full_deck: list,          # list[Card] — the full original deck
+    full_deck: list,
     commander_name: str = "",
     color_identity: list[str] | None = None,
     archetype: str = "midrange",
@@ -360,7 +339,6 @@ def build_deck_context(
     if win_rate is not None:
         ctx["win_rate"] = win_rate
 
-    # ── Deck Composition Summary (Enhancement #1) ──────────────
     type_counts: dict[str, int] = {}
     roles: dict[str, list[str]] = {"removal": [], "ramp": [], "board_wipe": [], "draw": []}
     key_cards: list[str] = []
@@ -371,32 +349,25 @@ def build_deck_context(
     for card in full_deck:
         ctype = _short_type(card.type_line) if card.type_line else "?"
         type_counts[ctype] = type_counts.get(ctype, 0) + 1
-
         if not card.is_land():
             total_cmc += card.cmc or 0
             non_land_count += 1
-
-        # Track roles
         if card.is_removal:
             roles["removal"].append(card.name)
         if card.is_board_wipe:
             roles["board_wipe"].append(card.name)
         if card.is_ramp:
             roles["ramp"].append(card.name)
-        # Detect draw engines
         oracle = (card.oracle_text or "").lower()
         if re.search(r"draw .* cards?", oracle):
             roles["draw"].append(card.name)
-
-        # ── Win Conditions & Combos (Enhancement #3) ──────────
         for pattern, label in _COMBO_PATTERNS:
             if re.search(pattern, oracle):
                 combo_pieces.append({"name": card.name, "role": label})
                 key_cards.append(card.name)
-                break  # one label per card
+                break
 
     avg_cmc = round(total_cmc / max(non_land_count, 1), 1)
-
     ctx["deck_summary"] = {
         "card_types": type_counts,
         "avg_cmc": avg_cmc,
@@ -406,10 +377,8 @@ def build_deck_context(
         "draw_count": len(roles["draw"]),
         "archetype": archetype,
     }
-
-    ctx["combo_pieces"] = combo_pieces[:15]  # cap to save tokens
+    ctx["combo_pieces"] = combo_pieces[:15]
     ctx["key_cards"] = list(set(key_cards))[:15]
-
     return ctx
 
 
@@ -417,20 +386,18 @@ def build_deck_context(
 # Action Schema  (Step 3)
 # ══════════════════════════════════════════════════════════════
 
-# Valid actions the LLM can return
 VALID_ACTIONS = [
-    "play_land",       # Play a land from hand
-    "cast_creature",   # Cast a creature spell
-    "cast_removal",    # Cast targeted removal
-    "cast_board_wipe", # Cast a board wipe
-    "cast_ramp",       # Cast a ramp spell
-    "cast_spell",      # Cast any other non-creature spell
-    "attack_all",      # Attack with all eligible creatures
-    "attack_safe",     # Attack only with evasive/large creatures
-    "hold",            # Pass / don't act (save mana, bluff)
+    "play_land",
+    "cast_creature",
+    "cast_removal",
+    "cast_board_wipe",
+    "cast_ramp",
+    "cast_spell",
+    "attack_all",
+    "attack_safe",
+    "hold",
 ]
 
-# Action schema for the LLM's JSON response
 ACTION_SCHEMA = {
     "action": "one of: " + ", ".join(VALID_ACTIONS),
     "target_card": "(optional) name of card to cast or target",
@@ -529,20 +496,40 @@ class DeepSeekBrain:
     """
     LLM-powered decision engine for the AI opponent.
 
-    Sends game state to a local DeepSeek model and parses the action response.
+    Sends game state to a local DeepSeek/GPT-OSS model and parses the action response.
     Falls back to heuristic on timeout/error.
+
+    Decision log entries include game outcome once flush_log() is called
+    with a GameResult, enabling downstream RL weight learning.
     """
 
     def __init__(self, config: DeepSeekConfig | None = None):
         self.config = config or DeepSeekConfig()
         self._cache: OrderedDict[str, dict] = OrderedDict()
         self._decision_log: list[dict] = []
+        self._current_game_id: str = self._new_game_id()
+        self._ai_player_index: int | None = None  # set by caller if known
         self._total_calls = 0
         self._total_fallbacks = 0
         self._total_cache_hits = 0
         self._total_latency_ms = 0.0
         self._connected = False
         self._log_file = None
+
+    @staticmethod
+    def _new_game_id() -> str:
+        """Generate a short unique game ID for grouping decisions in the log."""
+        return hashlib.md5(str(time.time()).encode()).hexdigest()[:12]
+
+    def new_game(self, ai_player_index: int | None = None) -> None:
+        """
+        Signal the start of a new game.
+
+        Call this before each game so that log entries are grouped by game_id
+        and the ai_player_index is recorded for reward calculation.
+        """
+        self._current_game_id = self._new_game_id()
+        self._ai_player_index = ai_player_index
 
     def check_connection(self) -> bool:
         """Test if the LLM endpoint is reachable."""
@@ -555,7 +542,6 @@ class DeepSeekBrain:
                 self._connected = True
                 models = data.get("data", [])
                 if models:
-                    # Auto-detect model name from LM Studio
                     model_id = models[0].get("id", self.config.model)
                     if model_id:
                         self.config.model = model_id
@@ -569,20 +555,20 @@ class DeepSeekBrain:
 
     def choose_action(
         self,
-        sim_state,          # SimState
-        player_index: int,  # Which player is the AI
+        sim_state,
+        player_index: int,
         turn: int,
         available_mana: int | None = None,
-        deck_context: dict | None = None,  # Full deck intelligence from build_deck_context()
+        deck_context: dict | None = None,
     ) -> dict:
         """
         Choose an action for the AI player.
 
         Returns:
             {
-                "action": str,          # One of VALID_ACTIONS
-                "target_card": str,     # Optional card name
-                "reasoning": str,       # Brief explanation
+                "action": str,
+                "target_card": str,
+                "reasoning": str,
                 "source": "deepseek" | "heuristic" | "cache",
                 "latency_ms": float,
             }
@@ -590,12 +576,10 @@ class DeepSeekBrain:
         self._total_calls += 1
         t_start = time.time()
 
-        # Build game state snapshot with deck intelligence
         snapshot = build_game_state_snapshot(sim_state, player_index, turn, deck_context=deck_context)
         if available_mana is not None:
             snapshot["my_mana_available"] = available_mana
 
-        # Check cache
         if self.config.cache_enabled:
             cache_key = self._cache_key(snapshot)
             if cache_key in self._cache:
@@ -605,7 +589,6 @@ class DeepSeekBrain:
                 cached["latency_ms"] = round((time.time() - t_start) * 1000, 1)
                 return cached
 
-        # Try LLM
         if not self._connected:
             return self._fallback_action(snapshot, t_start, "not_connected")
 
@@ -614,13 +597,11 @@ class DeepSeekBrain:
             result["source"] = "deepseek"
             result["latency_ms"] = round((time.time() - t_start) * 1000, 1)
 
-            # Cache the result
             if self.config.cache_enabled:
                 self._put_cache(cache_key, result)
 
-            # Log decision
             if self.config.log_decisions:
-                self._log_decision(snapshot, result)
+                self._log_decision(snapshot, result, player_index)
 
             self._total_latency_ms += result["latency_ms"]
             return result
@@ -633,11 +614,9 @@ class DeepSeekBrain:
 
     def _call_llm(self, snapshot: dict) -> dict:
         """Send game state to LLM and parse response."""
-        # Build the prompt
         game_state_json = json.dumps(snapshot, indent=2)
         user_prompt = USER_PROMPT_TEMPLATE.format(game_state_json=game_state_json)
 
-        # Build OpenAI-compatible request
         payload = {
             "model": self.config.model,
             "messages": [
@@ -658,7 +637,6 @@ class DeepSeekBrain:
         with urlopen(req, timeout=self.config.request_timeout) as resp:
             resp_data = json.loads(resp.read())
 
-        # Extract the response text
         choices = resp_data.get("choices", [])
         if not choices:
             raise ValueError("Empty response from LLM")
@@ -672,18 +650,12 @@ class DeepSeekBrain:
         Handles common LLM quirks (markdown fences, extra text, etc.)
         """
         text = raw_text.strip()
-
-        # Strip <think>...</think> tags (DeepSeek-R1 reasoning)
-        # Handle both closed tags and unclosed tags (truncated by max_tokens)
         text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
         text = re.sub(r'<think>.*', '', text, flags=re.DOTALL).strip()
-
-        # Strip markdown code fences
         text = re.sub(r'^```(?:json)?\s*', '', text)
         text = re.sub(r'\s*```$', '', text)
         text = text.strip()
 
-        # Try to find a JSON object in the text
         json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
         if json_match:
             text = json_match.group(0)
@@ -691,7 +663,6 @@ class DeepSeekBrain:
         try:
             parsed = json.loads(text)
         except json.JSONDecodeError:
-            # Last resort: try to extract action keyword
             for action in VALID_ACTIONS:
                 if action in raw_text.lower():
                     return {
@@ -701,16 +672,14 @@ class DeepSeekBrain:
                     }
             raise ValueError(f"Could not parse LLM response as JSON: {raw_text[:200]}")
 
-        # Validate action
         action = parsed.get("action", "hold")
         if action not in VALID_ACTIONS:
-            # Fuzzy match
             for valid in VALID_ACTIONS:
                 if valid in action.lower() or action.lower() in valid:
                     action = valid
                     break
             else:
-                action = "hold"  # safe default
+                action = "hold"
 
         return {
             "action": action,
@@ -728,18 +697,15 @@ class DeepSeekBrain:
         opp_board = snapshot.get("opp_board", [])
         turn = snapshot.get("turn", 1)
 
-        # Priority: land > ramp (early) > removal (if outnumbered) > creature > attack > hold
         action = "hold"
         target = ""
         reasoning = f"Fallback ({reason})"
 
-        # 1. Play a land if available
         lands_in_hand = [c for c in hand if c.get("type") == "land"]
         if lands_in_hand:
             action = "play_land"
             target = lands_in_hand[0]["name"]
             reasoning = "Play land first"
-        # 2. Early game: prioritize ramp
         elif turn <= 4:
             ramp_cards = [c for c in hand if c.get("role") == "ramp" and c.get("cmc", 99) <= mana]
             if ramp_cards:
@@ -748,38 +714,31 @@ class DeepSeekBrain:
                 target = ramp_cards[0]["name"]
                 reasoning = "Early ramp"
             else:
-                # Play cheapest creature
                 creatures = [c for c in hand if c.get("type") == "creature" and c.get("cmc", 99) <= mana]
                 if creatures:
                     creatures.sort(key=lambda c: c.get("cmc", 0))
                     action = "cast_creature"
                     target = creatures[0]["name"]
                     reasoning = "Cheap creature development"
-        # 3. If opponent has many creatures and we have board wipe
         elif len(opp_board) >= 3 and len(my_board) <= 1:
             wipes = [c for c in hand if c.get("role") == "board_wipe" and c.get("cmc", 99) <= mana]
             if wipes:
                 action = "cast_board_wipe"
                 target = wipes[0]["name"]
                 reasoning = "Opponent has board advantage, wiping"
-        # 4. If opponent has a big threat, use removal
         elif opp_board:
             removal = [c for c in hand if c.get("role") == "removal" and c.get("cmc", 99) <= mana]
             if removal:
                 action = "cast_removal"
                 target = removal[0]["name"]
                 reasoning = "Remove opponent threat"
-        # 5. Play best creature
         if action == "hold":
             castable = [c for c in hand if c.get("type") == "creature" and c.get("cmc", 99) <= mana]
             if castable:
-                # Pick the one with highest power
                 castable.sort(key=lambda c: -int(c.get("pt", "0/0").split("/")[0]) if c.get("pt") else 0)
                 action = "cast_creature"
                 target = castable[0]["name"]
                 reasoning = "Play threat"
-
-        # 6. Attack if we have creatures on board
         if action == "hold" and my_board:
             creatures_on_board = [c for c in my_board if c.get("type") == "creature" and not c.get("tapped")]
             if creatures_on_board:
@@ -802,13 +761,10 @@ class DeepSeekBrain:
     # ── Cache helpers ──
 
     def _cache_key(self, snapshot: dict) -> str:
-        """Create a deterministic cache key from game state."""
-        # Normalize — exclude things that don't affect decisions
         key_data = json.dumps(snapshot, sort_keys=True)
         return hashlib.md5(key_data.encode()).hexdigest()
 
     def _put_cache(self, key: str, value: dict):
-        """LRU cache insert."""
         if key in self._cache:
             self._cache.move_to_end(key)
         self._cache[key] = value
@@ -817,10 +773,17 @@ class DeepSeekBrain:
 
     # ── Decision logging ──
 
-    def _log_decision(self, snapshot: dict, result: dict):
-        """Log decision for future training data."""
+    def _log_decision(self, snapshot: dict, result: dict, player_index: int | None = None) -> None:
+        """
+        Append a decision entry to the in-memory log.
+
+        The entry is tagged with game_id so flush_log() can backfill
+        game_result fields once the game is complete.
+        """
         entry = {
             "timestamp": time.time(),
+            "game_id": self._current_game_id,
+            "player_index": player_index if player_index is not None else self._ai_player_index,
             "game_state": snapshot,
             "decision": {
                 "action": result.get("action"),
@@ -829,14 +792,96 @@ class DeepSeekBrain:
                 "source": result.get("source"),
                 "latency_ms": result.get("latency_ms"),
             },
+            # game_result is None until flush_log() is called with a GameResult
+            "game_result": None,
         }
         self._decision_log.append(entry)
 
-    def flush_log(self, filepath: str | None = None):
-        """Write accumulated decision log to JSONL file."""
-        if not self._decision_log:
-            return
+    def flush_log(
+        self,
+        filepath: str | None = None,
+        game_result=None,  # Optional[GameResult] from engine.py
+    ) -> str | None:
+        """
+        Write accumulated decision log to a JSONL file.
 
+        Parameters
+        ----------
+        filepath : str, optional
+            Destination file path.  Defaults to logs/decisions/<timestamp>.jsonl
+            next to the package root.
+        game_result : GameResult, optional
+            Result from GameEngine.run() / run_n().  When provided, every
+            buffered entry is backfilled with:
+
+            ``game_result`` dict containing:
+              - ``winner_seat``  : int   — seat index of the winner
+              - ``winner_name``  : str   — display name of the winning player
+              - ``turns``        : int   — total game length in turns
+              - ``player_lives`` : dict  — {seat_index: final_life} for all seats
+              - ``reward``       : float — normalised reward in [-1.0, 1.0]
+                                          for the AI player recorded in each entry
+                                          (winner_life - loser_life) / 40.0
+
+        Returns the absolute path written, or None if the log was empty.
+        """
+        if not self._decision_log:
+            return None
+
+        # ── Build game_result payload from GameResult dataclass ──
+        result_payload: dict | None = None
+        if game_result is not None:
+            try:
+                winner_seat: int = game_result.winner_seat
+                winner_name: str = game_result.players[winner_seat].name
+                turns: int = game_result.turns
+
+                # Per-seat final life totals
+                player_lives: dict[int, int] = {
+                    pr.seat_index: pr.life
+                    for pr in game_result.players
+                }
+
+                result_payload = {
+                    "winner_seat": winner_seat,
+                    "winner_name": winner_name,
+                    "turns": turns,
+                    "player_lives": player_lives,
+                }
+            except Exception as exc:
+                logger.warning("Could not extract game_result fields: %s", exc)
+
+        # ── Backfill each entry with game_result + per-entry reward ──
+        for entry in self._decision_log:
+            if result_payload is None:
+                entry["game_result"] = None
+                continue
+
+            # Determine reward for the player who made this decision
+            pi = entry.get("player_index")
+            winner_seat = result_payload["winner_seat"]
+            player_lives = result_payload["player_lives"]
+
+            if pi is not None and len(player_lives) >= 2:
+                my_life = player_lives.get(pi, 0)
+                # Sum of all opponents' final life totals
+                opp_life_sum = sum(
+                    v for k, v in player_lives.items() if k != pi
+                )
+                opp_count = max(len(player_lives) - 1, 1)
+                avg_opp_life = opp_life_sum / opp_count
+                raw_reward = (my_life - avg_opp_life) / 40.0
+                reward = round(max(-1.0, min(1.0, raw_reward)), 4)
+            else:
+                # Fallback: binary win/loss
+                reward = 1.0 if (pi is not None and pi == winner_seat) else -1.0
+
+            entry["game_result"] = {
+                **result_payload,
+                "reward": reward,
+            }
+
+        # ── Write to JSONL ──
         if filepath is None:
             log_dir = self.config.log_dir or os.path.join(
                 os.path.dirname(__file__), "..", "..", "..", "logs", "decisions"
@@ -859,7 +904,9 @@ class DeepSeekBrain:
     def get_stats(self) -> dict:
         """Return performance statistics."""
         avg_latency = (
-            self._total_latency_ms / max(self._total_calls - self._total_fallbacks - self._total_cache_hits, 1)
+            self._total_latency_ms / max(
+                self._total_calls - self._total_fallbacks - self._total_cache_hits, 1
+            )
         )
         return {
             "total_calls": self._total_calls,
@@ -871,4 +918,5 @@ class DeepSeekBrain:
             "model": self.config.model,
             "api_base": self.config.api_base,
             "pending_log_entries": len(self._decision_log),
+            "current_game_id": self._current_game_id,
         }
