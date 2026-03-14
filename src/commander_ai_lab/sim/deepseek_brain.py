@@ -1,23 +1,26 @@
 """
-Commander AI Lab — DeepSeek LLM Brain for AI Opponent
-======================================================
-Integrates a local LLM (DeepSeek-R1 via LM Studio / Ollama) as the
-decision-making "brain" for the AI opponent in the headless simulator.
+Commander AI Lab — LLM Brain for AI Opponent
+=============================================
+Integrates a local LLM (GPT-OSS 20B Q4_K_M via Ollama, or any
+OpenAI-compatible endpoint) as the decision-making "brain" for the
+AI opponent in the headless simulator.
 
 The LLM receives a structured game-state snapshot and returns a JSON
 action describing what to do this turn (play land, cast spell, attack,
 hold/pass, use removal, use board wipe, cast ramp, cast commander).
 
-Supports:
-  - LM Studio (OpenAI-compatible API) — default at http://192.168.0.122:1234
-  - Ollama (OpenAI-compatible mode) — http://localhost:11434
+Default target: GPT-OSS 20B (Q4_K_M) via Ollama at localhost:11434
+  ollama run gpt-oss:20b
+
+Also supports:
+  - LM Studio (OpenAI-compatible API) — set api_base to LM Studio URL
   - Any OpenAI-compatible endpoint
 
 Performance features:
   - Configurable timeout with fallback to heuristic
   - Response caching for identical game states
   - Structured JSON output with validation
-  - Decision logging (JSONL) for future RL training data
+  - Decision logging (JSONL) for RL training data
     Each JSONL entry includes game_result (winner_seat, winner_name,
     player_lives, reward) once flush_log() is called with a GameResult.
 """
@@ -46,43 +49,59 @@ logger = logging.getLogger("deepseek_brain")
 
 @dataclass
 class DeepSeekConfig:
-    """Configuration for the DeepSeek LLM brain."""
+    """
+    Configuration for the LLM brain.
 
-    # API endpoint (OpenAI-compatible)
-    api_base: str = "http://192.168.0.122:1234"
-    model: str = "deepseek-r1-distill-qwen-8b"  # LM Studio model name
+    Defaults target GPT-OSS 20B (Q4_K_M) served by Ollama on localhost.
+    Override api_base / model to point at LM Studio or any other
+    OpenAI-compatible endpoint.
+
+    Example — LM Studio::
+        config = DeepSeekConfig(
+            api_base="http://192.168.0.122:1234",
+            model="deepseek-r1-distill-qwen-8b",
+            max_tokens=2048,  # R1 needs room for <think> blocks
+        )
+
+    Example — Ollama (default)::
+        config = DeepSeekConfig()  # points at localhost:11434 / gpt-oss:20b
+    """
+
+    # API endpoint — Ollama OpenAI-compatible base (NO /v1 suffix)
+    api_base: str = "http://localhost:11434"
+    # Model name as registered in Ollama
+    model: str = "gpt-oss:20b"
 
     # Generation parameters
-    temperature: float = 0.3       # Low for more deterministic play
-    max_tokens: int = 2048         # R1 needs room for <think> reasoning + JSON response
+    # GPT-OSS 20B does not emit <think> blocks so 1024 tokens is ample
+    temperature: float = 0.3
+    max_tokens: int = 1024
     top_p: float = 0.9
 
     # Timeouts
-    request_timeout: float = 10.0  # seconds per LLM call
-    fallback_on_timeout: bool = True  # use heuristic if LLM times out
+    request_timeout: float = 30.0  # Ollama local inference; raise vs LM Studio
+    fallback_on_timeout: bool = True
 
     # Caching
     cache_enabled: bool = True
-    cache_max_size: int = 256      # LRU cache entries
+    cache_max_size: int = 256
 
     # Logging
     log_decisions: bool = True
-    log_dir: str = ""              # Set at runtime
+    log_dir: str = ""
 
     # Retry
-    max_retries: int = 1           # Retry once on parse failure
+    max_retries: int = 1
 
 
 # ══════════════════════════════════════════════════════════════
 # Game-State Schema  (Step 2) — Full Intelligence Snapshot
 # ══════════════════════════════════════════════════════════════
 
-# Basic land → color mapping for mana color tracking
 _LAND_COLOR_MAP = {
     "plains": "W", "island": "U", "swamp": "B", "mountain": "R", "forest": "G",
 }
 
-# Known combo/synergy patterns detected from oracle text
 _COMBO_PATTERNS = [
     ("infinite", "Infinite combo piece"),
     ("you win the game", "Alternate win condition"),
@@ -101,23 +120,18 @@ _COMBO_PATTERNS = [
 
 
 def build_game_state_snapshot(
-    sim_state,          # SimState
-    player_index: int,  # Which player is the AI (0 or 1)
+    sim_state,
+    player_index: int,
     turn: int,
-    deck_context: dict | None = None,  # Full deck intelligence
+    deck_context: dict | None = None,
 ) -> dict:
     """
     Build a comprehensive game-state dict for the LLM with full intelligence.
-
-    deck_context (optional):
-        commander_name, commander_zone, color_identity, archetype,
-        full_decklist, combo_pieces, win_rate_history, deck_size
     """
     me = sim_state.players[player_index]
     opp = sim_state.players[1 - player_index]
     ctx = deck_context or {}
 
-    # ── Mana by Color (Enhancement #8) ────────────────────────────
     mana_total = 0
     mana_by_color = {"W": 0, "U": 0, "B": 0, "R": 0, "G": 0, "C": 0}
     my_bf = sim_state.get_battlefield(player_index)
@@ -145,7 +159,6 @@ def build_game_state_snapshot(
 
     mana_colors = {k: v for k, v in mana_by_color.items() if v > 0}
 
-    # ── My Hand — Full Oracle Text (Enhancement #5) ────────────────
     my_hand = []
     for c in me.hand:
         card_info = {
@@ -173,7 +186,6 @@ def build_game_state_snapshot(
         card_info["castable"] = (c.cmc or 0) <= mana_total and not c.is_land()
         my_hand.append(card_info)
 
-    # ── My Board ──
     my_board = []
     for c in my_bf:
         if c.is_land():
@@ -189,7 +201,6 @@ def build_game_state_snapshot(
             entry["is_commander"] = True
         my_board.append(entry)
 
-    # ── Opponent's Board — with Threat Assessment (Enhancement #9) ──
     opp_board = []
     opp_total_power = 0
     opp_evasion_count = 0
@@ -223,11 +234,9 @@ def build_game_state_snapshot(
     else:
         threat_level = "NONE"
 
-    # ── Graveyard Contents (Enhancement #6) ──────────────────────
     my_gy = [{"name": c.name, "type": _short_type(c.type_line)} for c in me.graveyard[:15]]
     opp_gy = [{"name": c.name, "type": _short_type(c.type_line)} for c in opp.graveyard[:10]]
 
-    # ── Draw Tracking (Enhancement #7) ─────────────────────────
     total_deck_size = ctx.get("deck_size", 100)
     cards_seen = len(me.hand) + len(me.graveyard) + len(my_bf)
     cards_remaining = len(me.library)
@@ -240,7 +249,6 @@ def build_game_state_snapshot(
             if kc.lower() in library_names:
                 key_cards_in_library.append(kc)
 
-    # ── Build the snapshot ────────────────────────────────────
     snapshot = {
         "turn": turn + 1,
         "my_life": me.life,
@@ -297,7 +305,6 @@ def build_game_state_snapshot(
 
 
 def _short_type(type_line: str) -> str:
-    """Shorten type_line for token efficiency."""
     if not type_line:
         return "?"
     tl = type_line.lower()
@@ -325,17 +332,12 @@ def build_deck_context(
     archetype: str = "midrange",
     win_rate: float | None = None,
 ) -> dict:
-    """
-    Build a deck intelligence context dict from the full decklist.
-    Called once before a game starts, then passed to build_game_state_snapshot each turn.
-    """
     ctx: dict[str, Any] = {
         "commander_name": commander_name,
         "color_identity": color_identity or [],
         "archetype": archetype,
         "deck_size": len(full_deck),
     }
-
     if win_rate is not None:
         ctx["win_rate"] = win_rate
 
@@ -383,7 +385,7 @@ def build_deck_context(
 
 
 # ══════════════════════════════════════════════════════════════
-# Action Schema  (Step 3)
+# Action Schema
 # ══════════════════════════════════════════════════════════════
 
 VALID_ACTIONS = [
@@ -406,7 +408,7 @@ ACTION_SCHEMA = {
 
 
 # ══════════════════════════════════════════════════════════════
-# System / User Prompts  (Step 3)
+# System / User Prompts
 # ══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are an expert Magic: The Gathering Commander player.
@@ -496,7 +498,7 @@ class DeepSeekBrain:
     """
     LLM-powered decision engine for the AI opponent.
 
-    Sends game state to a local DeepSeek/GPT-OSS model and parses the action response.
+    Targets GPT-OSS 20B (Q4_K_M) via Ollama by default.
     Falls back to heuristic on timeout/error.
 
     Decision log entries include game outcome once flush_log() is called
@@ -508,7 +510,7 @@ class DeepSeekBrain:
         self._cache: OrderedDict[str, dict] = OrderedDict()
         self._decision_log: list[dict] = []
         self._current_game_id: str = self._new_game_id()
-        self._ai_player_index: int | None = None  # set by caller if known
+        self._ai_player_index: int | None = None
         self._total_calls = 0
         self._total_fallbacks = 0
         self._total_cache_hits = 0
@@ -518,15 +520,12 @@ class DeepSeekBrain:
 
     @staticmethod
     def _new_game_id() -> str:
-        """Generate a short unique game ID for grouping decisions in the log."""
         return hashlib.md5(str(time.time()).encode()).hexdigest()[:12]
 
     def new_game(self, ai_player_index: int | None = None) -> None:
         """
         Signal the start of a new game.
-
-        Call this before each game so that log entries are grouped by game_id
-        and the ai_player_index is recorded for reward calculation.
+        Resets game_id and records ai_player_index for reward calculation.
         """
         self._current_game_id = self._new_game_id()
         self._ai_player_index = ai_player_index
@@ -546,10 +545,10 @@ class DeepSeekBrain:
                     if model_id:
                         self.config.model = model_id
                         logger.info("Auto-detected model: %s", model_id)
-                logger.info("DeepSeek brain connected to %s", self.config.api_base)
+                logger.info("LLM brain connected to %s", self.config.api_base)
                 return True
         except Exception as e:
-            logger.warning("DeepSeek brain connection failed: %s", e)
+            logger.warning("LLM brain connection failed: %s", e)
             self._connected = False
             return False
 
@@ -569,7 +568,7 @@ class DeepSeekBrain:
                 "action": str,
                 "target_card": str,
                 "reasoning": str,
-                "source": "deepseek" | "heuristic" | "cache",
+                "source": "llm" | "heuristic" | "cache",
                 "latency_ms": float,
             }
         """
@@ -594,7 +593,7 @@ class DeepSeekBrain:
 
         try:
             result = self._call_llm(snapshot)
-            result["source"] = "deepseek"
+            result["source"] = "llm"
             result["latency_ms"] = round((time.time() - t_start) * 1000, 1)
 
             if self.config.cache_enabled:
@@ -607,7 +606,7 @@ class DeepSeekBrain:
             return result
 
         except Exception as e:
-            logger.warning("DeepSeek call failed (turn %d): %s", turn + 1, e)
+            logger.warning("LLM call failed (turn %d): %s", turn + 1, e)
             if self.config.fallback_on_timeout:
                 return self._fallback_action(snapshot, t_start, str(e))
             raise
@@ -645,13 +644,12 @@ class DeepSeekBrain:
         return self._parse_action(raw_text)
 
     def _parse_action(self, raw_text: str) -> dict:
-        """
-        Parse the LLM's response into a validated action dict.
-        Handles common LLM quirks (markdown fences, extra text, etc.)
-        """
+        """Parse the LLM's response into a validated action dict."""
         text = raw_text.strip()
+        # Strip <think> blocks (DeepSeek-R1 / reasoning models)
         text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
         text = re.sub(r'<think>.*', '', text, flags=re.DOTALL).strip()
+        # Strip markdown fences
         text = re.sub(r'^```(?:json)?\s*', '', text)
         text = re.sub(r'\s*```$', '', text)
         text = text.strip()
@@ -774,12 +772,6 @@ class DeepSeekBrain:
     # ── Decision logging ──
 
     def _log_decision(self, snapshot: dict, result: dict, player_index: int | None = None) -> None:
-        """
-        Append a decision entry to the in-memory log.
-
-        The entry is tagged with game_id so flush_log() can backfill
-        game_result fields once the game is complete.
-        """
         entry = {
             "timestamp": time.time(),
             "game_id": self._current_game_id,
@@ -792,7 +784,6 @@ class DeepSeekBrain:
                 "source": result.get("source"),
                 "latency_ms": result.get("latency_ms"),
             },
-            # game_result is None until flush_log() is called with a GameResult
             "game_result": None,
         }
         self._decision_log.append(entry)
@@ -800,48 +791,27 @@ class DeepSeekBrain:
     def flush_log(
         self,
         filepath: str | None = None,
-        game_result=None,  # Optional[GameResult] from engine.py
+        game_result=None,
     ) -> str | None:
         """
         Write accumulated decision log to a JSONL file.
 
-        Parameters
-        ----------
-        filepath : str, optional
-            Destination file path.  Defaults to logs/decisions/<timestamp>.jsonl
-            next to the package root.
-        game_result : GameResult, optional
-            Result from GameEngine.run() / run_n().  When provided, every
-            buffered entry is backfilled with:
-
-            ``game_result`` dict containing:
-              - ``winner_seat``  : int   — seat index of the winner
-              - ``winner_name``  : str   — display name of the winning player
-              - ``turns``        : int   — total game length in turns
-              - ``player_lives`` : dict  — {seat_index: final_life} for all seats
-              - ``reward``       : float — normalised reward in [-1.0, 1.0]
-                                          for the AI player recorded in each entry
-                                          (winner_life - loser_life) / 40.0
-
-        Returns the absolute path written, or None if the log was empty.
+        Pass game_result (GameResult from engine.py) to backfill every entry with:
+          winner_seat, winner_name, turns, player_lives, reward
         """
         if not self._decision_log:
             return None
 
-        # ── Build game_result payload from GameResult dataclass ──
         result_payload: dict | None = None
         if game_result is not None:
             try:
                 winner_seat: int = game_result.winner_seat
                 winner_name: str = game_result.players[winner_seat].name
                 turns: int = game_result.turns
-
-                # Per-seat final life totals
                 player_lives: dict[int, int] = {
                     pr.seat_index: pr.life
                     for pr in game_result.players
                 }
-
                 result_payload = {
                     "winner_seat": winner_seat,
                     "winner_name": winner_name,
@@ -851,46 +821,30 @@ class DeepSeekBrain:
             except Exception as exc:
                 logger.warning("Could not extract game_result fields: %s", exc)
 
-        # ── Backfill each entry with game_result + per-entry reward ──
         for entry in self._decision_log:
             if result_payload is None:
                 entry["game_result"] = None
                 continue
-
-            # Determine reward for the player who made this decision
             pi = entry.get("player_index")
             winner_seat = result_payload["winner_seat"]
             player_lives = result_payload["player_lives"]
-
             if pi is not None and len(player_lives) >= 2:
                 my_life = player_lives.get(pi, 0)
-                # Sum of all opponents' final life totals
-                opp_life_sum = sum(
-                    v for k, v in player_lives.items() if k != pi
-                )
+                opp_life_sum = sum(v for k, v in player_lives.items() if k != pi)
                 opp_count = max(len(player_lives) - 1, 1)
                 avg_opp_life = opp_life_sum / opp_count
                 raw_reward = (my_life - avg_opp_life) / 40.0
                 reward = round(max(-1.0, min(1.0, raw_reward)), 4)
             else:
-                # Fallback: binary win/loss
                 reward = 1.0 if (pi is not None and pi == winner_seat) else -1.0
+            entry["game_result"] = {**result_payload, "reward": reward}
 
-            entry["game_result"] = {
-                **result_payload,
-                "reward": reward,
-            }
-
-        # ── Write to JSONL ──
         if filepath is None:
             log_dir = self.config.log_dir or os.path.join(
                 os.path.dirname(__file__), "..", "..", "..", "logs", "decisions"
             )
             os.makedirs(log_dir, exist_ok=True)
-            filepath = os.path.join(
-                log_dir,
-                f"decisions_{int(time.time())}.jsonl"
-            )
+            filepath = os.path.join(log_dir, f"decisions_{int(time.time())}.jsonl")
 
         with open(filepath, "a", encoding="utf-8") as f:
             for entry in self._decision_log:
