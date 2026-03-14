@@ -12,11 +12,15 @@ scale with pod size (e.g. Propaganda is worth more vs 3 opponents).
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
+import os
 import re
 from typing import Optional
 
 from commander_ai_lab.sim.models import Card
 
+logger = logging.getLogger("rules")
 
 # ══════════════════════════════════════════════════════════════
 # AI Weights (ported from AI_DEFAULT_WEIGHTS in app.js)
@@ -69,6 +73,9 @@ AI_DEFAULT_WEIGHTS: dict[str, float] = {
     "spell_flash": 2.0,
     "spell_cascade": 3.0,
 }
+
+# Default path for persisted learned weights (sibling to this file)
+_DEFAULT_WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), "learned_weights.json")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -340,3 +347,73 @@ def parse_decklist(text: str) -> list[Card]:
         for _ in range(qty):
             cards.append(Card(name=name))
     return cards
+
+
+# ══════════════════════════════════════════════════════════════
+# Learned Weights — persist & load simulation-derived weights
+# ══════════════════════════════════════════════════════════════
+
+def load_weights(path: str = _DEFAULT_WEIGHTS_PATH) -> dict[str, float]:
+    """
+    Load AI weights from a JSON file, falling back to AI_DEFAULT_WEIGHTS.
+
+    Merges loaded values on top of defaults so any new weight keys added
+    to AI_DEFAULT_WEIGHTS are always present even in older saved files.
+
+    Usage::
+
+        from commander_ai_lab.sim.rules import load_weights
+        weights = load_weights()                       # uses learned_weights.json if present
+        weights = load_weights("path/to/custom.json")  # custom path
+    """
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                loaded: dict = json.load(f)
+            # Only accept numeric values; ignore stale / corrupted keys
+            valid = {k: float(v) for k, v in loaded.items() if isinstance(v, (int, float))}
+            merged = {**AI_DEFAULT_WEIGHTS, **valid}
+            logger.info("Loaded %d learned weights from %s", len(valid), path)
+            return merged
+        except Exception as exc:
+            logger.warning("Failed to load weights from %s: %s — using defaults", path, exc)
+    return dict(AI_DEFAULT_WEIGHTS)
+
+
+def save_weights(weights: dict[str, float], path: str = _DEFAULT_WEIGHTS_PATH) -> str:
+    """
+    Persist AI weights to a JSON file.
+
+    Clamps each value to [-20.0, 20.0] before saving to prevent runaway
+    drift from repeated simulation updates.
+
+    Returns the absolute path that was written.
+
+    Usage::
+
+        from commander_ai_lab.sim.rules import save_weights
+        save_weights(updated_weights)                       # default path
+        save_weights(updated_weights, "path/to/custom.json")
+    """
+    _CLAMP_MIN, _CLAMP_MAX = -20.0, 20.0
+    clamped = {
+        k: round(max(_CLAMP_MIN, min(_CLAMP_MAX, float(v))), 6)
+        for k, v in weights.items()
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(clamped, f, indent=2)
+    logger.info("Saved %d weights to %s", len(clamped), path)
+    return os.path.abspath(path)
+
+
+def reset_weights(path: str = _DEFAULT_WEIGHTS_PATH) -> dict[str, float]:
+    """
+    Delete any persisted learned weights and return AI_DEFAULT_WEIGHTS.
+
+    Useful for starting a fresh learning run without stale drift.
+    """
+    if os.path.exists(path):
+        os.remove(path)
+        logger.info("Deleted learned weights file: %s", path)
+    return dict(AI_DEFAULT_WEIGHTS)
