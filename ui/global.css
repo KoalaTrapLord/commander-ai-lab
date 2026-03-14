@@ -786,6 +786,7 @@ body {
 
 /* ── Stat cards: gradient surface + shimmer top edge ─────── */
 .stat-card {
+    position: relative;
     background: linear-gradient(145deg, var(--surface-2), var(--surface-1));
     overflow: hidden;
 }
@@ -797,7 +798,6 @@ body {
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
     pointer-events: none;
 }
-.stat-card { position: relative; }
 .stat-card:hover {
     box-shadow: var(--shadow-md), 0 0 20px rgba(91,158,240,0.08);
     transform: translateY(-2px);
