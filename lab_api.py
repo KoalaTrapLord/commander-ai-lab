@@ -99,6 +99,8 @@ from routes.shared import (
     # EDHREC cache
     _edhrec_cache, _EDHREC_CACHE_TTL,
     _edhrec_cache_get, _edhrec_cache_set,
+    # Commander meta
+    load_commander_meta, BUILTIN_COMMANDERS,
 )
 
 # Route modules
@@ -149,6 +151,18 @@ app.include_router(deckbuilder_router)
 app.include_router(precon_router)
 app.include_router(import_router)
 app.include_router(lab_router)
+
+
+@app.on_event("startup")
+async def _on_startup():
+    """Safety net: ensure DB and precon index are initialized even when
+    main() is bypassed (e.g. uvicorn lab_api:app --reload)."""
+    import routes.shared as _shared
+    _shared.init_collection_db()
+    if not _shared.PRECON_INDEX:
+        _shared.download_precon_database()
+    if not _shared.COMMANDER_META:
+        _shared.load_commander_meta()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -617,29 +631,6 @@ async def get_card_edhrec(cardId: int):
     }
     _edhrec_cache_set(cache_key, result)
     return result
-
-
-# ══════════════════════════════════════════════════════════════
-# Commander Meta Mapping (loaded at startup)
-# ══════════════════════════════════════════════════════════════
-
-BUILTIN_COMMANDERS = {
-    "Edgar Markov": [{"source": "edhrec", "archetype": "aggro", "colorIdentity": ["W","B","R"]}],
-    "Atraxa, Praetors' Voice": [{"source": "edhrec", "archetype": "midrange", "colorIdentity": ["W","U","B","G"]}],
-    "Korvold, Fae-Cursed King": [{"source": "edhrec", "archetype": "combo", "colorIdentity": ["B","R","G"]}],
-    "Muldrotha, the Gravetide": [{"source": "edhrec", "archetype": "midrange", "colorIdentity": ["U","B","G"]}],
-    "The Ur-Dragon": [{"source": "edhrec", "archetype": "midrange", "colorIdentity": ["W","U","B","R","G"]}],
-    "Yuriko, the Tiger's Shadow": [{"source": "edhrec", "archetype": "aggro", "colorIdentity": ["U","B"]}],
-    "Krenko, Mob Boss": [{"source": "edhrec", "archetype": "aggro", "colorIdentity": ["R"]}],
-    "Meren of Clan Nel Toth": [{"source": "edhrec", "archetype": "midrange", "colorIdentity": ["B","G"]}],
-    "Prossh, Skyraider of Kher": [{"source": "edhrec", "archetype": "combo", "colorIdentity": ["B","R","G"]}],
-    "Kaalia of the Vast": [{"source": "edhrec", "archetype": "aggro", "colorIdentity": ["W","B","R"]}],
-    "Talrand, Sky Summoner": [{"source": "edhrec", "archetype": "control", "colorIdentity": ["U"]}],
-    "Omnath, Locus of Creation": [{"source": "edhrec", "archetype": "combo", "colorIdentity": ["W","U","R","G"]}],
-    "Teysa Karlov": [{"source": "edhrec", "archetype": "combo", "colorIdentity": ["W","B"]}],
-    "Lathril, Blade of the Elves": [{"source": "edhrec", "archetype": "aggro", "colorIdentity": ["B","G"]}],
-    "Breya, Etherium Shaper": [{"source": "edhrec", "archetype": "combo", "colorIdentity": ["W","U","B","R"]}],
-}
 
 
 # ══════════════════════════════════════════════════════════════
@@ -4405,21 +4396,7 @@ def resolve_forge_decks_dir() -> str:
     return ""
 
 
-def load_commander_meta():
-    """Load commander meta mapping from file or use builtins."""
-    global COMMANDER_META
-    meta_path = Path(__file__).parent / "commander-meta.json"
-    if meta_path.exists():
-        try:
-            with open(meta_path, "r", encoding="utf-8") as f:
-                COMMANDER_META = json.load(f)
-            log.info(f"  Meta:         Loaded {len(COMMANDER_META)} commanders from {meta_path}")
-            return
-        except Exception as e:
-            log.warning(f"  WARNING: Failed to load commander-meta.json: {e}")
-
-    COMMANDER_META = BUILTIN_COMMANDERS
-    log.info(f"  Meta:         {len(COMMANDER_META)} built-in commanders")
+# load_commander_meta() is now in routes/shared.py
 
 
 def main():

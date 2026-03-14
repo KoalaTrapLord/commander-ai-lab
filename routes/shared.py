@@ -148,6 +148,40 @@ class BatchState:
 active_batches: dict[str, BatchState] = {}
 COMMANDER_META: dict = {}
 
+BUILTIN_COMMANDERS: dict = {
+    "Edgar Markov": [{"source": "edhrec", "archetype": "aggro", "colorIdentity": ["W","B","R"]}],
+    "Atraxa, Praetors' Voice": [{"source": "edhrec", "archetype": "midrange", "colorIdentity": ["W","U","B","G"]}],
+    "Korvold, Fae-Cursed King": [{"source": "edhrec", "archetype": "combo", "colorIdentity": ["B","R","G"]}],
+    "Muldrotha, the Gravetide": [{"source": "edhrec", "archetype": "midrange", "colorIdentity": ["U","B","G"]}],
+    "The Ur-Dragon": [{"source": "edhrec", "archetype": "midrange", "colorIdentity": ["W","U","B","R","G"]}],
+    "Yuriko, the Tiger's Shadow": [{"source": "edhrec", "archetype": "aggro", "colorIdentity": ["U","B"]}],
+    "Krenko, Mob Boss": [{"source": "edhrec", "archetype": "aggro", "colorIdentity": ["R"]}],
+    "Meren of Clan Nel Toth": [{"source": "edhrec", "archetype": "midrange", "colorIdentity": ["B","G"]}],
+    "Prossh, Skyraider of Kher": [{"source": "edhrec", "archetype": "combo", "colorIdentity": ["B","R","G"]}],
+    "Kaalia of the Vast": [{"source": "edhrec", "archetype": "aggro", "colorIdentity": ["W","B","R"]}],
+    "Talrand, Sky Summoner": [{"source": "edhrec", "archetype": "control", "colorIdentity": ["U"]}],
+    "Omnath, Locus of Creation": [{"source": "edhrec", "archetype": "combo", "colorIdentity": ["W","U","R","G"]}],
+    "Teysa Karlov": [{"source": "edhrec", "archetype": "combo", "colorIdentity": ["W","B"]}],
+    "Lathril, Blade of the Elves": [{"source": "edhrec", "archetype": "aggro", "colorIdentity": ["B","G"]}],
+    "Breya, Etherium Shaper": [{"source": "edhrec", "archetype": "combo", "colorIdentity": ["W","U","B","R"]}],
+}
+
+
+def load_commander_meta() -> None:
+    """Load commander meta mapping from file or fall back to builtins."""
+    global COMMANDER_META
+    meta_path = Path(__file__).parent.parent / "commander-meta.json"
+    if meta_path.exists():
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                COMMANDER_META = json.load(f)
+            log.info(f"  Meta:         Loaded {len(COMMANDER_META)} commanders from {meta_path}")
+            return
+        except Exception as e:
+            log.warning(f"  WARNING: Failed to load commander-meta.json: {e}")
+    COMMANDER_META = BUILTIN_COMMANDERS
+    log.info(f"  Meta:         {len(COMMANDER_META)} built-in commanders")
+
 
 # ══════════════════════════════════════════════════════════════
 # Pydantic Models
