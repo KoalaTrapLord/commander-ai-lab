@@ -1,43 +1,38 @@
 """
 routes/import_routes.py
 =======================
-Deck import + commander meta endpoints:
+Deck import & commander meta endpoints:
   POST /api/lab/import/url
   POST /api/lab/import/text
   GET  /api/lab/meta/commanders
   GET  /api/lab/meta/search
   POST /api/lab/meta/fetch
 """
-
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 from typing import Optional
 
-from routes.shared import get as _get
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import JSONResponse
 
-router = APIRouter(prefix="/api/lab", tags=["import"])
+from routes.shared import (
+    COMMANDER_META,
+    ImportUrlRequest,
+    ImportTextRequest,
+    MetaFetchRequest,
+    _import_from_url,
+    _parse_text_decklist,
+    _save_profile_to_dck,
+    _fetch_edhrec_average,
+    log,
+)
+
+router = APIRouter(tags=["import"])
 
 
-class ImportUrlRequest(BaseModel):
-    url: str
-
-
-class ImportTextRequest(BaseModel):
-    text: str
-    commander: Optional[str] = None
-
-
-class MetaFetchRequest(BaseModel):
-    commander: str
-
-
-@router.post("/import/url")
+@router.post("/api/lab/import/url")
 async def import_from_url(req: ImportUrlRequest):
-    """Import a deck from Archidekt or EDHREC URL."""
-    _import_from_url = _get("_import_from_url")
-    _save_profile_to_dck = _get("_save_profile_to_dck")
+    """Import a deck from Archidekt or EDHREC URL. Returns parsed DeckProfile + saves .dck file."""
     url = req.url.strip()
     try:
         profile = _import_from_url(url)
@@ -57,11 +52,9 @@ async def import_from_url(req: ImportUrlRequest):
         raise HTTPException(400, str(e))
 
 
-@router.post("/import/text")
+@router.post("/api/lab/import/text")
 async def import_from_text(req: ImportTextRequest):
     """Import a deck from plain text card list."""
-    _parse_text_decklist = _get("_parse_text_decklist")
-    _save_profile_to_dck = _get("_save_profile_to_dck")
     try:
         profile = _parse_text_decklist(req.text, req.commander)
         dck_path = _save_profile_to_dck(profile)
@@ -77,10 +70,9 @@ async def import_from_text(req: ImportTextRequest):
         raise HTTPException(400, str(e))
 
 
-@router.get("/meta/commanders")
+@router.get("/api/lab/meta/commanders")
 async def list_meta_commanders():
     """List available commanders in the meta mapping."""
-    COMMANDER_META = _get("COMMANDER_META")
     commanders = []
     for name, entries in COMMANDER_META.items():
         entry = entries[0] if entries else {}
@@ -93,10 +85,9 @@ async def list_meta_commanders():
     return {"commanders": commanders}
 
 
-@router.get("/meta/search")
+@router.get("/api/lab/meta/search")
 async def search_meta_commanders(q: str = ""):
     """Search commanders by partial name match."""
-    COMMANDER_META = _get("COMMANDER_META")
     query = q.lower()
     matches = []
     for name, entries in COMMANDER_META.items():
@@ -110,11 +101,9 @@ async def search_meta_commanders(q: str = ""):
     return {"results": matches}
 
 
-@router.post("/meta/fetch")
+@router.post("/api/lab/meta/fetch")
 async def fetch_meta_deck(req: MetaFetchRequest):
-    """Fetch EDHREC average deck for a commander."""
-    _fetch_edhrec_average = _get("_fetch_edhrec_average")
-    _save_profile_to_dck = _get("_save_profile_to_dck")
+    """Fetch EDHREC average deck for a commander and save as .dck file."""
     try:
         profile = _fetch_edhrec_average(req.commander)
         dck_path = _save_profile_to_dck(profile)
@@ -131,3 +120,8 @@ async def fetch_meta_deck(req: MetaFetchRequest):
         }
     except Exception as e:
         raise HTTPException(400, f"Failed to fetch meta deck for '{req.commander}': {str(e)}")
+
+
+# ══════════════════════════════════════════════════════════════
+# Existing Endpoints (v1/v2)
+# ══════════════════════════════════════════════════════════════
