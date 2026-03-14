@@ -1,0 +1,7 @@
+# Core runtime dependencies
+# Install with: pip install -r requirements.txt
+# Or for dev tools: pip install -e ".[dev]"
+
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0
