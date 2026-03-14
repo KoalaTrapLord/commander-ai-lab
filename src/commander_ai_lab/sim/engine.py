@@ -13,6 +13,10 @@ Simulates simplified Commander games:
   - Creature removal and board wipe handling
   - Win by elimination (life <= 0) or life comparison at max turns
   - Elimination order tracking for N-player finish positions
+
+Weights are loaded automatically from learned_weights.json (if present)
+via load_weights(), so simulation-trained weights take effect without any
+code changes. Pass explicit weights= to override.
 """
 
 from __future__ import annotations
@@ -31,6 +35,7 @@ from commander_ai_lab.sim.models import (
 from commander_ai_lab.sim.rules import (
     AI_DEFAULT_WEIGHTS,
     enrich_card,
+    load_weights,
     score_card,
 )
 
@@ -46,6 +51,9 @@ class GameEngine:
         result = engine.run(deck_a, deck_b, name_a="Deck A", name_b="Deck B")
         # 4-player
         result = engine.run_n(decks=[d1, d2, d3, d4], names=["A","B","C","D"])
+
+    Weights are loaded from learned_weights.json automatically.  Pass
+    ``weights`` explicitly to override (e.g. for A/B testing).
     """
 
     def __init__(
@@ -57,7 +65,8 @@ class GameEngine:
     ):
         self.max_turns = max_turns
         self.starting_life = starting_life
-        self.weights = weights or AI_DEFAULT_WEIGHTS
+        # Auto-load learned weights; caller can override by passing weights=
+        self.weights = weights if weights is not None else load_weights()
         self.record_log = record_log
 
     # ──────────────────────────────────────────────────────────
@@ -103,7 +112,7 @@ class GameEngine:
 
                 # ── Draw ──
                 if p.library:
-                    drawn = p.library[-1]  # peek before pop
+                    drawn = p.library[-1]
                     p.hand.append(p.library.pop())
                     p.stats.cards_drawn += 1
                     if self.record_log:
@@ -140,7 +149,6 @@ class GameEngine:
                     c.tapped = False
 
                 if self.record_log:
-                    # N-player log: life dict + per-seat boards dict
                     life_dict = {sp.name: sp.life for sp in sim.players}
                     boards_dict = {
                         f"board_{si}": [c.name for c in sim.get_battlefield(si) if c.is_creature()]
@@ -153,7 +161,6 @@ class GameEngine:
                         "lifeAfter": life_dict,
                         **boards_dict,
                     }
-                    # Legacy keys for 2-player UI compatibility
                     if len(sim.players) == 2:
                         phase_entry["boardA"] = boards_dict.get("board_0", [])
                         phase_entry["boardB"] = boards_dict.get("board_1", [])
@@ -192,7 +199,6 @@ class GameEngine:
         sim = SimState(max_turns=self.max_turns)
 
         for idx, (deck, name) in enumerate(zip(decks, names)):
-            # Enrich + deep copy cards
             cards = [enrich_card(c.clone()) for c in deck]
             random.shuffle(cards)
 
@@ -244,7 +250,6 @@ class GameEngine:
         p = sim.players[pi]
         w = self.weights
 
-        # Score playable non-land cards
         playable = []
         for i, card in enumerate(p.hand):
             if card.is_land():
@@ -273,7 +278,6 @@ class GameEngine:
             sim.next_card_id += 1
             card.turn_played = sim.turn
 
-            # Pay mana
             mana_needed = card.cmc or 0
             for bf_card in sim.get_battlefield(pi):
                 if mana_needed <= 0:
@@ -285,7 +289,6 @@ class GameEngine:
             p.stats.mana_spent += card.cmc or 0
             p.stats.spells_cast += 1
 
-            # Handle removal — target the scariest creature across all opponents
             if card.is_removal:
                 p.stats.removal_used += 1
                 all_opp_creatures = []
@@ -339,8 +342,6 @@ class GameEngine:
                         events.append(f"Cast {card.name} for {card.cmc} mana")
 
             played += 1
-
-            # Recalculate available mana for next spell
             available_mana = self._count_untapped_lands(sim, pi)
 
     @staticmethod
@@ -368,11 +369,10 @@ class GameEngine:
         p = sim.players[pi]
         opp_idx = self._select_attack_target(sim, pi)
         if opp_idx == -1:
-            return  # no valid targets
+            return
         opp = sim.players[opp_idx]
         w = self.weights
 
-        # My creatures that can attack (not tapped, not summoning sick)
         my_creatures = [
             c
             for c in sim.get_battlefield(pi)
@@ -394,7 +394,6 @@ class GameEngine:
             )
         ]
 
-        # ── Decide attackers ──
         attackers = []
         total_my_power = sum(c.get_power() for c in my_creatures)
         for atk in my_creatures:
@@ -425,7 +424,6 @@ class GameEngine:
             atk_names = [f"{a.name} ({a.pt})" for a in attackers]
             events.append(f"Attacks {opp.name} with: {', '.join(atk_names)}")
 
-        # ── Blocking and damage ──
         total_damage = 0
         used_blockers: set[int] = set()
         combat_details: list[str] = []
@@ -511,26 +509,20 @@ class GameEngine:
             elimination_order = []
         n = len(sim.players)
 
-        # Determine winner: last player standing, or highest life among alive
         alive = [i for i, p in enumerate(sim.players) if not p.eliminated]
         if len(alive) == 1:
             winner = alive[0]
         elif len(alive) == 0:
-            # Everyone dead — shouldn't happen but pick highest life
             winner = max(range(n), key=lambda i: sim.players[i].life)
         else:
-            # Timeout — alive player with highest life wins
             winner = max(alive, key=lambda i: sim.players[i].life)
 
-        # Build finish positions
-        # Winner = 1, then reverse elimination order (last eliminated = 2nd, etc.)
         finish: dict[int, int] = {winner: 1}
         position = 2
         for seat in reversed(elimination_order):
             if seat != winner:
                 finish[seat] = position
                 position += 1
-        # Any alive non-winner seats get next positions (by life descending)
         remaining_alive = sorted(
             [i for i in alive if i != winner],
             key=lambda i: -sim.players[i].life,
