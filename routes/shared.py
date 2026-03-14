@@ -951,6 +951,26 @@ def _enrich_from_scryfall(name: str, set_code: str = "", collector_number: str =
     }
 
 
+def _scryfall_fuzzy_lookup(name: str) -> Optional[dict]:
+    """
+    Fuzzy-search Scryfall for a card name (used by the scanner pipeline).
+    Returns the raw Scryfall JSON dict, or None on failure.
+    """
+    from urllib.parse import quote
+    _scryfall_rate_limit()
+    try:
+        encoded = quote(name)
+        url = f"https://api.scryfall.com/cards/named?fuzzy={encoded}"
+        req = Request(url, headers=_API_HEADERS)
+        with urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        if data.get("object") == "error":
+            return None
+        return data
+    except Exception:
+        return None
+
+
 # ══════════════════════════════════════════════════════════════
 # Import Helpers
 # ══════════════════════════════════════════════════════════════

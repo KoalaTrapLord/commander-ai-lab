@@ -1,5 +1,6 @@
-"""Commander AI Lab — API router package.
+"""
+routes package — API routers for Commander AI Lab.
 
-Each module in this package exposes an `APIRouter` that is
-registered in `lab_api.py` via `app.include_router()`.
+Each module defines a FastAPI APIRouter with real endpoint implementations.
+All shared helpers, models, and state live in routes.shared.
 """
