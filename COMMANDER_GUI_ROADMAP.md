@@ -8,6 +8,32 @@ Build a playable Magic: The Gathering Commander interface where human players fa
 
 ---
 
+## GUI Strategy: Two-Phase Frontend Plan
+
+### Phase A (Prototype) — Pygame
+Use **Pygame** for Phases 1–3 of development. Pure Python means the rules engine and AI opponent code plug in directly with zero bridging. Fast to iterate — a working battlefield renderer can be built in a day. Handles game loop, input events, and card rendering naturally. Ideal for testing AI decisions visually before investing in a polished UI.
+
+### Phase B (Production) — Flask/FastAPI + Web Frontend
+Once the core AI gameplay is working, migrate the UI to a **Flask or FastAPI backend + HTML/JS frontend** (vanilla JS or React). Benefits:
+- Far more polished look for a Commander game
+- Card art from Scryfall API renders natively in browser
+- Easier to add multiplayer later via WebSockets
+- Python backend stays pure — frontend calls it via REST API
+- No Python/JS bridge complexity; clean separation of concerns
+
+### GUI Framework Comparison
+
+| Option | Language | Curve | Best For | Weakness |
+|---|---|---|---|---|
+| **Pygame** ✅ Phase A | Python | Low | Quick prototype, game loops | Dated UI, manual widgets |
+| **Flask + HTML/JS** ✅ Phase B | Python + JS | Medium | Polished UI, browser-based | JS context switch |
+| PyQt6 / PySide6 | Python | Medium | Desktop app widgets | Verbose, overkill for a game |
+| Godot | GDScript | Medium | Full game engine, animations | Separate codebase from engine |
+| Electron + Python | JS + Python | High | Desktop with web UI | Heavy, complex bridge |
+| Tkinter | Python | Low | Simple UI | Very dated look |
+
+---
+
 ## Architecture Overview
 
 ```
@@ -21,7 +47,7 @@ LLM Response → parsed action
         ↓
 Rules Engine executes + validates
         ↓
-GUI updates board state
+GUI updates board state (Pygame → Web)
 ```
 
 ---
@@ -50,25 +76,34 @@ GUI updates board state
 - [ ] Add priority-passing logic for instants/triggers during other players' turns
 - [ ] Implement basic AI threat assessment: each AI scores opponents by board state danger level
 
-### Phase 4 — GUI (Pygame or Web Frontend)
+### Phase 4 — Pygame Prototype GUI
 - [ ] Design zone layout: hand, battlefield (creature/non-creature split), graveyard, exile, command zone, stack
 - [ ] Build card rendering: card art placeholder, name, P/T or loyalty, tapped/untapped state
-- [ ] Add drag-and-drop (or click-to-play) card interaction for human player
-- [ ] Display AI narration/flavor text in a chat-style side panel
+- [ ] Add click-to-play card interaction for human player
+- [ ] Display AI narration/flavor text in a side panel
 - [ ] Add life total trackers and commander damage matrix (4-player)
 - [ ] Build phase/step indicator (Main 1, Combat, Main 2, etc.)
 - [ ] Add end-of-game screen with win condition display
 
-### Phase 5 — Politics & Table Talk *(Stretch Goal)*
+### Phase 5 — Web Frontend Migration *(Flask/FastAPI + HTML/JS)*
+- [ ] Set up Flask or FastAPI backend exposing game state as REST API
+- [ ] Build HTML/JS board layout mirroring Pygame zone design
+- [ ] Integrate Scryfall API for card art rendering
+- [ ] Add WebSocket support for real-time game state updates
+- [ ] Add drag-and-drop card interaction
+- [ ] Port AI narration panel to web chat-style UI
+- [ ] Test full game loop end-to-end on web frontend
+
+### Phase 6 — Politics & Table Talk *(Stretch Goal)*
 - [ ] Implement inter-AI negotiation: before attacking, AI queries GPT-OSS 20B "should I propose a deal?"
 - [ ] Build deal proposal UI: AI proposes, human can accept/decline, other AIs respond
 - [ ] Add threat-based targeting memory: AIs remember who attacked them last turn
 
-### Phase 6 — Testing & Tuning
+### Phase 7 — Testing & Tuning
 - [ ] Run 10 full simulated games (4 AI vs AI) and log decision quality
 - [ ] Benchmark GPT-OSS 20B Q4_K_M inference time per decision on RTX 5070 Ti
 - [ ] Tune context window compression to stay within model token limits
-- [ ] Profile Pygame render loop for frame rate stability during AI thinking phases
+- [ ] Profile Pygame and web render loops for stability during AI thinking phases
 - [ ] Add unit tests for `state_to_prompt()` and `decide_action()` parsing
 
 ---
@@ -77,7 +112,8 @@ GUI updates board state
 
 | Component | Choice | Notes |
 |---|---|---|
-| GUI | Pygame | Fast to prototype, stays in Python |
+| GUI (Prototype) | **Pygame** | Pure Python, fast iteration |
+| GUI (Production) | **Flask/FastAPI + HTML/JS** | Polished, browser-based |
 | LLM Backend | Ollama or LM Studio | Serves GPT-OSS 20B locally |
 | Model | **GPT-OSS 20B (Q4_K_M)** | ~12–14 GB VRAM, strong reasoning |
 | Game State | Python dataclass | Structured, easy to serialize |
