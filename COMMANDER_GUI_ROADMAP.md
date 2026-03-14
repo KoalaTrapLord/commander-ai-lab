@@ -4,6 +4,8 @@
 
 Build a playable Magic: The Gathering Commander interface where human players face AI opponents powered by a local LLM. The existing Python rules engine handles game legality and state management, while the LLM acts as the decision-making and narration brain for each AI opponent. A Pygame (or web-based) GUI renders the battlefield, zones, and card interactions. Each AI opponent gets a unique personality prompt to simulate different playstyles (aggro, control, combo, politics).
 
+**Local LLM:** GPT-OSS 20B (Q4_K_M) via Ollama or LM Studio
+
 ---
 
 ## Architecture Overview
@@ -14,7 +16,7 @@ Game State (Python dict/dataclass)
 Legal Moves Generator (rules engine)
         ↓
 LLM Prompt: "Given this state and these legal moves, what do you do?"
-        ↓
+        ↓ (GPT-OSS 20B Q4_K_M)
 LLM Response → parsed action
         ↓
 Rules Engine executes + validates
@@ -33,12 +35,14 @@ GUI updates board state
 - [ ] Add a state snapshot logger for debugging AI decisions
 
 ### Phase 2 — LLM AI Opponent Integration
-- [ ] Set up Ollama or LM Studio endpoint for local model inference (Mistral 7B or Llama 3.2 recommended)
+- [ ] Load GPT-OSS 20B (Q4_K_M) in Ollama or LM Studio; verify inference speed on RTX 5070 Ti
+- [ ] Benchmark VRAM usage for GPT-OSS 20B Q4_K_M (expected ~12–14 GB VRAM at Q4_K_M quantization)
 - [ ] Build `AIOpponent` class with fields: name, personality_prompt, model_endpoint, deck
-- [ ] Implement `decide_action(game_state, legal_moves)` method — sends prompt, parses LLM response, returns validated action index
+- [ ] Implement `decide_action(game_state, legal_moves)` method — sends prompt to GPT-OSS 20B, parses LLM response, returns validated action index
 - [ ] Add fallback logic: if LLM returns invalid/unparseable action, default to highest-priority heuristic move
 - [ ] Write personality prompt templates (Aggro Timmy, Control Spike, Combo Johnny, Political Negotiator)
-- [ ] Add narration method: `narrate_play(action)` — LLM generates in-character flavor text for each play
+- [ ] Add narration method: `narrate_play(action)` — GPT-OSS 20B generates in-character flavor text for each play
+- [ ] Tune system prompt length to stay within GPT-OSS 20B context window limits
 
 ### Phase 3 — Multi-Player Turn Management
 - [ ] Implement turn queue: Player → AI1 → AI2 → AI3 → repeat
@@ -56,26 +60,33 @@ GUI updates board state
 - [ ] Add end-of-game screen with win condition display
 
 ### Phase 5 — Politics & Table Talk *(Stretch Goal)*
-- [ ] Implement inter-AI negotiation: before attacking, AI queries LLM "should I propose a deal?"
+- [ ] Implement inter-AI negotiation: before attacking, AI queries GPT-OSS 20B "should I propose a deal?"
 - [ ] Build deal proposal UI: AI proposes, human can accept/decline, other AIs respond
 - [ ] Add threat-based targeting memory: AIs remember who attacked them last turn
 
 ### Phase 6 — Testing & Tuning
 - [ ] Run 10 full simulated games (4 AI vs AI) and log decision quality
-- [ ] Benchmark LLM inference time per decision on RTX 5070 Ti
-- [ ] Tune context window compression to stay under 4096 tokens per prompt
+- [ ] Benchmark GPT-OSS 20B Q4_K_M inference time per decision on RTX 5070 Ti
+- [ ] Tune context window compression to stay within model token limits
 - [ ] Profile Pygame render loop for frame rate stability during AI thinking phases
 - [ ] Add unit tests for `state_to_prompt()` and `decide_action()` parsing
 
 ---
 
-## Tech Stack Recommendations
+## Tech Stack
 
-| Component | Recommended Option | Notes |
+| Component | Choice | Notes |
 |---|---|---|
 | GUI | Pygame | Fast to prototype, stays in Python |
-| LLM Backend | Ollama (local) | Free, runs on RTX 5070 Ti |
-| Model | Mistral 7B or Llama 3.2 | Good reasoning, fast on local GPU |
+| LLM Backend | Ollama or LM Studio | Serves GPT-OSS 20B locally |
+| Model | **GPT-OSS 20B (Q4_K_M)** | ~12–14 GB VRAM, strong reasoning |
 | Game State | Python dataclass | Structured, easy to serialize |
 | Async | asyncio / threading | Keep GUI responsive during inference |
 | Card Data | Scryfall API | Free MTG card data + art |
+
+### GPT-OSS 20B Q4_K_M Notes
+- Q4_K_M quantization balances quality and speed well for a 20B model
+- Expected VRAM: ~12–14 GB on RTX 5070 Ti (16 GB VRAM) — fits comfortably
+- Stronger reasoning than 7B models — better for multi-step MTG decision making
+- Slower inference than smaller models — async handling is essential so GUI doesn't block
+- System prompt + game state should be kept under ~3000 tokens to maintain fast response times
