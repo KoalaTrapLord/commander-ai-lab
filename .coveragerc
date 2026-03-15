@@ -1,0 +1,21 @@
+[run]
+source = src/commander_ai_lab
+omit =
+    */tests/*
+    */__pycache__/*
+    */web/static/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if TYPE_CHECKING:
+    if __name__ == .__main__.:
+    \.\.\.  # ellipsis
+
+show_missing = true
+precision = 1
+
+[html]
+directory = htmlcov
