@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commander AI Lab</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #12141e;
+      color: #e8e8e8;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #phase-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #1e2338;
+      padding: 4px 8px;
+      height: 34px;
+      flex-shrink: 0;
+    }
+    .phase-tab {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      background: #252a42;
+      color: #888;
+      transition: background 0.15s;
+    }
+    .phase-tab.active { background: #3c82dc; color: #fff; }
+    #active-player { font-size: 12px; font-weight: 600; margin-right: 8px; min-width: 100px; }
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    #board {
+      flex: 1;
+      display: grid;
+      grid-template-rows: 1fr 1fr 1fr;
+      grid-template-columns: 180px 1fr 180px;
+      gap: 4px;
+      padding: 4px;
+    }
+    .player-zone {
+      background: #1c2034;
+      border: 1px solid #3a4060;
+      border-radius: 6px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
+    }
+    .player-zone.active  { border-color: #3c82dc; }
+    .player-zone.thinking{ border-color: #64b4ff; animation: pulse 1s infinite; }
+    .player-zone.eliminated { opacity: 0.4; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+    .zone-name {
+      font-size: 10px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .player-name {
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .life-total {
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .life-high  { color: #50c87a; }
+    .life-med   { color: #dcb432; }
+    .life-low   { color: #dc3c3c; }
+    .card-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .card-chip {
+      background: #2a3050;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: border-color 0.1s;
+      white-space: nowrap;
+      max-width: 110px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-chip:hover   { border-color: #ffdc32; }
+    .card-chip.tapped  { opacity: 0.55; font-style: italic; }
+    .card-chip.commander::after { content: " ★"; color: #ffd200; }
+    #center-col {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    #stack-zone {
+      background: #1c2034;
+      border: 1px solid #7060c0;
+      border-radius: 6px;
+      padding: 6px;
+      min-height: 60px;
+      font-size: 11px;
+    }
+    #hand-zone {
+      background: #1a2030;
+      border: 1px solid #3a4060;
+      border-radius: 6px;
+      padding: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      min-height: 50px;
+    }
+    .hand-card {
+      background: #2a3868;
+      border: 1px solid #5060a0;
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .hand-card:hover    { border-color: #ffdc32; }
+    .hand-card.selected { border-color: #ffdc32; background: #3a4878; }
+    #narration {
+      width: 260px;
+      background: #161820;
+      border-left: 1px solid #2a2e48;
+      display: flex;
+      flex-direction: column;
+      padding: 6px;
+      gap: 2px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .narr-line {
+      font-size: 11px;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .narr-system { color: #556; }
+    .narr-thinking { color: #64b4ff; font-style: italic; }
+    #move-bar {
+      background: #1a1e30;
+      border-top: 1px solid #2a2e48;
+      padding: 6px 10px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .move-btn {
+      background: #2a3868;
+      border: 1px solid #4060a0;
+      color: #ccc;
+      padding: 4px 14px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .move-btn:hover { background: #3a4878; border-color: #6080d0; }
+    .move-btn.primary { background: #2a5090; border-color: #4080d0; color: #fff; }
+    #status-bar {
+      font-size: 11px;
+      color: #778;
+      margin-left: auto;
+    }
+    #overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+    #overlay.show { display: flex; }
+    #overlay-box {
+      background: #1c2034;
+      border: 2px solid #4060c0;
+      border-radius: 10px;
+      padding: 40px 60px;
+      text-align: center;
+    }
+    #overlay-title { font-size: 36px; font-weight: 700; margin-bottom: 12px; }
+    #overlay-sub   { font-size: 16px; color: #aaa; margin-bottom: 24px; }
+    #overlay-stats { font-size: 13px; color: #888; line-height: 2; }
+  </style>
+</head>
+<body>
+
+<!-- Phase bar -->
+<div id="phase-bar">
+  <span id="active-player">—</span>
+  <span class="phase-tab" data-phase="untap">Untap</span>
+  <span class="phase-tab" data-phase="upkeep">Upkeep</span>
+  <span class="phase-tab" data-phase="draw">Draw</span>
+  <span class="phase-tab" data-phase="main1">Main 1</span>
+  <span class="phase-tab" data-phase="begin_combat">Combat</span>
+  <span class="phase-tab" data-phase="declare_attackers">Attackers</span>
+  <span class="phase-tab" data-phase="declare_blockers">Blockers</span>
+  <span class="phase-tab" data-phase="combat_damage">Damage</span>
+  <span class="phase-tab" data-phase="main2">Main 2</span>
+  <span class="phase-tab" data-phase="end_step">End</span>
+</div>
+
+<!-- Main area -->
+<div id="main">
+  <div id="board">
+    <!-- Populated by JS -->
+  </div>
+  <div id="narration"></div>
+</div>
+
+<!-- Move bar -->
+<div id="move-bar">
+  <button class="move-btn primary" id="btn-pass">Pass Priority</button>
+  <button class="move-btn" id="btn-concede">Concede</button>
+  <span id="status-bar">Connecting…</span>
+</div>
+
+<!-- Game over overlay -->
+<div id="overlay">
+  <div id="overlay-box">
+    <div id="overlay-title"></div>
+    <div id="overlay-sub"></div>
+    <div id="overlay-stats"></div>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Commander AI Lab — Web Client (Phase 5)
+// ---------------------------------------------------------------------------
+
+const SEAT_COLOURS = ['#4696ff', '#ff6450', '#50d278', '#dcaa32'];
+const PHASES = [
+  'untap','upkeep','draw','main1','begin_combat',
+  'declare_attackers','declare_blockers','combat_damage','main2','end_step','cleanup'
+];
+
+let ws        = null;
+let gameId    = null;
+let humanSeat = 0;
+let gameState = null;
+let selected  = null;   // selected hand card index
+
+// ---------------------------------------------------------------------------
+// Boot: create or join a game via REST, then open WebSocket
+// ---------------------------------------------------------------------------
+async function boot() {
+  setStatus('Creating game…');
+  try {
+    const res = await fetch('/api/v1/games', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        player_names: ['You', 'AI-Timmy', 'AI-Spike', 'AI-Johnny'],
+        human_seat: 0,
+        ai_personality: ['aggressive', 'control', 'combo'],
+      }),
+    });
+    const data = await res.json();
+    gameId    = data.game_id;
+    humanSeat = 0;
+    setStatus(`Game ${gameId} — connecting WebSocket…`);
+    openSocket();
+  } catch (e) {
+    setStatus('Failed to create game: ' + e.message);
+  }
+}
+
+function openSocket() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/game/${gameId}?seat=${humanSeat}`);
+
+  ws.onopen    = () => setStatus(`Connected — Game ${gameId}`);
+  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+  ws.onclose   = () => setStatus('Disconnected');
+  ws.onerror   = () => setStatus('WebSocket error');
+
+  // Heartbeat
+  setInterval(() => { if (ws.readyState === 1) ws.send(JSON.stringify({type:'ping'})); }, 15000);
+}
+
+// ---------------------------------------------------------------------------
+// Message handler
+// ---------------------------------------------------------------------------
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'state':      gameState = msg.data; render(); break;
+    case 'event':      addNarration(msg.seat, msg.narration || msg.event_type); break;
+    case 'phase':      addNarration(-1, `T${msg.turn} — ${msg.phase}`, true); render(); break;
+    case 'thinking':   handleThinking(msg.seat, msg.is_thinking); break;
+    case 'elimination': addNarration(msg.seat, `${msg.player_name} eliminated!`); break;
+    case 'game_over':  showGameOver(msg); break;
+    case 'pong':       break;
+    case 'error':      addNarration(-1, '⚠ ' + msg.detail, true); break;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Render
+// ---------------------------------------------------------------------------
+function render() {
+  if (!gameState) return;
+  updatePhaseBar(gameState.current_phase, gameState.active_seat);
+  renderBoard(gameState);
+}
+
+function updatePhaseBar(phase, activeSeat) {
+  document.querySelectorAll('.phase-tab').forEach(el => {
+    el.classList.toggle('active', el.dataset.phase === phase);
+  });
+  const ap = document.getElementById('active-player');
+  ap.textContent = gameState?.players?.[activeSeat]?.name || '—';
+  ap.style.color = SEAT_COLOURS[activeSeat % SEAT_COLOURS.length];
+}
+
+function renderBoard(gs) {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  gs.players.forEach((p, seat) => {
+    const zone = document.createElement('div');
+    zone.className = 'player-zone'
+      + (seat === gs.active_seat    ? ' active'    : '')
+      + (p.eliminated               ? ' eliminated': '');
+    zone.style.borderColor = SEAT_COLOURS[seat % SEAT_COLOURS.length];
+
+    // Header
+    const lifeClass = p.life >= 30 ? 'life-high' : p.life >= 15 ? 'life-med' : 'life-low';
+    zone.innerHTML = `
+      <div class="player-name" style="color:${SEAT_COLOURS[seat]}">${p.name}</div>
+      <div class="life-total ${lifeClass}">${p.life}</div>
+      <div class="zone-name">Battlefield (${p.battlefield.length})</div>
+      <div class="card-list" id="bf-${seat}"></div>
+    `;
+
+    // Battlefield cards
+    const bf = zone.querySelector(`#bf-${seat}`);
+    (p.battlefield || []).forEach((card, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'card-chip'
+        + (card.tapped ? ' tapped' : '')
+        + (card.is_commander ? ' commander' : '');
+      chip.textContent = card.name || '?';
+      chip.title = card.oracle || '';
+      bf.appendChild(chip);
+    });
+
+    board.appendChild(zone);
+  });
+
+  // Human hand (seat 0)
+  renderHand(gs);
+}
+
+function renderHand(gs) {
+  let handZone = document.getElementById('hand-zone');
+  if (!handZone) {
+    handZone = document.createElement('div');
+    handZone.id = 'hand-zone';
+    document.getElementById('move-bar').prepend(handZone);
+  }
+  handZone.innerHTML = '';
+  const hand = gs.players[humanSeat]?.hand || [];
+  hand.forEach((card, idx) => {
+    const el = document.createElement('div');
+    el.className = 'hand-card' + (selected === idx ? ' selected' : '');
+    el.textContent = card.name || `Card ${idx}`;
+    el.onclick = () => selectCard(idx);
+    handZone.appendChild(el);
+  });
+}
+
+function selectCard(idx) {
+  if (selected === idx) {
+    // Second click = play
+    playCard(idx);
+    selected = null;
+  } else {
+    selected = idx;
+  }
+  renderHand(gameState);
+}
+
+async function playCard(idx) {
+  if (!gameId) return;
+  const moves = await (await fetch(`/api/v1/games/${gameId}/moves?seat=${humanSeat}`)).json();
+  const move  = moves.moves?.[0];
+  if (move && ws?.readyState === 1) {
+    ws.send(JSON.stringify({type: 'move', seat: humanSeat, move_id: move.id}));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Narration panel
+// ---------------------------------------------------------------------------
+const _thinkingIntervals = {};
+
+function addNarration(seat, text, isSystem = false) {
+  const panel = document.getElementById('narration');
+  const line  = document.createElement('div');
+  line.className = 'narr-line ' + (isSystem ? 'narr-system' : '');
+  line.style.color = seat >= 0 ? SEAT_COLOURS[seat % SEAT_COLOURS.length] : '#556';
+  line.textContent = text;
+  panel.appendChild(line);
+  // Keep last 120 lines
+  while (panel.children.length > 120) panel.removeChild(panel.firstChild);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function handleThinking(seat, isThinking) {
+  const id = `thinking-${seat}`;
+  if (isThinking) {
+    if (!document.getElementById(id)) {
+      const el = document.createElement('div');
+      el.id = id;
+      el.className = 'narr-line narr-thinking';
+      document.getElementById('narration').appendChild(el);
+      let dots = 0;
+      _thinkingIntervals[seat] = setInterval(() => {
+        el.textContent = `P${seat} thinking${'…'.repeat((++dots % 3) + 1)}`;
+      }, 400);
+    }
+  } else {
+    clearInterval(_thinkingIntervals[seat]);
+    delete _thinkingIntervals[seat];
+    document.getElementById(id)?.remove();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Game over overlay
+// ---------------------------------------------------------------------------
+function showGameOver(msg) {
+  const overlay = document.getElementById('overlay');
+  const winner  = gameState?.players?.[msg.winner];
+  document.getElementById('overlay-title').textContent =
+    winner ? `${winner.name} wins!` : 'Game Over';
+  document.getElementById('overlay-title').style.color =
+    winner ? SEAT_COLOURS[msg.winner % SEAT_COLOURS.length] : '#fff';
+  document.getElementById('overlay-sub').textContent = `by ${msg.reason || 'unknown'}`;
+  const stats = (gameState?.players || []).map((p, i) =>
+    `${p.eliminated ? '[ELIM] ' : '       '}P${i} ${p.name.padEnd(16)} Life: ${p.life}`
+  ).join('\n');
+  document.getElementById('overlay-stats').textContent = stats;
+  overlay.classList.add('show');
+}
+
+// ---------------------------------------------------------------------------
+// Move bar buttons
+// ---------------------------------------------------------------------------
+document.getElementById('btn-pass').onclick = () => {
+  if (!gameId || !ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({type: 'move', seat: humanSeat, move_id: 1}));
+};
+
+document.getElementById('btn-concede').onclick = async () => {
+  if (!gameId) return;
+  if (!confirm('Concede?')) return;
+  await fetch(`/api/v1/games/${gameId}/concede`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({seat: humanSeat}),
+  });
+};
+
+function setStatus(text) {
+  document.getElementById('status-bar').textContent = text;
+}
+
+// Boot on load
+window.addEventListener('load', boot);
+</script>
+</body>
+</html>
