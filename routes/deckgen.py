@@ -19,10 +19,13 @@ Deck generation endpoints (classic, Perplexity V1, V3):
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from urllib.request import urlopen, Request
