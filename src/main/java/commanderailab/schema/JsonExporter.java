@@ -62,11 +62,11 @@ public class JsonExporter {
         try {
             BatchResult result = GSON.fromJson(json, BatchResult.class);
             return result.metadata != null
-                    && result.decks != null && result.decks.size() == 3
+                    && result.decks != null && result.decks.size() >= 3 && result.decks.size() <= 4
                     && result.games != null
                     && result.summary != null
                     && result.metadata.schemaVersion.equals("1.0.0")
-                    && result.metadata.podSize == 3;
+                    && result.metadata.podSize >= 3 && result.metadata.podSize <= 4;
         } catch (Exception e) {
             return false;
         }

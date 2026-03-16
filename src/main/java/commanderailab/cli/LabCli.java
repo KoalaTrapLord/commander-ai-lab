@@ -383,6 +383,7 @@ public class LabCli implements Callable<Integer> {
         result.metadata.masterSeed = masterSeed;
         result.metadata.threads = threads;
         result.metadata.elapsedMs = elapsedMs;
+        result.metadata.podSize = decks.size();
         result.decks = decks;
         result.games = games;
         result.summary = summary;

@@ -557,8 +557,13 @@ public class BatchRunner {
         Map<String, String> lossReasons = new HashMap<>();
 
         // ── Issue #1: Track last-known life totals from verbose log ──────
-        int[] lastKnownLife = {40, 40, 40};  // Start at Commander default
-        boolean[] lifeTracked = {false, false, false};
+        int numPlayers = decks.size();
+        int[] lastKnownLife = new int[numPlayers];
+        boolean[] lifeTracked = new boolean[numPlayers];
+        for (int i = 0; i < numPlayers; i++) {
+            lastKnownLife[i] = 40;  // Commander starting life
+            lifeTracked[i] = false;
+        }
         Set<Integer> loserSeats = new HashSet<>();
 
         for (String line : lines) {
@@ -1060,7 +1065,8 @@ public class BatchRunner {
 
         // Track current turn per seat
         int globalTurn = 0;
-        boolean[] openingHandPhase = {true, true, true}; // before first turn
+        boolean[] openingHandPhase = new boolean[decks.size()];
+        java.util.Arrays.fill(openingHandPhase, true); // before first turn
 
         for (String rawLine : lines) {
             String line = rawLine.trim();
