@@ -158,8 +158,8 @@ public class BatchRunner {
 
     public BatchRunner(String forgeJarPath, String forgeWorkDir, List<DeckInfo> decks, AiPolicy policy) {
         // 4-player Commander games need more time — 300s (5min) default instead of 120s
-        int defaultClock = decks.size() >= 4 ? 300 : 180;
-        this(forgeJarPath, forgeWorkDir, decks, policy, false, defaultClock);  // verbose by default for combat stats
+        this(forgeJarPath, forgeWorkDir, decks, policy, false,
+                decks.size() >= 4 ? 300 : 180);  // verbose by default for combat stats
     }
 
     public BatchRunner(String forgeJarPath, String forgeWorkDir, List<DeckInfo> decks,
