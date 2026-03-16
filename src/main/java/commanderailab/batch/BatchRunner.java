@@ -94,7 +94,12 @@ public class BatchRunner {
             Pattern.compile("Match Result:");
 
     // ── Life total tracking patterns (Issue #1) ─────────────────────────
-    // Verbose Forge log: "Ai(1)-Name's life is now 27." or "Ai(1)-Name's life total is now 27"
+    // Forge verbose log format: "Life: Life: Ai(1)-Name 40 > 42" (old life > new life)
+    // Also support older format: "Ai(1)-Name's life is now 27."
+    private static final Pattern LIFE_CHANGE_PATTERN =
+            Pattern.compile("Life:\\s*Life:\\s*Ai\\((\\d+)\\)-.+?\\s+(\\d+)\\s*>\\s*(-?\\d+)");
+
+    // Fallback: "Ai(1)-Name's life is now 27." or "Ai(1)-Name's life total is now 27"
     private static final Pattern LIFE_TOTAL_PATTERN =
             Pattern.compile("Ai\\((\\d+)\\)-.+?'s\\s+life(?:\\s+total)?\\s+is\\s+now\\s+(-?\\d+)", Pattern.CASE_INSENSITIVE);
 
@@ -108,17 +113,21 @@ public class BatchRunner {
 
     // ── Verbose game-log patterns for extracting combat stats ────────────
 
-    // "Ai(1)-Name casts CardName" or "Cast: Ai(1)-Name casts CardName"
-    // Forge verbose log may or may not have a trailing period; card name may have set info like (SET)
+    // "Add To Stack: Ai(1)-Name cast CardName" — Forge verbose log spell cast
+    // Format: "Add To Stack: Ai(N)-DeckName cast CardName"
+    // Note: Forge uses past tense "cast" not "casts"
     private static final Pattern CAST_PATTERN =
-            Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+casts\\s+(.+?)(?:\\.|$)", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+cast\\s+(.+?)(?:\\s+targeting.*)?$", Pattern.CASE_INSENSITIVE);
 
     // "Land: Ai(1)-Name played LandName (SET)" or "Ai(1)-Name plays LandName."
     // Forge verbose log uses "played" (past tense) with set info in parens, no trailing period
     private static final Pattern LAND_PLAY_PATTERN =
             Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+play(?:s|ed)\\s+(.+?)(?:\\s+\\(\\d+\\))?(?:\\.|$)", Pattern.CASE_INSENSITIVE);
 
-    // "...is destroyed" or "...is put into graveyard from the battlefield"
+    // "Zone Change: CardName (N) was put into Graveyard from Battlefield." — creature/permanent death
+    // Also: "is destroyed" / "dies" from older format
+    private static final Pattern ZONE_CHANGE_PATTERN =
+            Pattern.compile("Zone Change:\\s*(.+?)\\s+(?:\\(\\d+\\)\\s+)?was put into .* from Battlefield", Pattern.CASE_INSENSITIVE);
     private static final Pattern CREATURE_DESTROYED_PATTERN =
             Pattern.compile("(is destroyed|dies|is put into .* graveyard from the battlefield)", Pattern.CASE_INSENSITIVE);
 
@@ -132,8 +141,9 @@ public class BatchRunner {
 
     // ── Per-card tracking patterns (verbose log) ─────────────────────────
 
-    // "Ai(1)-Name draws CardName." or "Draw: Ai(1)-Name draws CardName"
-    // Forge verbose log may not have trailing period
+    // Card draw tracking: Forge verbose log does NOT log individual card draws.
+    // This pattern is kept as a fallback for other Forge output modes.
+    // In verbose mode, draws can only be inferred from "Draw step" phase entries.
     private static final Pattern DRAW_PATTERN =
             Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+draws\\s+(.+?)(?:\\.|$)", Pattern.CASE_INSENSITIVE);
 
@@ -652,7 +662,20 @@ public class BatchRunner {
             }
 
             // ── Issue #1: Track life totals from verbose log ────────────
-            // "Ai(1)-Name's life is now 27"
+            // Primary format: "Life: Life: Ai(1)-Name 40 > 42" (old > new)
+            Matcher lifeChangeMatch = LIFE_CHANGE_PATTERN.matcher(line);
+            if (lifeChangeMatch.find()) {
+                int aiNum = Integer.parseInt(lifeChangeMatch.group(1));
+                int seat = aiNum - 1;
+                int newLife = Integer.parseInt(lifeChangeMatch.group(3));
+                if (seat >= 0 && seat < decks.size()) {
+                    lastKnownLife[seat] = newLife;
+                    lifeTracked[seat] = true;
+                }
+                // Don't continue — other patterns may also match this line
+            }
+
+            // Fallback: "Ai(1)-Name's life is now 27"
             Matcher lifeMatch = LIFE_TOTAL_PATTERN.matcher(line);
             if (lifeMatch.find()) {
                 int aiNum = Integer.parseInt(lifeMatch.group(1));
@@ -662,7 +685,6 @@ public class BatchRunner {
                     lastKnownLife[seat] = life;
                     lifeTracked[seat] = true;
                 }
-                // Don't continue — other patterns may also match this line
             }
 
             // "Ai(1)-Name loses N life"
