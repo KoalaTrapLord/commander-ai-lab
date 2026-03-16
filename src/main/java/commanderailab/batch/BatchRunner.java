@@ -44,7 +44,7 @@ public class BatchRunner {
 
     private final String forgeJarPath;    // Path to forge-gui-desktop JAR (jar-with-dependencies)
     private final String forgeWorkDir;    // Working directory for Forge (where res/ folder is)
-    private final List<DeckInfo> decks;   // Exactly 3 decks
+    private final List<DeckInfo> decks;   // 3 or 4 decks
     private final AiPolicy policy;
     private final boolean quiet;
     private final int clockSeconds;       // Max seconds per game before draw (default 120)
@@ -108,13 +108,15 @@ public class BatchRunner {
 
     // ── Verbose game-log patterns for extracting combat stats ────────────
 
-    // "Ai(1)-Name casts CardName" — any spell cast
+    // "Ai(1)-Name casts CardName" or "Cast: Ai(1)-Name casts CardName"
+    // Forge verbose log may or may not have a trailing period; card name may have set info like (SET)
     private static final Pattern CAST_PATTERN =
-            Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+casts\\s+(.+?)\\.", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+casts\\s+(.+?)(?:\\.|$)", Pattern.CASE_INSENSITIVE);
 
-    // "Ai(1)-Name plays Land" — land drop
+    // "Land: Ai(1)-Name played LandName (SET)" or "Ai(1)-Name plays LandName."
+    // Forge verbose log uses "played" (past tense) with set info in parens, no trailing period
     private static final Pattern LAND_PLAY_PATTERN =
-            Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+plays\\s+(.+?)\\.", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+play(?:s|ed)\\s+(.+?)(?:\\s+\\(\\d+\\))?(?:\\.|$)", Pattern.CASE_INSENSITIVE);
 
     // "...is destroyed" or "...is put into graveyard from the battlefield"
     private static final Pattern CREATURE_DESTROYED_PATTERN =
@@ -130,9 +132,10 @@ public class BatchRunner {
 
     // ── Per-card tracking patterns (verbose log) ─────────────────────────
 
-    // "Ai(1)-Name draws CardName." — card drawn
+    // "Ai(1)-Name draws CardName." or "Draw: Ai(1)-Name draws CardName"
+    // Forge verbose log may not have trailing period
     private static final Pattern DRAW_PATTERN =
-            Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+draws\\s+(.+?)\\.", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+draws\\s+(.+?)(?:\\.|$)", Pattern.CASE_INSENSITIVE);
 
     // Turn boundary: "Turn 5 (Ai(1)-Name)" or "Turn 5 (Ai(2)-Name)"
     // Some Forge versions use: "== Turn X (Ai(N)-Name) =="
@@ -144,7 +147,9 @@ public class BatchRunner {
             Pattern.compile("(.+?)\\s+deals\\s+(\\d+)\\s+(?:combat\\s+)?damage", Pattern.CASE_INSENSITIVE);
 
     public BatchRunner(String forgeJarPath, String forgeWorkDir, List<DeckInfo> decks, AiPolicy policy) {
-        this(forgeJarPath, forgeWorkDir, decks, policy, false, 120);  // verbose by default for combat stats
+        // 4-player Commander games need more time — 300s (5min) default instead of 120s
+        int defaultClock = decks.size() >= 4 ? 300 : 180;
+        this(forgeJarPath, forgeWorkDir, decks, policy, false, defaultClock);  // verbose by default for combat stats
     }
 
     public BatchRunner(String forgeJarPath, String forgeWorkDir, List<DeckInfo> decks,
@@ -565,6 +570,8 @@ public class BatchRunner {
             lifeTracked[i] = false;
         }
         Set<Integer> loserSeats = new HashSet<>();
+        Set<Integer> winnerCandidates = new HashSet<>(); // Track all "has won" seats
+        int maxVerboseTurn = 0; // Fallback turn count from verbose log
 
         for (String line : lines) {
             line = line.trim();
@@ -576,16 +583,24 @@ public class BatchRunner {
                 continue;
             }
 
+            // Also track turns from verbose output: "Turn: Turn 5 (Ai(1)-Name)"
+            Matcher verboseTurn = VERBOSE_TURN_PATTERN.matcher(line);
+            if (verboseTurn.find()) {
+                int t = Integer.parseInt(verboseTurn.group(1));
+                if (t > maxVerboseTurn) maxVerboseTurn = t;
+                // Don't continue — let other patterns also check this line
+            }
+
             // Parse winner: "Game Outcome: Ai(1)-Edgar Markov has won because ..."
+            // In 4-player Commander, Forge may mark multiple survivors as "won" on timeout.
+            // Collect all candidates; resolve to single winner after loop.
             Matcher winMatcher = WINNER_PATTERN.matcher(line);
             if (winMatcher.find()) {
                 int aiNumber = Integer.parseInt(winMatcher.group(1));
                 int seatIndex = aiNumber - 1; // Forge uses 1-based, we use 0-based
-                String winReason = winMatcher.group(3).trim();
 
                 if (seatIndex >= 0 && seatIndex < decks.size()) {
-                    result.winningSeat = seatIndex;
-                    result.playerResults.get(seatIndex).isWinner = true;
+                    winnerCandidates.add(seatIndex);
                 }
                 continue;
             }
@@ -687,37 +702,63 @@ public class BatchRunner {
             }
         }
 
+        // ── Resolve single winner from candidates ────────────────────
+        // In 4-player Commander, Forge may mark multiple survivors as "won" on clock timeout.
+        // Resolve to a single winner: if exactly 1 candidate, they win.
+        // If multiple candidates (timeout scenario), pick the one with highest life.
+        if (winnerCandidates.size() == 1) {
+            int winSeat = winnerCandidates.iterator().next();
+            result.winningSeat = winSeat;
+            result.playerResults.get(winSeat).isWinner = true;
+            System.out.printf("[WINNER] Single winner: seat %d%n", winSeat);
+        } else if (winnerCandidates.size() > 1) {
+            // Multiple "winners" — Forge timeout scenario.
+            // Pick the player with the highest tracked life total.
+            int bestSeat = -1;
+            int bestLife = Integer.MIN_VALUE;
+            for (int seat : winnerCandidates) {
+                int life = lifeTracked[seat] ? lastKnownLife[seat] : 40;
+                if (life > bestLife) {
+                    bestLife = life;
+                    bestSeat = seat;
+                }
+            }
+            if (bestSeat >= 0) {
+                result.winningSeat = bestSeat;
+                result.playerResults.get(bestSeat).isWinner = true;
+                System.out.printf("[WINNER] Resolved from %d candidates: seat %d (life=%d). Others were survivors on timeout.%n",
+                        winnerCandidates.size(), bestSeat, bestLife);
+            }
+        }
+        // If no winner candidates and no losers, winningSeat stays null (draw/crash)
+
         // ── Issue #2: Classify win condition using formal enum ───────────
         WinCondition condition = WinCondition.classify(lossReasons, output);
         result.winCondition = condition.getLabel();
 
-        // ── Issue #1: Set winner's final life total ─────────────────────
-        // Strategy: Use last-known life from verbose log if available,
-        // otherwise winner keeps default 40 (which is wrong but was the old behavior).
-        // If we tracked life for the winner, use that.
+        // ── Issue #1: Set final life totals from verbose log tracking ────
+        // Update ALL players' final life from verbose tracking data
+        for (int seat = 0; seat < decks.size(); seat++) {
+            if (lifeTracked[seat]) {
+                result.playerResults.get(seat).finalLife = lastKnownLife[seat];
+            }
+        }
         if (result.winningSeat != null) {
             int winnerSeat = result.winningSeat;
             if (lifeTracked[winnerSeat]) {
-                result.playerResults.get(winnerSeat).finalLife = lastKnownLife[winnerSeat];
                 System.out.printf("[LIFE] Winner seat %d: final life = %d (tracked from log)%n",
                         winnerSeat, lastKnownLife[winnerSeat]);
             } else {
-                // Verbose tracking didn't capture — leave at 40 but log it
                 System.out.printf("[LIFE] Winner seat %d: life not tracked in log (quiet mode?), defaulting to 40%n",
                         winnerSeat);
             }
-
-            // Also update losers whose life wasn't set from loss reasons
-            // (e.g., mill/poison losers whose life may not be 0)
-            for (int seat = 0; seat < decks.size(); seat++) {
-                if (seat != winnerSeat && lifeTracked[seat]) {
-                    result.playerResults.get(seat).finalLife = lastKnownLife[seat];
-                }
-            }
         }
 
-        // Default turn count if not parsed
-        if (result.totalTurns == 0) {
+        // Default turn count: use verbose turn tracking as fallback
+        if (result.totalTurns == 0 && maxVerboseTurn > 0) {
+            result.totalTurns = maxVerboseTurn;
+            System.out.printf("[TURNS] Using verbose log turn count: %d%n", maxVerboseTurn);
+        } else if (result.totalTurns == 0) {
             result.totalTurns = 1;
         }
 

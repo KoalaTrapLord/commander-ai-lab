@@ -94,8 +94,8 @@ public class LabCli implements Callable<Integer> {
             description = "Output JSON file path")
     private String outputPath;
 
-    @Option(names = {"--clock", "-c"}, defaultValue = "120",
-            description = "Max seconds per game before draw (default: 120)")
+    @Option(names = {"--clock", "-c"}, defaultValue = "300",
+            description = "Max seconds per game before draw (default: 300 for 4-player Commander)")
     private int clockSeconds;
 
     @Option(names = {"--verbose", "-v"}, defaultValue = "false",
