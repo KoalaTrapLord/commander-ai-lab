@@ -154,8 +154,8 @@ public class BatchRunner {
 
     public BatchRunner(String forgeJarPath, String forgeWorkDir, List<DeckInfo> decks,
                        AiPolicy policy, boolean quiet, int clockSeconds, String javaPath) {
-        if (decks.size() != 3) {
-            throw new IllegalArgumentException("v1 requires exactly 3 decks, got " + decks.size());
+        if (decks.size() < 3 || decks.size() > 4) {
+            throw new IllegalArgumentException("Requires 3 or 4 decks, got " + decks.size());
         }
         this.forgeJarPath = forgeJarPath;
         this.forgeWorkDir = forgeWorkDir;
@@ -534,7 +534,7 @@ public class BatchRunner {
 
         // Initialize player results for all 3 seats
         result.playerResults = new ArrayList<>();
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < decks.size(); i++) {
             PlayerResult pr = new PlayerResult();
             pr.seatIndex = i;
             pr.finalLife = 40; // Commander starting life
@@ -578,7 +578,7 @@ public class BatchRunner {
                 int seatIndex = aiNumber - 1; // Forge uses 1-based, we use 0-based
                 String winReason = winMatcher.group(3).trim();
 
-                if (seatIndex >= 0 && seatIndex < 3) {
+                if (seatIndex >= 0 && seatIndex < decks.size()) {
                     result.winningSeat = seatIndex;
                     result.playerResults.get(seatIndex).isWinner = true;
                 }
@@ -592,7 +592,7 @@ public class BatchRunner {
                 int seatIndex = aiNumber - 1;
                 String lossReason = loseMatcher.group(3).trim();
 
-                if (seatIndex >= 0 && seatIndex < 3) {
+                if (seatIndex >= 0 && seatIndex < decks.size()) {
                     lossReasons.put(String.valueOf(seatIndex), lossReason);
                     loserSeats.add(seatIndex);
 
@@ -638,7 +638,7 @@ public class BatchRunner {
                 int aiNum = Integer.parseInt(lifeMatch.group(1));
                 int seat = aiNum - 1;
                 int life = Integer.parseInt(lifeMatch.group(2));
-                if (seat >= 0 && seat < 3) {
+                if (seat >= 0 && seat < decks.size()) {
                     lastKnownLife[seat] = life;
                     lifeTracked[seat] = true;
                 }
@@ -651,7 +651,7 @@ public class BatchRunner {
                 int aiNum = Integer.parseInt(lossMatch.group(1));
                 int seat = aiNum - 1;
                 int amount = Integer.parseInt(lossMatch.group(2));
-                if (seat >= 0 && seat < 3) {
+                if (seat >= 0 && seat < decks.size()) {
                     lastKnownLife[seat] -= amount;
                     lifeTracked[seat] = true;
                 }
@@ -663,7 +663,7 @@ public class BatchRunner {
                 int aiNum = Integer.parseInt(gainMatch.group(1));
                 int seat = aiNum - 1;
                 int amount = Integer.parseInt(gainMatch.group(2));
-                if (seat >= 0 && seat < 3) {
+                if (seat >= 0 && seat < decks.size()) {
                     lastKnownLife[seat] += amount;
                     lifeTracked[seat] = true;
                 }
@@ -675,7 +675,7 @@ public class BatchRunner {
                 if (mullMatcher.find()) {
                     int aiNum = Integer.parseInt(mullMatcher.group(1));
                     int seat = aiNum - 1;
-                    if (seat >= 0 && seat < 3) {
+                    if (seat >= 0 && seat < decks.size()) {
                         result.playerResults.get(seat).mulligans++;
                     }
                 }
@@ -704,7 +704,7 @@ public class BatchRunner {
 
             // Also update losers whose life wasn't set from loss reasons
             // (e.g., mill/poison losers whose life may not be 0)
-            for (int seat = 0; seat < 3; seat++) {
+            for (int seat = 0; seat < decks.size(); seat++) {
                 if (seat != winnerSeat && lifeTracked[seat]) {
                     result.playerResults.get(seat).finalLife = lastKnownLife[seat];
                 }
@@ -719,8 +719,8 @@ public class BatchRunner {
         // ── Parse verbose game log for combat stats ─────────────────────
         // These patterns match Forge's full game log (non-quiet mode)
         // Track commander names for each seat to detect commander casts
-        String[] commanderNames = new String[3];
-        for (int ci = 0; ci < 3 && ci < decks.size(); ci++) {
+        String[] commanderNames = new String[decks.size()];
+        for (int ci = 0; ci < decks.size(); ci++) {
             commanderNames[ci] = decks.get(ci).commanderName;
         }
 
@@ -734,7 +734,7 @@ public class BatchRunner {
                 int aiNum = Integer.parseInt(castMatcher.group(1));
                 int seat = aiNum - 1;
                 String cardName = castMatcher.group(2).trim();
-                if (seat >= 0 && seat < 3) {
+                if (seat >= 0 && seat < decks.size()) {
                     result.playerResults.get(seat).spellsCast++;
                     // Check if this is the commander being cast
                     if (commanderNames[seat] != null &&
@@ -750,7 +750,7 @@ public class BatchRunner {
             if (landMatcher.find()) {
                 int aiNum = Integer.parseInt(landMatcher.group(1));
                 int seat = aiNum - 1;
-                if (seat >= 0 && seat < 3) {
+                if (seat >= 0 && seat < decks.size()) {
                     result.playerResults.get(seat).landsPlayed++;
                 }
                 continue;
@@ -776,7 +776,7 @@ public class BatchRunner {
                     int aiNum = Integer.parseInt(aiRef.group(1));
                     int victimSeat = aiNum - 1;
                     // Credit all non-victim seats with 1 creature destroyed
-                    for (int s = 0; s < 3; s++) {
+                    for (int s = 0; s < decks.size(); s++) {
                         if (s != victimSeat && s < result.playerResults.size()) {
                             // We can't know who did it, so we don't increment here
                             // Instead, use a simpler approach below
@@ -795,7 +795,7 @@ public class BatchRunner {
                     Matcher srcPlayer = Pattern.compile("Ai\\((\\d+)\\)").matcher(line);
                     if (srcPlayer.find()) {
                         int seat = Integer.parseInt(srcPlayer.group(1)) - 1;
-                        if (seat >= 0 && seat < 3) {
+                        if (seat >= 0 && seat < decks.size()) {
                             result.playerResults.get(seat).commanderDamageDealt += amount;
                         }
                     }
@@ -805,7 +805,7 @@ public class BatchRunner {
 
         // Estimate creatures destroyed from total turns if verbose parsing didn't catch specifics
         // (Forge log format varies; this provides a reasonable fallback)
-        for (int seat = 0; seat < 3 && seat < result.playerResults.size(); seat++) {
+        for (int seat = 0; seat < result.playerResults.size(); seat++) {
             PlayerResult pr = result.playerResults.get(seat);
             // If we got no spell data from parsing, it means either quiet mode or no matches
             // Leave at 0 rather than fabricating data
@@ -1047,8 +1047,8 @@ public class BatchRunner {
     private void buildPerCardStats(GameResult result, String[] lines) {
         // Initialize per-card maps for each seat from deck files
         @SuppressWarnings("unchecked")
-        Map<String, PerCardGameStats>[] seatCards = new Map[3];
-        for (int s = 0; s < 3 && s < decks.size(); s++) {
+        Map<String, PerCardGameStats>[] seatCards = new Map[decks.size()];
+        for (int s = 0; s < decks.size(); s++) {
             seatCards[s] = new LinkedHashMap<>();
             List<String> cardNames = readDeckCardNames(decks.get(s).deckFile);
             for (String name : cardNames) {
@@ -1073,7 +1073,7 @@ public class BatchRunner {
                 int aiNum = Integer.parseInt(turnMatch.group(2));
                 globalTurn = turnNum;
                 int seat = aiNum - 1;
-                if (seat >= 0 && seat < 3) {
+                if (seat >= 0 && seat < decks.size()) {
                     openingHandPhase[seat] = false;
                 }
                 continue;
@@ -1084,7 +1084,7 @@ public class BatchRunner {
             if (drawMatch.find()) {
                 int seat = Integer.parseInt(drawMatch.group(1)) - 1;
                 String cardName = drawMatch.group(2).trim();
-                if (seat >= 0 && seat < 3 && seatCards[seat] != null) {
+                if (seat >= 0 && seat < decks.size() && seatCards[seat] != null) {
                     PerCardGameStats stats = seatCards[seat].get(cardName);
                     if (stats == null) {
                         // Card not in deck list (token draw, etc.) — create entry
@@ -1108,7 +1108,7 @@ public class BatchRunner {
             if (castMatch.find()) {
                 int seat = Integer.parseInt(castMatch.group(1)) - 1;
                 String cardName = castMatch.group(2).trim();
-                if (seat >= 0 && seat < 3 && seatCards[seat] != null) {
+                if (seat >= 0 && seat < decks.size() && seatCards[seat] != null) {
                     PerCardGameStats stats = seatCards[seat].get(cardName);
                     if (stats == null) {
                         stats = new PerCardGameStats(cardName);
@@ -1132,7 +1132,7 @@ public class BatchRunner {
             if (landMatch.find()) {
                 int seat = Integer.parseInt(landMatch.group(1)) - 1;
                 String cardName = landMatch.group(2).trim();
-                if (seat >= 0 && seat < 3 && seatCards[seat] != null) {
+                if (seat >= 0 && seat < decks.size() && seatCards[seat] != null) {
                     PerCardGameStats stats = seatCards[seat].get(cardName);
                     if (stats == null) {
                         stats = new PerCardGameStats(cardName);
@@ -1156,7 +1156,7 @@ public class BatchRunner {
                 String cardName = cardDmgMatch.group(1).trim();
                 int amount = Integer.parseInt(cardDmgMatch.group(2));
                 // Try to find which seat owns this card
-                for (int s = 0; s < 3; s++) {
+                for (int s = 0; s < decks.size(); s++) {
                     if (seatCards[s] != null && seatCards[s].containsKey(cardName)) {
                         seatCards[s].get(cardName).damageDealt += amount;
                         break; // attribute to first matching seat
@@ -1166,7 +1166,7 @@ public class BatchRunner {
         }
 
         // Finalize: compute stuckInHand and attach to PlayerResults
-        for (int s = 0; s < 3 && s < result.playerResults.size(); s++) {
+        for (int s = 0; s < result.playerResults.size(); s++) {
             if (seatCards[s] == null) continue;
             List<PerCardGameStats> cardStatsList = new ArrayList<>();
             for (PerCardGameStats stats : seatCards[s].values()) {
@@ -1189,7 +1189,7 @@ public class BatchRunner {
         result.winCondition = WinCondition.TIMEOUT.getLabel();
         result.elapsedMs = elapsedMs;
         result.playerResults = new ArrayList<>();
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < decks.size(); i++) {
             PlayerResult pr = new PlayerResult();
             pr.seatIndex = i;
             pr.finalLife = 40;

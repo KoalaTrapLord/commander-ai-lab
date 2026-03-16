@@ -58,6 +58,10 @@ public class LabCli implements Callable<Integer> {
             description = "Commander deck name for seat 2")
     private String deck3;
 
+    @Option(names = {"--deck4", "-d4"}, defaultValue = "",
+            description = "Commander deck name for seat 3")
+    private String deck4;
+
     @Option(names = {"--commander1", "-c1"}, defaultValue = "",
             description = "Commander card name for seat 0 (for display; uses deck name if blank)")
     private String commander1;
@@ -69,6 +73,10 @@ public class LabCli implements Callable<Integer> {
     @Option(names = {"--commander3", "-c3"}, defaultValue = "",
             description = "Commander card name for seat 2")
     private String commander3;
+
+    @Option(names = {"--commander4", "-c4"}, defaultValue = "",
+            description = "Commander card name for seat 3")
+    private String commander4;
 
     @Option(names = {"--games", "-n"}, defaultValue = "10",
             description = "Number of games to simulate (default: 10)")
@@ -431,15 +439,15 @@ public class LabCli implements Callable<Integer> {
     // ══════════════════════════════════════════════════════════
 
     private List<DeckInfo> buildDeckInfoList(String importDir) throws Exception {
-        String[] deckNames = {deck1, deck2, deck3};
-        String[] commanders = {commander1, commander2, commander3};
+        String[] deckNames = {deck1, deck2, deck3, deck4};
+        String[] commanders = {commander1, commander2, commander3, commander4};
 
         // Build import lists for each seat
-        DeckProfile[] imports = new DeckProfile[3];
+        DeckProfile[] imports = new DeckProfile[4];
 
         // Process --commander-meta flags
         if (commanderMeta != null) {
-            for (int i = 0; i < Math.min(commanderMeta.size(), 3); i++) {
+            for (int i = 0; i < Math.min(commanderMeta.size(), 4); i++) {
                 String cmdrName = commanderMeta.get(i);
                 System.out.printf("═══ IMPORT SEAT %d: Commander Meta — %s ═══%n", i, cmdrName);
                 imports[i] = DeckImporter.importFromEdhrec(cmdrName);
@@ -448,7 +456,7 @@ public class LabCli implements Callable<Integer> {
 
         // Process --import-url flags (overrides commander-meta for same seat)
         if (importUrls != null) {
-            for (int i = 0; i < Math.min(importUrls.size(), 3); i++) {
+            for (int i = 0; i < Math.min(importUrls.size(), 4); i++) {
                 if (imports[i] != null) continue; // Don't override if already set
                 String url = importUrls.get(i);
                 int seat = findNextEmptySeat(imports);
@@ -460,7 +468,7 @@ public class LabCli implements Callable<Integer> {
 
         // Process --import-text flags
         if (importTextFiles != null) {
-            for (int i = 0; i < Math.min(importTextFiles.size(), 3); i++) {
+            for (int i = 0; i < Math.min(importTextFiles.size(), 4); i++) {
                 String filePath = importTextFiles.get(i);
                 int seat = findNextEmptySeat(imports);
                 if (seat < 0) break;
@@ -471,7 +479,7 @@ public class LabCli implements Callable<Integer> {
         }
 
         // Save imported decks to .dck files and set deck names
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 4; i++) {
             if (imports[i] != null) {
                 DeckProfile profile = imports[i];
                 Path dckPath = DeckImporter.saveToDckFile(profile, importDir);
@@ -485,8 +493,19 @@ public class LabCli implements Callable<Integer> {
             }
         }
 
-        // Validate all 3 seats have decks
-        for (int i = 0; i < 3; i++) {
+        // Count how many seats have decks (support 3 or 4 player games)
+        int numSeats = 0;
+        for (int i = 0; i < 4; i++) {
+            if (deckNames[i] != null && !deckNames[i].isEmpty()) {
+                numSeats = i + 1;
+            }
+        }
+        if (numSeats < 3) {
+            System.err.println("ERROR: At least 3 decks are required. Use --deck1, --deck2, --deck3 (and optionally --deck4).");
+            return null;
+        }
+        // Validate all seats up to numSeats have decks
+        for (int i = 0; i < numSeats; i++) {
             if (deckNames[i] == null || deckNames[i].isEmpty()) {
                 System.err.printf("ERROR: Seat %d has no deck. Use --deck%d, --import-url, --import-text, or --commander-meta.%n", i, i + 1);
                 return null;
@@ -495,7 +514,7 @@ public class LabCli implements Callable<Integer> {
 
         // Build DeckInfo list
         List<DeckInfo> list = new ArrayList<>();
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < numSeats; i++) {
             DeckInfo d = new DeckInfo();
             d.seatIndex = i;
             d.deckFile = deckNames[i];
