@@ -16,6 +16,7 @@ Scores are normalized to [0.0, 1.0]. Higher = more dangerous.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -73,6 +74,7 @@ def assess_threats(
         List[ThreatScore] sorted by total descending.
     """
     scores: list[ThreatScore] = []
+    # Bug 12 fix: game_state.players now works via the @property added in game_state.py
     players = game_state.players
     viewer = players[viewer_seat] if viewer_seat < len(players) else None
     viewer_life = viewer.life if viewer else 40
@@ -82,23 +84,20 @@ def assess_threats(
             continue
 
         # --- Board power ---
+        # Bug 12/13 fix: use game_state.battlefield(seat) instead of player.battlefield,
+        # and use Card dataclass attribute access instead of dict .get()
         total_power = 0
         board_size = 0
         combo_score = 0
-        for c in player.battlefield:
-            if c.get("type") in ("creature", "Creature") or "creature" in c.get("type", "").lower():
-                try:
-                    pt = c.get("pt", "0/0")
-                    pw = int(pt.split("/")[0]) if "/" in pt else 0
-                except (ValueError, IndexError):
-                    pw = 0
-                total_power += pw
-            if not (c.get("type", "").lower() == "land"):
+        for c in game_state.battlefield(seat):
+            if c.is_creature():
+                total_power += c.get_power()
+            if not c.is_land():
                 board_size += 1
             # Combo proximity: scan oracle text for combo indicators
-            oracle = (c.get("oracle", "") or "").lower()
+            # Bug 14 fix: import re moved to top of file
+            oracle = (c.oracle_text or "").lower()
             for kw in _COMBO_KEYWORDS:
-                import re
                 if re.search(kw, oracle):
                     combo_score += 1
                     break

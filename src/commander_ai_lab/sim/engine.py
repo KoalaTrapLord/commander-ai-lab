@@ -110,6 +110,10 @@ class GameEngine:
                 p.stats.turns_alive += 1
                 phase_events: list[str] = []
 
+                # ── Untap (correct MTG order: untap is first) ──
+                for c in sim.get_battlefield(pi):
+                    c.tapped = False
+
                 # ── Draw ──
                 if p.library:
                     drawn = p.library[-1]
@@ -143,10 +147,6 @@ class GameEngine:
 
                 # ── Combat ──
                 self._resolve_combat(sim, pi, turn, phase_events if self.record_log else None)
-
-                # ── Untap ──
-                for c in sim.get_battlefield(pi):
-                    c.tapped = False
 
                 if self.record_log:
                     life_dict = {sp.name: sp.life for sp in sim.players}
@@ -250,18 +250,18 @@ class GameEngine:
         p = sim.players[pi]
         w = self.weights
 
-        playable = []
-        for i, card in enumerate(p.hand):
-            if card.is_land():
-                continue
-            cmc = card.cmc or 0
-            if cmc <= available_mana:
-                playable.append((score_card(card, w), i, card))
-
-        playable.sort(key=lambda x: -x[0])
-
         played = 0
-        while playable and played < 2:
+        while played < 2:
+            playable = []
+            for i, card in enumerate(p.hand):
+                if card.is_land():
+                    continue
+                cmc = card.cmc or 0
+                if cmc <= available_mana:
+                    playable.append((score_card(card, w), i, card))
+            playable.sort(key=lambda x: -x[0])
+            if not playable:
+                break
             _, _, best_card = playable.pop(0)
             hand_pos = -1
             for i, c in enumerate(p.hand):
@@ -379,7 +379,7 @@ class GameEngine:
             if (
                 c.is_creature()
                 and not c.tapped
-                and (turn > 0 or c.turn_played != turn)
+                and (c.turn_played < sim.turn or c.has_keyword("haste"))
             )
         ]
         if not my_creatures:
@@ -443,13 +443,20 @@ class GameEngine:
             ]
 
             blocked = False
-            if valid_blockers and not atk.has_keyword("menace"):
-                blocker = next(
-                    (b for b in valid_blockers if b.get_toughness() > a_pow),
-                    None,
-                )
-                if blocker is None and opp.life <= a_pow * 2 and valid_blockers:
+            if valid_blockers and (not atk.has_keyword("menace") or len(valid_blockers) >= 2):
+                if atk.has_keyword("menace") and len(valid_blockers) >= 2:
+                    # Menace requires 2 blockers: pick 2 best
+                    valid_blockers.sort(key=lambda b: -b.get_toughness())
                     blocker = valid_blockers[0]
+                    second_blocker = valid_blockers[1]
+                    used_blockers.add(second_blocker.id)
+                else:
+                    blocker = next(
+                        (b for b in valid_blockers if b.get_toughness() > a_pow),
+                        None,
+                    )
+                    if blocker is None and opp.life <= a_pow * 2 and valid_blockers:
+                        blocker = valid_blockers[0]
 
                 if blocker:
                     used_blockers.add(blocker.id)
@@ -471,16 +478,36 @@ class GameEngine:
                         if events is not None:
                             combat_details.append(f"  {atk.name} dies")
 
+                    trample_over = 0
                     if atk.has_keyword("trample") and a_pow > blocker.get_toughness():
-                        total_damage += a_pow - blocker.get_toughness()
+                        trample_over = a_pow - blocker.get_toughness()
+                        total_damage += trample_over
+
+                    # Double strike: deal damage a second time (both to blocker and trample)
+                    if atk.has_keyword("double strike"):
+                        if a_pow >= blocker.get_toughness() or atk.has_keyword("deathtouch"):
+                            # Blocker already dead from first strike; full damage tramples through
+                            total_damage += a_pow
+                        else:
+                            # Blocker survives first strike; second strike also hits blocker
+                            total_damage += trample_over
 
                     if atk.has_keyword("lifelink"):
-                        p.life += min(a_pow, blocker.get_toughness())
+                        damage_dealt = min(a_pow, blocker.get_toughness()) + trample_over
+                        if atk.has_keyword("double strike"):
+                            damage_dealt *= 2
+                        p.life += damage_dealt
 
             if not blocked:
-                total_damage += a_pow
-                if atk.has_keyword("lifelink"):
-                    p.life += a_pow
+                # Double strike: deal damage twice when unblocked
+                if atk.has_keyword("double strike"):
+                    total_damage += a_pow * 2
+                    if atk.has_keyword("lifelink"):
+                        p.life += a_pow * 2
+                else:
+                    total_damage += a_pow
+                    if atk.has_keyword("lifelink"):
+                        p.life += a_pow
 
         opp.life -= total_damage
         p.stats.damage_dealt += total_damage

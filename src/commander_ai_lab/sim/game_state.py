@@ -204,6 +204,12 @@ class CommanderGameState:
 
     # ── Helpers ──────────────────────────────────────────────
 
+    # Bug 7 fix: provide .players property so turn_manager and threat_assessor
+    # can reference game_state.players directly.
+    @property
+    def players(self) -> list[CommanderPlayer]:
+        return self.commander_players
+
     def active_player(self) -> Optional[CommanderPlayer]:
         if 0 <= self.active_player_seat < len(self.commander_players):
             return self.commander_players[self.active_player_seat]
@@ -220,6 +226,16 @@ class CommanderGameState:
 
     def stack_is_empty(self) -> bool:
         return len(self.stack) == 0
+
+    # Bug 9 fix: stub get_legal_moves() and apply_move() so turn_manager
+    # doesn't crash.  These delegate to the rules engine once implemented.
+    def get_legal_moves(self, seat: int) -> list[dict]:
+        """Return legal moves for a seat. Stub — returns pass-only."""
+        return [{"id": 0, "category": "pass_priority", "description": "Pass"}]
+
+    def apply_move(self, seat: int, move_id: int) -> None:
+        """Apply a chosen move. Stub — no-op until rules engine is wired."""
+        pass
 
     def living_players(self) -> list[CommanderPlayer]:
         return [p for p in self.commander_players if not p.eliminated]
@@ -285,4 +301,20 @@ class CommanderGameState:
             cp = CommanderPlayer(base=player)
             cgs.commander_players.append(cp)
         cgs.turn = sim_state.turn
+
+        # Bug 18 fix: attempt to identify commanders from each player's library/hand.
+        # Cards flagged is_commander=True are moved to the commander zone.
+        for i, cp in enumerate(cgs.commander_players):
+            for zone in [cp.base.hand, cp.base.library]:
+                commanders_found = [c for c in zone if c.is_commander]
+                for cmd in commanders_found:
+                    zone.remove(cmd)
+                    cp.commander_zone.append(cmd)
+
+        # Bug 19 fix: sync land_drop_used from engine's per-player stats
+        if sim_state.players:
+            active = cgs.active_player()
+            if active:
+                cgs.land_drop_used = active.base.stats.lands_played > 0
+
         return cgs

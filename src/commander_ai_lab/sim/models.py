@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -78,7 +79,9 @@ class Card:
         kw_lower = kw.lower()
         if self.keywords and any(k.lower() == kw_lower for k in self.keywords):
             return True
-        return kw_lower in (self.oracle_text or "").lower()
+        # Bug 15 fix: word-boundary match prevents false positives
+        # (e.g. "reach" matching "breach", "ward" matching "reward")
+        return bool(re.search(r'\b' + re.escape(kw_lower) + r'\b', (self.oracle_text or "").lower()))
 
     def is_land(self) -> bool:
         return bool(self.type_line and "land" in self.type_line.lower())

@@ -186,7 +186,6 @@ LEGAL_MOVE_CATEGORIES = [
 ]
 
 
-@staticmethod
 def _category_label(category: str) -> str:
     return {
         "play_land": "Play Land",

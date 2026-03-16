@@ -241,7 +241,7 @@ class CommanderTurnManager:
         if active in self._human_move_futures:
             fut = self._human_move_futures[active]
             if not fut.done():
-                fut.get_event_loop().call_soon_threadsafe(fut.set_result, move_id)
+                asyncio.get_running_loop().call_soon_threadsafe(fut.set_result, move_id)
             else:
                 logger.warning("human_play called but future already resolved for seat %d", active)
         else:
@@ -310,8 +310,8 @@ class CommanderTurnManager:
     async def _phase_untap(self, active_seat: int) -> None:
         """Untap all permanents for active player. No priority."""
         player = self.gs.players[active_seat]
-        for card in player.battlefield:
-            card["tapped"] = False
+        for card in self.gs.sim_state.get_battlefield(active_seat):
+            card.tapped = False
         logger.debug("  [untap] %s untapped all permanents", player.name)
 
     async def _phase_draw(self, active_seat: int, turn_num: int) -> None:
@@ -322,7 +322,7 @@ class CommanderTurnManager:
         if player.library:
             drawn = player.library.pop()
             player.hand.append(drawn)
-            logger.debug("  [draw] %s drew %s", player.name, drawn.get("name", "?"))
+            logger.debug("  [draw] %s drew %s", player.name, drawn.name)
 
     async def _phase_main(self, active_seat: int, turn_num: int, phase: str) -> None:
         """
@@ -403,7 +403,7 @@ class CommanderTurnManager:
             player.graveyard.append(discarded)
             logger.debug(
                 "  [cleanup] %s discarded %s",
-                player.name, discarded.get("name", "?"),
+                player.name, discarded.name,
             )
 
     # ── Priority Passing (APNAP) ──────────────────────────────────────────────
@@ -435,6 +435,7 @@ class CommanderTurnManager:
 
         while consecutive_passes < passes_needed and iterations < max_iter:
             for seat in apnap_order:
+                iterations += 1  # Bug 11 fix: always increment iterations
                 if self.gs.players[seat].eliminated:
                     consecutive_passes += 1
                     continue
@@ -469,7 +470,6 @@ class CommanderTurnManager:
                             continue
 
                 consecutive_passes += 1
-                iterations += 1
 
             if iterations >= max_iter:
                 logger.debug("APNAP pass limit reached in phase %s", phase)
@@ -499,7 +499,7 @@ class CommanderTurnManager:
 
     async def _await_human_move(self, seat: int) -> Optional[int]:
         """Block until human_play() injects a move for this seat."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         fut: asyncio.Future = loop.create_future()
         self._human_move_futures[seat] = fut
         try:
@@ -526,7 +526,7 @@ class CommanderTurnManager:
         if self.on_thinking:
             await self.on_thinking(seat, True)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         t_start = time.monotonic()
 
         try:
