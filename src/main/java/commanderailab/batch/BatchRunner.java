@@ -829,7 +829,6 @@ public class BatchRunner {
         // ── ML Decision extraction (for RL training data) ─────────────────
         if (mlLoggingEnabled && !quiet && mlDecisionLogger != null) {
             try {
-                int numPlayers = decks.size();
                 String gid = "game-" + gameIndex + "-" + gameSeed;
                 String[] cmdNames = new String[numPlayers];
                 List<List<String>> deckCardLists = new ArrayList<>();
