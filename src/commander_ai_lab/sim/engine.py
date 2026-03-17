@@ -367,6 +367,47 @@ class GameEngine:
             played += 1
             available_mana = self._count_untapped_lands(sim, pi)
 
+        # --- Commander casting from command zone (second pass) ---
+        available_mana = self._count_untapped_lands(sim, pi)
+        for cmd_card in list(p.command_zone):
+            tax = p.commander_tax.get(cmd_card.name, 0)
+            total_cost = (cmd_card.cmc or 0) + tax
+            if total_cost <= available_mana:
+                # Remove from command zone
+                p.command_zone.remove(cmd_card)
+
+                # Assign metadata
+                cmd_card.owner_id = pi
+                cmd_card.tapped = False
+                cmd_card.id = sim.next_card_id
+                sim.next_card_id += 1
+                cmd_card.turn_played = sim.turn
+
+                # Tap lands for mana
+                mana_needed = total_cost
+                for bf_card in sim.get_battlefield(pi):
+                    if mana_needed <= 0:
+                        break
+                    if not bf_card.tapped and bf_card.is_land():
+                        bf_card.tapped = True
+                        mana_needed -= 1
+
+                # Place on battlefield
+                sim.add_to_battlefield(pi, cmd_card)
+                p.stats.spells_cast += 1
+                p.stats.mana_spent += total_cost
+
+                # Increment commander tax for next cast
+                p.commander_tax[cmd_card.name] = tax + 2
+
+                if events is not None:
+                    events.append(
+                        f"Cast commander {cmd_card.name} from command zone "
+                        f"for {total_cost} mana (tax={tax})"
+                    )
+
+                available_mana = self._count_untapped_lands(sim, pi)
+
     @staticmethod
     def _select_attack_target(sim: SimState, pi: int) -> int:
         """Select the best opponent to attack.
