@@ -79,23 +79,26 @@ class GameEngine:
         deck_b: list[Card],
         name_a: str = "Player A",
         name_b: str = "Player B",
+        commander_names: list[str] | None = None,
     ) -> GameResult:
         """Backward-compatible 2-player entry point."""
         return self.run_n(
             decks=[deck_a, deck_b],
             names=[name_a, name_b],
+            commander_names=commander_names,
         )
 
     def run_n(
         self,
         decks: list[list[Card]],
         names: list[str] | None = None,
+        commander_names: list[str] | None = None,
     ) -> GameResult:
         """Run a single headless N-player game and return the result."""
         n = len(decks)
         if names is None:
             names = [f"Player {chr(65 + i)}" for i in range(n)]
-        sim = self._create_state(decks, names)
+        sim = self._create_state(decks, names, commander_names=commander_names)
         game_log: list[dict] = []
         elimination_order: list[int] = []  # seats in order of elimination
 
@@ -194,16 +197,34 @@ class GameEngine:
         self,
         decks: list[list[Card]],
         names: list[str],
+        commander_names: list[str] | None = None,
     ) -> SimState:
-        """Create initial simulation state with shuffled decks and opening hands (N players)."""
+        """Create initial simulation state with shuffled decks and opening hands (N players).
+
+        If commander_names is provided, the matching card is flagged
+        is_commander=True and placed in the player's command_zone
+        instead of the library/hand.
+        """
+        commander_names = commander_names or []
         sim = SimState(max_turns=self.max_turns)
 
         for idx, (deck, name) in enumerate(zip(decks, names)):
             cards = [enrich_card(c.clone()) for c in deck]
-            random.shuffle(cards)
 
-            hand = cards[:7]
-            library = cards[7:]
+            # Identify and separate commander card
+            cmd_name = commander_names[idx].lower() if idx < len(commander_names) else ""
+            commander_card = None
+            remaining = []
+            for c in cards:
+                if cmd_name and c.name.lower() == cmd_name and commander_card is None:
+                    c.is_commander = True
+                    commander_card = c
+                else:
+                    remaining.append(c)
+
+            random.shuffle(remaining)
+            hand = remaining[:7]
+            library = remaining[7:]
 
             player = Player(
                 name=name,
@@ -213,6 +234,8 @@ class GameEngine:
                 hand=hand,
                 stats=PlayerStats(cards_drawn=7),
             )
+            if commander_card:
+                player.command_zone.append(commander_card)
             sim.players.append(player)
 
         sim.init_battlefields(len(sim.players))
