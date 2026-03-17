@@ -68,6 +68,8 @@ AI_DEFAULT_WEIGHTS: dict[str, float] = {
     "spell_enchantment": 3.0,
     "spell_flash": 2.0,
     "spell_cascade": 3.0,
+    # Commander bonus
+    "commander_bonus": 5.0,
 }
 
 
@@ -319,6 +321,10 @@ def score_card(
         score += w.get("spell_counter", 4.0) + _MULTI_OPP_SCALING.get("spell_counter", 0.0) * extra_opps
     if "search your library" in text:
         score += w.get("spell_search", 2.0)
+
+    # ── Commander bonus ──
+    if card.is_commander:
+        score += w.get("commander_bonus", 5.0)
 
     return score
 
