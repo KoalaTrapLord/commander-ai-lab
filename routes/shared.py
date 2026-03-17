@@ -235,112 +235,12 @@ def _detect_card_roles(oracle_text: str, type_line: str, keywords) -> list:
 
 
 # ══════════════════════════════════════════════════════════════
-# Deck Helpers
-# ══════════════════════════════════════════════════════════════
-
-_TYPE_PRIORITY = ["Land", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Creature"]
-_TYPE_TARGETS = {
-    "Land":         [36, 38],
-    "Instant":      [9,  11],
-    "Sorcery":      [7,  9],
-    "Artifact":     [9,  11],
-    "Creature":     [20, 30],
-    "Enchantment":  [5,  10],
-    "Planeswalker": [0,  5],
-}
-
-
-def _classify_card_type(type_line: str) -> str:
-    tl = type_line or ""
-    for t in _TYPE_PRIORITY:
-        if t in tl:
-            return t
-    return "Other"
-
-
-def _get_deck_or_404(deck_id: int):
-    conn = _get_db_conn()
-    row = conn.execute("SELECT * FROM decks WHERE id = ?", (deck_id,)).fetchone()
-    if not row:
-        raise HTTPException(404, f"Deck {deck_id} not found")
-    d = dict(row)
-    try:
-        d["color_identity"] = json.loads(d.get("color_identity", "[]"))
-    except Exception:
-        d["color_identity"] = []
-    return d
-
-
-def _compute_deck_analysis(deck_id: int) -> dict:
-    conn = _get_db_conn()
-    rows = conn.execute("""
-        SELECT dc.id, dc.scryfall_id, dc.card_name, dc.quantity, dc.is_commander, dc.role_tag,
-               ce.type_line, ce.oracle_text, ce.keywords, ce.cmc, ce.color_identity
-        FROM deck_cards dc
-        LEFT JOIN (
-            SELECT scryfall_id, type_line, oracle_text, keywords, cmc, color_identity
-            FROM collection_entries GROUP BY scryfall_id
-        ) ce ON ce.scryfall_id = dc.scryfall_id
-        WHERE dc.deck_id = ?
-    """, (deck_id,)).fetchall()
-
-    counts_by_type = {t: 0 for t in _TYPE_PRIORITY}
-    counts_by_type["Other"] = 0
-    mana_curve = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, "6+": 0}
-    color_pips = {"W": 0, "U": 0, "B": 0, "R": 0, "G": 0}
-    roles_count = {"Ramp": 0, "Draw": 0, "Removal": 0, "BoardWipe": 0,
-                   "Protection": 0, "Tutor": 0, "Counter": 0}
-    total_cards = 0
-
-    for row in rows:
-        qty = row["quantity"] or 1
-        total_cards += qty
-        type_line = row["type_line"] or ""
-        oracle_text = row["oracle_text"] or ""
-        keywords = row["keywords"] or "[]"
-        cmc = float(row["cmc"] or 0)
-        col_id_raw = row["color_identity"] or "[]"
-        card_type = _classify_card_type(type_line)
-        counts_by_type[card_type] = counts_by_type.get(card_type, 0) + qty
-        if card_type != "Land":
-            cmc_int = int(cmc)
-            if cmc_int >= 6:
-                mana_curve["6+"] += qty
-            else:
-                mana_curve[cmc_int] = mana_curve.get(cmc_int, 0) + qty
-        try:
-            ci = json.loads(col_id_raw) if isinstance(col_id_raw, str) else col_id_raw
-        except Exception:
-            ci = []
-        for c in ci:
-            if c in color_pips:
-                color_pips[c] += qty
-        card_roles = _detect_card_roles(oracle_text, type_line, keywords)
-        for role in card_roles:
-            if role in roles_count:
-                roles_count[role] += qty
-
-    deltas = {}
-    for t, (lo, hi) in _TYPE_TARGETS.items():
-        mid = (lo + hi) / 2
-        deltas[t] = round(counts_by_type.get(t, 0) - mid, 1)
-
-    return {
-        "counts_by_type": counts_by_type,
-        "targets": _TYPE_TARGETS,
-        "deltas": deltas,
-        "mana_curve": mana_curve,
-        "color_pips": color_pips,
-        "total_cards": total_cards,
-        "roles": roles_count,
-    }
-
-
-def _check_ratio_limit(deck_id: int, card_type: str, count_to_add: int = 1) -> bool:
-    analysis = _compute_deck_analysis(deck_id)
-    current = analysis["counts_by_type"].get(card_type, 0)
-    target_max = _TYPE_TARGETS.get(card_type, [0, 9999])[1]
-    return (current + count_to_add) <= target_max
+# Deck Helpers (imported from services/deck_service.py)
+from services.deck_service import (
+    _TYPE_PRIORITY, _TYPE_TARGETS, _classify_card_type, _get_deck_or_404,
+    _compute_deck_analysis, _check_ratio_limit, _to_edhrec_slug,
+    parse_dck_file, _save_profile_to_dck, _load_deck_cards_by_name,
+)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -358,13 +258,6 @@ from services.scryfall import (
 def _http_get(url: str) -> str:
     with urlopen(Request(url, headers=_API_HEADERS), timeout=30) as resp:
         return resp.read().decode("utf-8")
-
-
-def _to_edhrec_slug(name: str) -> str:
-    slug = name.lower()
-    slug = re.sub(r"[',.]", "", slug)
-    slug = re.sub(r"[^a-z0-9]+", "-", slug)
-    return slug.strip("-")
 
 
 def _fetch_archidekt_deck(deck_id: str) -> dict:
