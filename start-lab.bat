@@ -20,11 +20,21 @@ set FORGE_DECKS_DIR=%APPDATA%\Forge\decks\commander
 REM ── Lab JAR (auto-detected from target/) ───────────────────
 set LAB_PORT=8080
 
-REM ── Ximilar API Key for Card Scanner ────────────────────────
-set XIMILAR_API_KEY=REDACTED_XIMILAR_KEY
-
-REM ── Perplexity API Key for AI Deck Research/Generation ─────
-set PPLX_API_KEY=REDACTED_PPLX_KEY
+REM ── API Keys (set via environment variables or .env file) ──
+REM  If not already set in your environment, create a .env file
+REM  in this directory (see .env.example) or set them manually:
+REM    set XIMILAR_API_KEY=your-ximilar-key-here
+REM    set PPLX_API_KEY=your-perplexity-key-here
+REM
+REM  Load from .env file if it exists and vars aren't already set
+if not defined XIMILAR_API_KEY (
+    if exist "%~dp0.env" (
+        for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0.env") do (
+            if "%%A"=="XIMILAR_API_KEY" set XIMILAR_API_KEY=%%B
+            if "%%A"=="PPLX_API_KEY" set PPLX_API_KEY=%%B
+        )
+    )
+)
 
 echo.
 echo  ╔══════════════════════════════════════════════════╗

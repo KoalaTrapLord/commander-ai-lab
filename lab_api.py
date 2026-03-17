@@ -954,9 +954,9 @@ def parse_args():
     parser.add_argument("--lab-jar", default=os.environ.get("LAB_JAR", ""),
                         help="Path to commander-ai-lab.jar (default: auto-detect from target/)")
     parser.add_argument("--port", type=int, default=int(os.environ.get("LAB_PORT", "8080")))
-    parser.add_argument("--ximilar-key", default=os.environ.get("XIMILAR_API_KEY", "REDACTED_XIMILAR_KEY"),
-                        help="Ximilar API key for card scanner (visual AI recognition)")
-    parser.add_argument("--pplx-key", default=os.environ.get("PPLX_API_KEY", "REDACTED_PPLX_KEY"),
+    parser.add_argument("--ximilar-key", default=os.environ.get("XIMILAR_API_KEY", ""),
+                        help="Ximilar API key for card scanner (env: XIMILAR_API_KEY)")
+    parser.add_argument("--pplx-key", default=os.environ.get("PPLX_API_KEY", ""),
                         help="Perplexity API key for AI deck research/generation (env: PPLX_API_KEY)")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Enable DEBUG-level logging (default: INFO)")
