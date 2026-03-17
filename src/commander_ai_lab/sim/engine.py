@@ -260,6 +260,17 @@ class GameEngine:
         sim.add_to_battlefield(pi, land_card)
         p.stats.lands_played += 1
 
+    @staticmethod
+    def _send_to_graveyard(sim: SimState, card, owner_idx: int) -> None:
+        """Route card to command zone if it's a commander, else graveyard."""
+        owner = sim.players[owner_idx]
+        if card.is_commander:
+            card.tapped = False
+            card.turn_played = -1
+            owner.command_zone.append(card)
+        else:
+            owner.graveyard.append(card)
+
     def _count_untapped_lands(self, sim: SimState, pi: int) -> int:
         """Count untapped lands for a player."""
         return sum(
@@ -325,7 +336,7 @@ class GameEngine:
                     all_opp_creatures.sort(key=lambda c: -score_card(c, w))
                     killed = all_opp_creatures[0]
                     sim.remove_from_battlefield(killed.id)
-                    sim.players[killed.owner_id].graveyard.append(killed)
+                    self._send_to_graveyard(sim, killed, killed.owner_id)
                     if events is not None:
                         events.append(f"Cast {card.name} (removal) — destroyed {killed.name}")
                 else:
@@ -342,7 +353,7 @@ class GameEngine:
                     for c in bf:
                         if c.is_creature():
                             wiped_names.append(c.name)
-                            sim.players[c.owner_id].graveyard.append(c)
+                            self._send_to_graveyard(sim, c, c.owner_id)
                         else:
                             keep.append(c)
                     sim.battlefields[seat_idx] = keep
@@ -532,13 +543,13 @@ class GameEngine:
 
                     if a_pow >= blocker.get_toughness() or atk.has_keyword("deathtouch"):
                         sim.remove_from_battlefield(blocker.id)
-                        sim.players[opp_idx].graveyard.append(blocker)
+                        self._send_to_graveyard(sim, blocker, opp_idx)
                         if events is not None:
                             combat_details.append(f"  {blocker.name} dies")
 
                     if b_pow >= a_tou or blocker.has_keyword("deathtouch"):
                         sim.remove_from_battlefield(atk.id)
-                        sim.players[pi].graveyard.append(atk)
+                        self._send_to_graveyard(sim, atk, pi)
                         if events is not None:
                             combat_details.append(f"  {atk.name} dies")
 
