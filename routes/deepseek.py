@@ -28,6 +28,7 @@ from routes.shared import (
     CFG, log_sim,
     _get_db_conn,
     _ml_logging_enabled,
+    _get_deepseek_brain,
 )
 
 router = APIRouter(tags=["deepseek"])
@@ -394,36 +395,6 @@ async def sim_run_from_deck(request: FastAPIRequest):
 # DeepSeek AI Opponent Brain
 # ══════════════════════════════════════════════════════════════
 
-# Global DeepSeek brain instance (lazy-initialized)
-_deepseek_brain = None
-_deepseek_lock = _threading.Lock()
-
-def _get_deepseek_brain():
-    """Get or create the global DeepSeek brain instance."""
-    global _deepseek_brain
-    if _deepseek_brain is None:
-        with _deepseek_lock:
-            if _deepseek_brain is None:
-                try:
-                    import sys as _sys2, os as _os2
-                    src_dir = _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)), 'src')
-                    if src_dir not in _sys2.path:
-                        _sys2.path.insert(0, src_dir)
-                    from commander_ai_lab.sim.deepseek_brain import DeepSeekBrain, DeepSeekConfig
-                    cfg = DeepSeekConfig()
-                    # Allow env var overrides
-                    if _os2.environ.get('DEEPSEEK_API_BASE'):
-                        cfg.api_base = _os2.environ['DEEPSEEK_API_BASE']
-                    if _os2.environ.get('DEEPSEEK_MODEL'):
-                        cfg.model = _os2.environ['DEEPSEEK_MODEL']
-                    cfg.log_dir = _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)), 'logs', 'decisions')
-                    _deepseek_brain = DeepSeekBrain(cfg)
-                except Exception as e:
-                    log_sim.error(f'Failed to initialize brain: {e}')
-                    return None
-    return _deepseek_brain
-
-
 @router.post('/api/deepseek/connect')
 async def deepseek_connect(request: FastAPIRequest):
     """Test connection to the DeepSeek LLM endpoint and auto-detect model."""
@@ -584,7 +555,7 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict], num_games: int,
 
         deck_b = _generate_training_deck()
 
-        # Get DeepSeek brain
+        # Get DeepSeek brain from shared canonical source
         brain = _get_deepseek_brain()
         if brain and not brain._connected:
             brain.check_connection()
@@ -765,5 +736,3 @@ async def sim_run_deepseek(request: FastAPIRequest):
         'deckName': deck_name,
         'opponentType': 'deepseek',
     })
-
-
