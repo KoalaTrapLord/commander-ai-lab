@@ -142,6 +142,8 @@ class Player:
     hand: list[Card] = field(default_factory=list)
     graveyard: list[Card] = field(default_factory=list)
     exile: list[Card] = field(default_factory=list)
+    command_zone: list[Card] = field(default_factory=list)
+    commander_tax: int = 0  # +2 per cast from command zone
 
     stats: PlayerStats = field(default_factory=PlayerStats)
 
