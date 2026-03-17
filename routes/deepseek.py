@@ -42,7 +42,7 @@ def _run_sim_thread_v2(sim_id: str, card_data: list[dict], num_games: int, deck_
     """Background thread for simulations with full card data from the DB."""
     try:
         import sys, os
-        src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
+        src_dir = str(Path(__file__).resolve().parent.parent / 'src')
         if src_dir not in sys.path:
             sys.path.insert(0, src_dir)
 
@@ -170,7 +170,7 @@ def _run_sim_thread(sim_id: str, decklist: list, num_games: int, deck_name: str,
     try:
         import sys, os
         # Add src/ to path if needed for the simulator package
-        src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
+        src_dir = str(Path(__file__).resolve().parent.parent / 'src')
         if src_dir not in sys.path:
             sys.path.insert(0, src_dir)
 
@@ -406,7 +406,7 @@ def _get_deepseek_brain():
             if _deepseek_brain is None:
                 try:
                     import sys as _sys2, os as _os2
-                    src_dir = _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)), 'src')
+                    src_dir = str(Path(__file__).resolve().parent.parent / 'src')
                     if src_dir not in _sys2.path:
                         _sys2.path.insert(0, src_dir)
                     from commander_ai_lab.sim.deepseek_brain import DeepSeekBrain, DeepSeekConfig
@@ -416,7 +416,7 @@ def _get_deepseek_brain():
                         cfg.api_base = _os2.environ['DEEPSEEK_API_BASE']
                     if _os2.environ.get('DEEPSEEK_MODEL'):
                         cfg.model = _os2.environ['DEEPSEEK_MODEL']
-                    cfg.log_dir = _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)), 'logs', 'decisions')
+                    cfg.log_dir = str(Path(__file__).resolve().parent.parent / 'logs' / 'decisions')
                     _deepseek_brain = DeepSeekBrain(cfg)
                 except Exception as e:
                     log_sim.error(f'Failed to initialize brain: {e}')
@@ -541,7 +541,7 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict], num_games: int,
     """Background thread for simulations using DeepSeek AI opponent."""
     try:
         import sys, os
-        src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
+        src_dir = str(Path(__file__).resolve().parent.parent / 'src')
         if src_dir not in sys.path:
             sys.path.insert(0, src_dir)
 
