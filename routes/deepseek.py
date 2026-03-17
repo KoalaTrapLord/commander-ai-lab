@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse
 from routes.shared import (
     CFG, log_sim,
     _get_db_conn,
+        _get_deepseek_brain,
     _ml_logging_enabled,
 )
 
@@ -389,39 +390,6 @@ async def sim_run_from_deck(request: FastAPIRequest):
 
     return JSONResponse({'simId': sim_id, 'status': 'queued', 'total': num_games, 'deckName': deck_name})
 
-
-# ══════════════════════════════════════════════════════════════
-# DeepSeek AI Opponent Brain
-# ══════════════════════════════════════════════════════════════
-
-# Global DeepSeek brain instance (lazy-initialized)
-_deepseek_brain = None
-_deepseek_lock = _threading.Lock()
-
-def _get_deepseek_brain():
-    """Get or create the global DeepSeek brain instance."""
-    global _deepseek_brain
-    if _deepseek_brain is None:
-        with _deepseek_lock:
-            if _deepseek_brain is None:
-                try:
-                    import sys as _sys2, os as _os2
-                    src_dir = str(Path(__file__).resolve().parent.parent / 'src')
-                    if src_dir not in _sys2.path:
-                        _sys2.path.insert(0, src_dir)
-                    from commander_ai_lab.sim.deepseek_brain import DeepSeekBrain, DeepSeekConfig
-                    cfg = DeepSeekConfig()
-                    # Allow env var overrides
-                    if _os2.environ.get('DEEPSEEK_API_BASE'):
-                        cfg.api_base = _os2.environ['DEEPSEEK_API_BASE']
-                    if _os2.environ.get('DEEPSEEK_MODEL'):
-                        cfg.model = _os2.environ['DEEPSEEK_MODEL']
-                    cfg.log_dir = str(Path(__file__).resolve().parent.parent / 'logs' / 'decisions')
-                    _deepseek_brain = DeepSeekBrain(cfg)
-                except Exception as e:
-                    log_sim.error(f'Failed to initialize brain: {e}')
-                    return None
-    return _deepseek_brain
 
 
 @router.post('/api/deepseek/connect')
