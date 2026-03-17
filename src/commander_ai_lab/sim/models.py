@@ -143,7 +143,13 @@ class Player:
     graveyard: list[Card] = field(default_factory=list)
     exile: list[Card] = field(default_factory=list)
     command_zone: list[Card] = field(default_factory=list)
-    commander_tax: int = 0  # +2 per cast from command zone
+
+    # commander_tax tracks the cumulative tax per commander name.
+    # Keyed by card name so N-player pods with multiple commanders
+    # each track their own tax independently.
+    # engine._play_spells uses: tax = p.commander_tax.get(name, 0)
+    #                           p.commander_tax[name] = tax + 2
+    commander_tax: dict = field(default_factory=dict)
 
     stats: PlayerStats = field(default_factory=PlayerStats)
 
