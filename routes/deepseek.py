@@ -16,7 +16,10 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import time
 import threading as _threading
+import traceback
 import uuid as _uuid
 from pathlib import Path
 
@@ -27,157 +30,175 @@ from fastapi.responses import JSONResponse
 from routes.shared import (
     CFG, log_sim,
     _get_db_conn,
-        _get_deepseek_brain,
+    _get_deepseek_brain,
     _ml_logging_enabled,
 )
 
 router = APIRouter(tags=["deepseek"])
 
-
 # In-memory store for simulation runs
 _sim_runs = {}  # sim_id -> { status, result, error }
 _sim_lock = _threading.Lock()
 
+# ══════════════════════════════════════════════════════════════
+# Shared Helpers (extracted to deduplicate sim threads — #42)
+# ══════════════════════════════════════════════════════════════
 
-def _run_sim_thread_v2(sim_id: str, card_data: list[dict], num_games: int, deck_name: str, record_logs: bool):
-    """Background thread for simulations with full card data from the DB."""
-    try:
-        import sys, os
+_SRC_PATH_ADDED = False
+
+
+def _ensure_src_path():
+    """Add project src/ to sys.path once."""
+    global _SRC_PATH_ADDED
+    if not _SRC_PATH_ADDED:
         src_dir = str(Path(__file__).resolve().parent.parent / 'src')
         if src_dir not in sys.path:
             sys.path.insert(0, src_dir)
+        _SRC_PATH_ADDED = True
 
-        from commander_ai_lab.sim.models import Card
-        from commander_ai_lab.sim.engine import GameEngine
-        from commander_ai_lab.sim.rules import enrich_card
-        from commander_ai_lab.lab.experiments import _generate_training_deck
 
-        with _sim_lock:
-            _sim_runs[sim_id]['status'] = 'running'
+def _build_deck_from_card_data(card_data: list[dict]) -> list:
+    """Build a list of Card objects from DB card dicts. Used by v2 + deepseek threads."""
+    _ensure_src_path()
+    from commander_ai_lab.sim.models import Card
+    from commander_ai_lab.sim.rules import enrich_card
 
-        # Build deck with real card data from DB
-        deck_a = []
-        for cd in card_data:
-            c = Card(name=cd['name'])
-            if cd.get('type_line'):
-                c.type_line = cd['type_line']
-            if cd.get('cmc'):
-                c.cmc = float(cd['cmc'])
-            if cd.get('power') and cd.get('toughness'):
-                c.power = str(cd['power'])
-                c.toughness = str(cd['toughness'])
-                c.pt = c.power + '/' + c.toughness
-            if cd.get('oracle_text'):
-                c.oracle_text = cd['oracle_text']
-            if cd.get('mana_cost'):
-                c.mana_cost = cd['mana_cost']
-            if cd.get('keywords'):
-                kw = cd['keywords']
-                if isinstance(kw, str):
-                    try:
-                        import json as _json
-                        kw = _json.loads(kw)
-                    except Exception:
-                        kw = []
-                if isinstance(kw, list):
-                    c.keywords = kw
-            # Enrich fills in flags like is_removal, is_ramp, is_board_wipe
-            enrich_card(c)
-            deck_a.append(c)
+    deck = []
+    for cd in card_data:
+        c = Card(name=cd['name'])
+        if cd.get('type_line'):
+            c.type_line = cd['type_line']
+        if cd.get('cmc'):
+            c.cmc = float(cd['cmc'])
+        if cd.get('power') and cd.get('toughness'):
+            c.power = str(cd['power'])
+            c.toughness = str(cd['toughness'])
+            c.pt = c.power + '/' + c.toughness
+        if cd.get('oracle_text'):
+            c.oracle_text = cd['oracle_text']
+        if cd.get('mana_cost'):
+            c.mana_cost = cd['mana_cost']
+        if cd.get('keywords'):
+            kw = cd['keywords']
+            if isinstance(kw, str):
+                try:
+                    kw = json.loads(kw)
+                except Exception:
+                    kw = []
+            if isinstance(kw, list):
+                c.keywords = kw
+        enrich_card(c)
+        deck.append(c)
+    return deck
 
-        deck_b = _generate_training_deck()
 
-        engine = GameEngine(max_turns=25, record_log=record_logs)
-        import time
-        start = time.time()
+def _run_game_loop(engine, deck_a, deck_b, deck_name, opponent_name,
+                   num_games, sim_id, **run_kwargs):
+    """Run *num_games* and accumulate stats. Returns (game_results, stats, elapsed)."""
+    start = time.time()
+    wins = losses = total_turns = 0
+    total_damage_dealt = total_damage_received = 0
+    total_spells_cast = total_creatures_played = 0
+    total_removal_used = total_ramp_played = 0
+    total_cards_drawn = total_max_board = 0
+    game_results = []
 
-        wins = 0
-        losses = 0
-        total_turns = 0
-        total_damage_dealt = 0
-        total_damage_received = 0
-        total_spells_cast = 0
-        total_creatures_played = 0
-        total_removal_used = 0
-        total_ramp_played = 0
-        total_cards_drawn = 0
-        total_max_board = 0
-        game_results = []
+    for i in range(num_games):
+        kw = dict(run_kwargs)
+        # DeepSeek engine needs per-game IDs
+        if 'game_id_prefix' in kw:
+            prefix = kw.pop('game_id_prefix')
+            kw['game_id'] = f'{prefix}-g{i+1}'
+        result = engine.run(deck_a, deck_b, name_a=deck_name,
+                            name_b=opponent_name, **kw)
+        game_data = result.to_dict()
+        game_data['gameNumber'] = i + 1
+        game_results.append(game_data)
 
-        for i in range(num_games):
-            result = engine.run(deck_a, deck_b, name_a=deck_name, name_b="Training Deck")
+        if result.winner == 0:
+            wins += 1
+        else:
+            losses += 1
+        total_turns += result.turns
 
-            game_data = result.to_dict()
-            game_data['gameNumber'] = i + 1
-            game_results.append(game_data)
-
-            if result.winner == 0:
-                wins += 1
-            else:
-                losses += 1
-
-            total_turns += result.turns
-            if result.player_a_stats:
-                total_damage_dealt += result.player_a_stats.damage_dealt
-                total_damage_received += result.player_a_stats.damage_received
-                total_spells_cast += result.player_a_stats.spells_cast
-                total_creatures_played += result.player_a_stats.creatures_played
-                total_removal_used += result.player_a_stats.removal_used
-                total_ramp_played += result.player_a_stats.ramp_played
-                total_cards_drawn += result.player_a_stats.cards_drawn
-                total_max_board += result.player_a_stats.max_board_size
-
-            with _sim_lock:
-                _sim_runs[sim_id]['completed'] = i + 1
-
-        elapsed = time.time() - start
-        n = num_games
-
-        summary = {
-            'deckName': deck_name,
-            'opponentName': 'Training Deck',
-            'totalGames': n,
-            'wins': wins,
-            'losses': losses,
-            'winRate': round(wins / n * 100, 1) if n > 0 else 0.0,
-            'avgTurns': round(total_turns / n, 1) if n > 0 else 0.0,
-            'avgDamageDealt': round(total_damage_dealt / n, 1) if n > 0 else 0.0,
-            'avgDamageReceived': round(total_damage_received / n, 1) if n > 0 else 0.0,
-            'avgSpellsCast': round(total_spells_cast / n, 1) if n > 0 else 0.0,
-            'avgCreaturesPlayed': round(total_creatures_played / n, 1) if n > 0 else 0.0,
-            'avgRemovalUsed': round(total_removal_used / n, 1) if n > 0 else 0.0,
-            'avgRampPlayed': round(total_ramp_played / n, 1) if n > 0 else 0.0,
-            'avgCardsDrawn': round(total_cards_drawn / n, 1) if n > 0 else 0.0,
-            'avgMaxBoardSize': round(total_max_board / n, 1) if n > 0 else 0.0,
-            'elapsedSeconds': round(elapsed, 3),
-        }
+        if result.player_a_stats:
+            s = result.player_a_stats
+            total_damage_dealt += s.damage_dealt
+            total_damage_received += s.damage_received
+            total_spells_cast += s.spells_cast
+            total_creatures_played += s.creatures_played
+            total_removal_used += s.removal_used
+            total_ramp_played += s.ramp_played
+            total_cards_drawn += s.cards_drawn
+            total_max_board += s.max_board_size
 
         with _sim_lock:
-            _sim_runs[sim_id]['status'] = 'complete'
-            _sim_runs[sim_id]['result'] = {
-                'summary': summary,
-                'games': game_results,
-            }
-    except Exception as e:
-        import traceback
-        with _sim_lock:
-            _sim_runs[sim_id]['status'] = 'error'
-            _sim_runs[sim_id]['error'] = str(e)
-        traceback.print_exc()
+            _sim_runs[sim_id]['completed'] = i + 1
+
+    elapsed = time.time() - start
+    stats = dict(
+        wins=wins, losses=losses, total_turns=total_turns,
+        total_damage_dealt=total_damage_dealt,
+        total_damage_received=total_damage_received,
+        total_spells_cast=total_spells_cast,
+        total_creatures_played=total_creatures_played,
+        total_removal_used=total_removal_used,
+        total_ramp_played=total_ramp_played,
+        total_cards_drawn=total_cards_drawn,
+        total_max_board=total_max_board,
+    )
+    return game_results, stats, elapsed
 
 
-def _run_sim_thread(sim_id: str, decklist: list, num_games: int, deck_name: str, record_logs: bool):
-    """Background thread for running Monte Carlo simulations."""
+def _build_summary(stats: dict, deck_name: str, opponent_name: str,
+                   num_games: int, elapsed: float, **extra) -> dict:
+    """Build the JSON-serialisable summary dict from accumulated stats."""
+    n = num_games
+    summary = {
+        'deckName': deck_name,
+        'opponentName': opponent_name,
+        'totalGames': n,
+        'wins': stats['wins'],
+        'losses': stats['losses'],
+        'winRate': round(stats['wins'] / n * 100, 1) if n > 0 else 0.0,
+        'avgTurns': round(stats['total_turns'] / n, 1) if n > 0 else 0.0,
+        'avgDamageDealt': round(stats['total_damage_dealt'] / n, 1) if n > 0 else 0.0,
+        'avgDamageReceived': round(stats['total_damage_received'] / n, 1) if n > 0 else 0.0,
+        'avgSpellsCast': round(stats['total_spells_cast'] / n, 1) if n > 0 else 0.0,
+        'avgCreaturesPlayed': round(stats['total_creatures_played'] / n, 1) if n > 0 else 0.0,
+        'avgRemovalUsed': round(stats['total_removal_used'] / n, 1) if n > 0 else 0.0,
+        'avgRampPlayed': round(stats['total_ramp_played'] / n, 1) if n > 0 else 0.0,
+        'avgCardsDrawn': round(stats['total_cards_drawn'] / n, 1) if n > 0 else 0.0,
+        'avgMaxBoardSize': round(stats['total_max_board'] / n, 1) if n > 0 else 0.0,
+        'elapsedSeconds': round(elapsed, 3),
+    }
+    summary.update(extra)
+    return summary
+
+
+def _finish_sim(sim_id, summary, game_results):
+    """Mark a sim run as complete."""
+    with _sim_lock:
+        _sim_runs[sim_id]['status'] = 'complete'
+        _sim_runs[sim_id]['result'] = {'summary': summary, 'games': game_results}
+
+
+def _fail_sim(sim_id, error):
+    """Mark a sim run as errored."""
+    with _sim_lock:
+        _sim_runs[sim_id]['status'] = 'error'
+        _sim_runs[sim_id]['error'] = str(error)
+
+# ══════════════════════════════════════════════════════════════
+# Background Sim Threads (now thin wrappers around shared helpers)
+# ══════════════════════════════════════════════════════════════
+
+def _run_sim_thread(sim_id: str, decklist: list, num_games: int,
+                    deck_name: str, record_logs: bool):
+    """Background thread: basic Monte Carlo sim from a raw decklist."""
     try:
-        import sys, os
-        # Add src/ to path if needed for the simulator package
-        src_dir = str(Path(__file__).resolve().parent.parent / 'src')
-        if src_dir not in sys.path:
-            sys.path.insert(0, src_dir)
-
-        from commander_ai_lab.sim.models import Card
+        _ensure_src_path()
         from commander_ai_lab.sim.engine import GameEngine
-        from commander_ai_lab.sim.rules import enrich_card, parse_decklist
         from commander_ai_lab.lab.experiments import build_deck, _generate_training_deck
 
         with _sim_lock:
@@ -185,167 +206,121 @@ def _run_sim_thread(sim_id: str, decklist: list, num_games: int, deck_name: str,
 
         deck_a = build_deck(decklist)
         deck_b = _generate_training_deck()
-
         engine = GameEngine(max_turns=25, record_log=record_logs)
-        import time
-        start = time.time()
 
-        wins = 0
-        losses = 0
-        total_turns = 0
-        total_damage_dealt = 0
-        total_damage_received = 0
-        total_spells_cast = 0
-        total_creatures_played = 0
-        total_removal_used = 0
-        total_ramp_played = 0
-        total_cards_drawn = 0
-        total_max_board = 0
-        game_results = []
+        game_results, stats, elapsed = _run_game_loop(
+            engine, deck_a, deck_b, deck_name, 'Training Deck',
+            num_games, sim_id)
 
-        for i in range(num_games):
-            result = engine.run(deck_a, deck_b, name_a=deck_name, name_b="Training Deck")
-
-            game_data = result.to_dict()
-            game_data['gameNumber'] = i + 1
-            game_results.append(game_data)
-
-            if result.winner == 0:
-                wins += 1
-            else:
-                losses += 1
-
-            total_turns += result.turns
-            if result.player_a_stats:
-                total_damage_dealt += result.player_a_stats.damage_dealt
-                total_damage_received += result.player_a_stats.damage_received
-                total_spells_cast += result.player_a_stats.spells_cast
-                total_creatures_played += result.player_a_stats.creatures_played
-                total_removal_used += result.player_a_stats.removal_used
-                total_ramp_played += result.player_a_stats.ramp_played
-                total_cards_drawn += result.player_a_stats.cards_drawn
-                total_max_board += result.player_a_stats.max_board_size
-
-            # Update progress
-            with _sim_lock:
-                _sim_runs[sim_id]['completed'] = i + 1
-
-        elapsed = time.time() - start
-        n = num_games
-
-        summary = {
-            'deckName': deck_name,
-            'opponentName': 'Training Deck',
-            'totalGames': n,
-            'wins': wins,
-            'losses': losses,
-            'winRate': round(wins / n * 100, 1) if n > 0 else 0.0,
-            'avgTurns': round(total_turns / n, 1) if n > 0 else 0.0,
-            'avgDamageDealt': round(total_damage_dealt / n, 1) if n > 0 else 0.0,
-            'avgDamageReceived': round(total_damage_received / n, 1) if n > 0 else 0.0,
-            'avgSpellsCast': round(total_spells_cast / n, 1) if n > 0 else 0.0,
-            'avgCreaturesPlayed': round(total_creatures_played / n, 1) if n > 0 else 0.0,
-            'avgRemovalUsed': round(total_removal_used / n, 1) if n > 0 else 0.0,
-            'avgRampPlayed': round(total_ramp_played / n, 1) if n > 0 else 0.0,
-            'avgCardsDrawn': round(total_cards_drawn / n, 1) if n > 0 else 0.0,
-            'avgMaxBoardSize': round(total_max_board / n, 1) if n > 0 else 0.0,
-            'elapsedSeconds': round(elapsed, 3),
-        }
-
-        with _sim_lock:
-            _sim_runs[sim_id]['status'] = 'complete'
-            _sim_runs[sim_id]['result'] = {
-                'summary': summary,
-                'games': game_results,
-            }
+        summary = _build_summary(stats, deck_name, 'Training Deck',
+                                 num_games, elapsed)
+        _finish_sim(sim_id, summary, game_results)
     except Exception as e:
-        import traceback
-        with _sim_lock:
-            _sim_runs[sim_id]['status'] = 'error'
-            _sim_runs[sim_id]['error'] = str(e)
+        _fail_sim(sim_id, e)
         traceback.print_exc()
 
 
-@router.post('/api/sim/run')
-async def sim_run(request: FastAPIRequest):
-    """Start a Monte Carlo simulation with the Python engine."""
-    body = await request.json()
-    decklist = body.get('decklist', [])
-    num_games = body.get('numGames', 10)
-    deck_name = body.get('deckName', 'My Deck')
-    record_logs = body.get('recordLogs', True)
+def _run_sim_thread_v2(sim_id: str, card_data: list[dict], num_games: int,
+                       deck_name: str, record_logs: bool):
+    """Background thread: sim with full card data from the DB."""
+    try:
+        _ensure_src_path()
+        from commander_ai_lab.sim.engine import GameEngine
+        from commander_ai_lab.lab.experiments import _generate_training_deck
 
-    if not decklist:
-        return JSONResponse({'error': 'decklist is required'}, status_code=400)
-    if num_games < 1 or num_games > 1000:
-        return JSONResponse({'error': 'numGames must be 1-1000'}, status_code=400)
+        with _sim_lock:
+            _sim_runs[sim_id]['status'] = 'running'
 
+        deck_a = _build_deck_from_card_data(card_data)
+        deck_b = _generate_training_deck()
+        engine = GameEngine(max_turns=25, record_log=record_logs)
+
+        game_results, stats, elapsed = _run_game_loop(
+            engine, deck_a, deck_b, deck_name, 'Training Deck',
+            num_games, sim_id)
+
+        summary = _build_summary(stats, deck_name, 'Training Deck',
+                                 num_games, elapsed)
+        _finish_sim(sim_id, summary, game_results)
+    except Exception as e:
+        _fail_sim(sim_id, e)
+        traceback.print_exc()
+
+
+def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
+                             num_games: int, deck_name: str,
+                             record_logs: bool):
+    """Background thread: sim using DeepSeek AI opponent."""
+    try:
+        _ensure_src_path()
+        from commander_ai_lab.sim.deepseek_engine import DeepSeekGameEngine
+        from commander_ai_lab.lab.experiments import _generate_training_deck
+
+        with _sim_lock:
+            _sim_runs[sim_id]['status'] = 'running'
+
+        deck_a = _build_deck_from_card_data(card_data)
+        deck_b = _generate_training_deck()
+
+        brain = _get_deepseek_brain()
+        if brain and not brain._connected:
+            brain.check_connection()
+
+        engine = DeepSeekGameEngine(
+            brain=brain, ai_player_index=1,
+            max_turns=25, record_log=record_logs)
+
+        game_results, stats, elapsed = _run_game_loop(
+            engine, deck_a, deck_b, deck_name, 'DeepSeek AI',
+            num_games, sim_id,
+            game_id_prefix=f'ds-sim-{sim_id[:8]}',
+            archetype='midrange')
+
+        # Write ML decision JSONL for training pipeline
+        ml_decisions = engine.flush_ml_decisions()
+        if ml_decisions:
+            ml_path = os.path.join('results',
+                                   f'ml-decisions-sim-{sim_id[:8]}.jsonl')
+            os.makedirs('results', exist_ok=True)
+            with open(ml_path, 'w', encoding='utf-8') as mf:
+                for dec in ml_decisions:
+                    mf.write(json.dumps(dec) + '\n')
+
+        ds_stats = brain.get_stats() if brain else {}
+        summary = _build_summary(
+            stats, deck_name, 'DeepSeek AI', num_games, elapsed,
+            opponentType='deepseek', deepseekStats=ds_stats)
+        _finish_sim(sim_id, summary, game_results)
+    except Exception as e:
+        _fail_sim(sim_id, e)
+        traceback.print_exc()
+
+# ══════════════════════════════════════════════════════════════
+# Simulation API Endpoints
+# ══════════════════════════════════════════════════════════════
+
+
+def _create_sim_run(num_games, deck_name):
+    """Create a queued sim run entry and return its ID."""
     sim_id = str(_uuid.uuid4())[:8]
     with _sim_lock:
         _sim_runs[sim_id] = {
-            'status': 'queued',
-            'completed': 0,
-            'total': num_games,
-            'deckName': deck_name,
-            'result': None,
-            'error': None,
+            'status': 'queued', 'completed': 0,
+            'total': num_games, 'deckName': deck_name,
+            'result': None, 'error': None,
         }
-
-    t = _threading.Thread(target=_run_sim_thread, args=(sim_id, decklist, num_games, deck_name, record_logs), daemon=True)
-    t.start()
-
-    return JSONResponse({'simId': sim_id, 'status': 'queued', 'total': num_games})
+    return sim_id
 
 
-@router.get('/api/sim/status')
-async def sim_status(simId: str):
-    """Poll simulation progress."""
-    with _sim_lock:
-        run = _sim_runs.get(simId)
-    if not run:
-        return JSONResponse({'error': 'sim not found'}, status_code=404)
-    return JSONResponse({
-        'simId': simId,
-        'status': run['status'],
-        'completed': run['completed'],
-        'total': run['total'],
-        'deckName': run.get('deckName', ''),
-        'error': run.get('error'),
-    })
-
-
-@router.get('/api/sim/result')
-async def sim_result(simId: str):
-    """Get completed simulation results."""
-    with _sim_lock:
-        run = _sim_runs.get(simId)
-    if not run:
-        return JSONResponse({'error': 'sim not found'}, status_code=404)
-    if run['status'] != 'complete':
-        return JSONResponse({'error': 'sim not complete', 'status': run['status']}, status_code=400)
-    return JSONResponse(run['result'])
-
-
-@router.post('/api/sim/run-from-deck')
-async def sim_run_from_deck(request: FastAPIRequest):
-    """Start simulation using a deck from the Deck Builder (by deck ID)."""
-    body = await request.json()
-    deck_id = body.get('deckId')
-    num_games = body.get('numGames', 10)
-    record_logs = body.get('recordLogs', True)
-
-    if not deck_id:
-        return JSONResponse({'error': 'deckId required'}, status_code=400)
-
+def _fetch_deck_card_data(deck_id):
+    """Load card data from the DB for a given deck ID. Returns (deck_name, card_data) or raises."""
     conn = _get_db_conn()
     cur = conn.cursor()
     cur.execute('SELECT name FROM decks WHERE id = ?', (deck_id,))
     row = cur.fetchone()
     if not row:
-        return JSONResponse({'error': 'deck not found'}, status_code=404)
+        return None, None
     deck_name = row[0]
-
-    # Pull full card data from collection join so the sim engine has real types/stats
     cur.execute("""
         SELECT dc.card_name, dc.quantity,
                ce.type_line, ce.cmc, ce.power, ce.toughness,
@@ -362,34 +337,118 @@ async def sim_run_from_deck(request: FastAPIRequest):
     for r in cur.fetchall():
         for _ in range(r[1] or 1):
             card_data.append({
-                'name': r[0],
-                'type_line': r[2] or '',
-                'cmc': r[3] or 0,
-                'power': r[4] or '',
-                'toughness': r[5] or '',
-                'oracle_text': r[6] or '',
-                'keywords': r[7] or '',
-                'mana_cost': r[8] or '',
+                'name': r[0], 'type_line': r[2] or '',
+                'cmc': r[3] or 0, 'power': r[4] or '',
+                'toughness': r[5] or '', 'oracle_text': r[6] or '',
+                'keywords': r[7] or '', 'mana_cost': r[8] or '',
             })
+    return deck_name, card_data
+
+
+@router.post('/api/sim/run')
+async def sim_run(request: FastAPIRequest):
+    """Start a Monte Carlo simulation with the Python engine."""
+    body = await request.json()
+    decklist = body.get('decklist', [])
+    num_games = body.get('numGames', 10)
+    deck_name = body.get('deckName', 'My Deck')
+    record_logs = body.get('recordLogs', True)
+
+    if not decklist:
+        return JSONResponse({'error': 'decklist is required'}, status_code=400)
+    if num_games < 1 or num_games > 1000:
+        return JSONResponse({'error': 'numGames must be 1-1000'}, status_code=400)
+
+    sim_id = _create_sim_run(num_games, deck_name)
+    _threading.Thread(target=_run_sim_thread,
+                      args=(sim_id, decklist, num_games, deck_name, record_logs),
+                      daemon=True).start()
+    return JSONResponse({'simId': sim_id, 'status': 'queued', 'total': num_games})
+
+
+@router.get('/api/sim/status')
+async def sim_status(simId: str):
+    """Poll simulation progress."""
+    with _sim_lock:
+        run = _sim_runs.get(simId)
+    if not run:
+        return JSONResponse({'error': 'sim not found'}, status_code=404)
+    return JSONResponse({
+        'simId': simId, 'status': run['status'],
+        'completed': run['completed'], 'total': run['total'],
+        'deckName': run.get('deckName', ''), 'error': run.get('error'),
+    })
+
+
+@router.get('/api/sim/result')
+async def sim_result(simId: str):
+    """Get completed simulation results."""
+    with _sim_lock:
+        run = _sim_runs.get(simId)
+    if not run:
+        return JSONResponse({'error': 'sim not found'}, status_code=404)
+    if run['status'] != 'complete':
+        return JSONResponse({'error': 'sim not complete', 'status': run['status']},
+                            status_code=400)
+    return JSONResponse(run['result'])
+
+
+@router.post('/api/sim/run-from-deck')
+async def sim_run_from_deck(request: FastAPIRequest):
+    """Start simulation using a deck from the Deck Builder (by deck ID)."""
+    body = await request.json()
+    deck_id = body.get('deckId')
+    num_games = body.get('numGames', 10)
+    record_logs = body.get('recordLogs', True)
+
+    if not deck_id:
+        return JSONResponse({'error': 'deckId required'}, status_code=400)
+
+    deck_name, card_data = _fetch_deck_card_data(deck_id)
+    if deck_name is None:
+        return JSONResponse({'error': 'deck not found'}, status_code=404)
     if not card_data:
         return JSONResponse({'error': 'deck has no cards'}, status_code=400)
 
-    sim_id = str(_uuid.uuid4())[:8]
-    with _sim_lock:
-        _sim_runs[sim_id] = {
-            'status': 'queued',
-            'completed': 0,
-            'total': num_games,
-            'deckName': deck_name,
-            'result': None,
-            'error': None,
-        }
+    sim_id = _create_sim_run(num_games, deck_name)
+    _threading.Thread(target=_run_sim_thread_v2,
+                      args=(sim_id, card_data, num_games, deck_name, record_logs),
+                      daemon=True).start()
+    return JSONResponse({'simId': sim_id, 'status': 'queued',
+                         'total': num_games, 'deckName': deck_name})
 
-    t = _threading.Thread(target=_run_sim_thread_v2, args=(sim_id, card_data, num_games, deck_name, record_logs), daemon=True)
-    t.start()
 
-    return JSONResponse({'simId': sim_id, 'status': 'queued', 'total': num_games, 'deckName': deck_name})
+@router.post('/api/sim/run-deepseek')
+async def sim_run_deepseek(request: FastAPIRequest):
+    """Start simulation using DeepSeek AI as the opponent brain."""
+    body = await request.json()
+    deck_id = body.get('deckId')
+    num_games = body.get('numGames', 5)
+    record_logs = body.get('recordLogs', True)
 
+    if not deck_id:
+        return JSONResponse({'error': 'deckId required'}, status_code=400)
+    if num_games < 1 or num_games > 50:
+        return JSONResponse({'error': 'numGames must be 1-50 for DeepSeek mode'},
+                            status_code=400)
+
+    deck_name, card_data = _fetch_deck_card_data(deck_id)
+    if deck_name is None:
+        return JSONResponse({'error': 'deck not found'}, status_code=404)
+    if not card_data:
+        return JSONResponse({'error': 'deck has no cards'}, status_code=400)
+
+    sim_id = _create_sim_run(num_games, deck_name)
+    _threading.Thread(target=_run_sim_thread_deepseek,
+                      args=(sim_id, card_data, num_games, deck_name, record_logs),
+                      daemon=True).start()
+    return JSONResponse({'simId': sim_id, 'status': 'queued',
+                         'total': num_games, 'deckName': deck_name,
+                         'opponentType': 'deepseek'})
+
+# ══════════════════════════════════════════════════════════════
+# DeepSeek AI Brain Endpoints
+# ══════════════════════════════════════════════════════════════
 
 
 @router.post('/api/deepseek/connect')
@@ -401,9 +460,9 @@ async def deepseek_connect(request: FastAPIRequest):
 
     brain = _get_deepseek_brain()
     if brain is None:
-        return JSONResponse({'error': 'DeepSeek brain failed to initialize'}, status_code=500)
+        return JSONResponse({'error': 'DeepSeek brain failed to initialize'},
+                            status_code=500)
 
-    # Allow runtime reconfiguration
     if api_base:
         brain.config.api_base = api_base
     if model:
@@ -452,9 +511,7 @@ async def deepseek_configure(request: FastAPIRequest):
     if 'fallbackOnTimeout' in body:
         brain.config.fallback_on_timeout = bool(body['fallbackOnTimeout'])
 
-    # Re-test connection with new settings
     connected = brain.check_connection()
-
     return JSONResponse({
         'connected': connected,
         'config': {
@@ -483,9 +540,9 @@ async def deepseek_logs():
         try:
             flushed_path = brain.flush_log()
         except Exception as e:
-            return JSONResponse({'error': f'Failed to flush: {e}'}, status_code=500)
+            return JSONResponse({'error': f'Failed to flush: {e}'},
+                                status_code=500)
 
-    # List existing log files
     import glob as _glob
     log_dir = brain.config.log_dir
     log_files = []
@@ -501,237 +558,5 @@ async def deepseek_logs():
     return JSONResponse({
         'flushed': pending,
         'flushedPath': flushed_path,
-        'logFiles': log_files[-20:],  # last 20
+        'logFiles': log_files[-20:],
     })
-
-
-def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict], num_games: int, deck_name: str, record_logs: bool):
-    """Background thread for simulations using DeepSeek AI opponent."""
-    try:
-        import sys, os
-        src_dir = str(Path(__file__).resolve().parent.parent / 'src')
-        if src_dir not in sys.path:
-            sys.path.insert(0, src_dir)
-
-        from commander_ai_lab.sim.models import Card
-        from commander_ai_lab.sim.deepseek_engine import DeepSeekGameEngine
-        from commander_ai_lab.sim.rules import enrich_card
-        from commander_ai_lab.lab.experiments import _generate_training_deck
-
-        with _sim_lock:
-            _sim_runs[sim_id]['status'] = 'running'
-
-        # Build player's deck with real card data
-        deck_a = []
-        for cd in card_data:
-            c = Card(name=cd['name'])
-            if cd.get('type_line'):
-                c.type_line = cd['type_line']
-            if cd.get('cmc'):
-                c.cmc = float(cd['cmc'])
-            if cd.get('power') and cd.get('toughness'):
-                c.power = str(cd['power'])
-                c.toughness = str(cd['toughness'])
-                c.pt = c.power + '/' + c.toughness
-            if cd.get('oracle_text'):
-                c.oracle_text = cd['oracle_text']
-            if cd.get('mana_cost'):
-                c.mana_cost = cd['mana_cost']
-            if cd.get('keywords'):
-                kw = cd['keywords']
-                if isinstance(kw, str):
-                    try:
-                        import json as _json
-                        kw = _json.loads(kw)
-                    except Exception:
-                        kw = []
-                if isinstance(kw, list):
-                    c.keywords = kw
-            enrich_card(c)
-            deck_a.append(c)
-
-        deck_b = _generate_training_deck()
-
-        # Get DeepSeek brain
-        brain = _get_deepseek_brain()
-        if brain and not brain._connected:
-            brain.check_connection()
-
-        engine = DeepSeekGameEngine(
-            brain=brain,
-            ai_player_index=1,  # Training deck is player B (index 1)
-            max_turns=25,
-            record_log=record_logs,
-        )
-
-        import time
-        start = time.time()
-
-        wins = 0
-        losses = 0
-        total_turns = 0
-        total_damage_dealt = 0
-        total_damage_received = 0
-        total_spells_cast = 0
-        total_creatures_played = 0
-        total_removal_used = 0
-        total_ramp_played = 0
-        total_cards_drawn = 0
-        total_max_board = 0
-        game_results = []
-
-        for i in range(num_games):
-            game_id = f'ds-sim-{sim_id[:8]}-g{i+1}'
-            result = engine.run(deck_a, deck_b, name_a=deck_name, name_b='DeepSeek AI',
-                               game_id=game_id, archetype='midrange')
-
-            game_data = result.to_dict()
-            game_data['gameNumber'] = i + 1
-            game_results.append(game_data)
-
-            if result.winner == 0:
-                wins += 1
-            else:
-                losses += 1
-
-            total_turns += result.turns
-            if result.player_a_stats:
-                total_damage_dealt += result.player_a_stats.damage_dealt
-                total_damage_received += result.player_a_stats.damage_received
-                total_spells_cast += result.player_a_stats.spells_cast
-                total_creatures_played += result.player_a_stats.creatures_played
-                total_removal_used += result.player_a_stats.removal_used
-                total_ramp_played += result.player_a_stats.ramp_played
-                total_cards_drawn += result.player_a_stats.cards_drawn
-                total_max_board += result.player_a_stats.max_board_size
-
-            with _sim_lock:
-                _sim_runs[sim_id]['completed'] = i + 1
-
-        elapsed = time.time() - start
-        n = num_games
-
-        # Write ML decision JSONL for training pipeline
-        ml_decisions = engine.flush_ml_decisions()
-        if ml_decisions:
-            ml_jsonl_path = os.path.join('results', f'ml-decisions-sim-{sim_id[:8]}.jsonl')
-            os.makedirs('results', exist_ok=True)
-            with open(ml_jsonl_path, 'w', encoding='utf-8') as mf:
-                import json as _mljson
-                for dec in ml_decisions:
-                    mf.write(_mljson.dumps(dec) + '\n')
-
-        # Get DeepSeek stats for the summary
-        ds_stats = brain.get_stats() if brain else {}
-
-        summary = {
-            'deckName': deck_name,
-            'opponentName': 'DeepSeek AI',
-            'opponentType': 'deepseek',
-            'totalGames': n,
-            'wins': wins,
-            'losses': losses,
-            'winRate': round(wins / n * 100, 1) if n > 0 else 0.0,
-            'avgTurns': round(total_turns / n, 1) if n > 0 else 0.0,
-            'avgDamageDealt': round(total_damage_dealt / n, 1) if n > 0 else 0.0,
-            'avgDamageReceived': round(total_damage_received / n, 1) if n > 0 else 0.0,
-            'avgSpellsCast': round(total_spells_cast / n, 1) if n > 0 else 0.0,
-            'avgCreaturesPlayed': round(total_creatures_played / n, 1) if n > 0 else 0.0,
-            'avgRemovalUsed': round(total_removal_used / n, 1) if n > 0 else 0.0,
-            'avgRampPlayed': round(total_ramp_played / n, 1) if n > 0 else 0.0,
-            'avgCardsDrawn': round(total_cards_drawn / n, 1) if n > 0 else 0.0,
-            'avgMaxBoardSize': round(total_max_board / n, 1) if n > 0 else 0.0,
-            'elapsedSeconds': round(elapsed, 3),
-            'deepseekStats': ds_stats,
-        }
-
-        with _sim_lock:
-            _sim_runs[sim_id]['status'] = 'complete'
-            _sim_runs[sim_id]['result'] = {
-                'summary': summary,
-                'games': game_results,
-            }
-    except Exception as e:
-        import traceback
-        with _sim_lock:
-            _sim_runs[sim_id]['status'] = 'error'
-            _sim_runs[sim_id]['error'] = str(e)
-        traceback.print_exc()
-
-
-@router.post('/api/sim/run-deepseek')
-async def sim_run_deepseek(request: FastAPIRequest):
-    """Start simulation using DeepSeek AI as the opponent brain."""
-    body = await request.json()
-    deck_id = body.get('deckId')
-    num_games = body.get('numGames', 5)  # Default 5 (LLM is slower)
-    record_logs = body.get('recordLogs', True)
-
-    if not deck_id:
-        return JSONResponse({'error': 'deckId required'}, status_code=400)
-    if num_games < 1 or num_games > 50:
-        return JSONResponse({'error': 'numGames must be 1-50 for DeepSeek mode'}, status_code=400)
-
-    conn = _get_db_conn()
-    cur = conn.cursor()
-    cur.execute('SELECT name FROM decks WHERE id = ?', (deck_id,))
-    row = cur.fetchone()
-    if not row:
-        return JSONResponse({'error': 'deck not found'}, status_code=404)
-    deck_name = row[0]
-
-    cur.execute("""
-        SELECT dc.card_name, dc.quantity,
-               ce.type_line, ce.cmc, ce.power, ce.toughness,
-               ce.oracle_text, ce.keywords, ce.mana_cost
-        FROM deck_cards dc
-        LEFT JOIN (
-            SELECT scryfall_id, type_line, cmc, power, toughness,
-                   oracle_text, keywords, mana_cost
-            FROM collection_entries GROUP BY scryfall_id
-        ) ce ON ce.scryfall_id = dc.scryfall_id
-        WHERE dc.deck_id = ?
-    """, (deck_id,))
-    card_data = []
-    for r in cur.fetchall():
-        for _ in range(r[1] or 1):
-            card_data.append({
-                'name': r[0],
-                'type_line': r[2] or '',
-                'cmc': r[3] or 0,
-                'power': r[4] or '',
-                'toughness': r[5] or '',
-                'oracle_text': r[6] or '',
-                'keywords': r[7] or '',
-                'mana_cost': r[8] or '',
-            })
-    if not card_data:
-        return JSONResponse({'error': 'deck has no cards'}, status_code=400)
-
-    sim_id = str(_uuid.uuid4())[:8]
-    with _sim_lock:
-        _sim_runs[sim_id] = {
-            'status': 'queued',
-            'completed': 0,
-            'total': num_games,
-            'deckName': deck_name,
-            'result': None,
-            'error': None,
-        }
-
-    t = _threading.Thread(
-        target=_run_sim_thread_deepseek,
-        args=(sim_id, card_data, num_games, deck_name, record_logs),
-        daemon=True,
-    )
-    t.start()
-
-    return JSONResponse({
-        'simId': sim_id,
-        'status': 'queued',
-        'total': num_games,
-        'deckName': deck_name,
-        'opponentType': 'deepseek',
-    })
-
-
