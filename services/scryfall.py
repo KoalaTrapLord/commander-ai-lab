@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 
 # Lazy import to avoid circular dependency
 def _detect_card_roles(oracle_text, type_line, keywords):
-    from routes.shared import _detect_card_roles as _dcr
+        from services.card_analysis import _detect_card_roles as _dcr
     return _dcr(oracle_text, type_line, keywords)
 
 
