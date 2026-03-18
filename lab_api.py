@@ -123,6 +123,35 @@ def _resolve_forge_decks_dir() -> str:
     return ""
 
 
+def _resolve_forge_jar() -> str:
+    """Auto-detect the Forge GUI desktop JAR in common locations."""
+    project_root = Path(__file__).parent
+    # Candidate directories where the Forge JAR might live
+    candidates = [
+        project_root / "forge-gui-desktop" / "target",
+        project_root.parent / "forge-repo" / "forge-gui-desktop" / "target",
+        project_root.parent / "forge" / "forge-gui-desktop" / "target",
+    ]
+    # Also check FORGE_DIR/../forge-gui-desktop/target if FORGE_DIR is set
+    forge_dir_env = os.environ.get("FORGE_DIR", "")
+    if forge_dir_env:
+        fd = Path(forge_dir_env)
+        candidates.append(fd.parent / "forge-gui-desktop" / "target")
+        candidates.append(fd / "target")
+    for target_dir in candidates:
+        if target_dir.is_dir():
+            for pattern in [
+                "forge-gui-desktop-*-jar-with-dependencies.jar",
+                "forge-gui-desktop-*-shaded.jar",
+                "forge-gui-desktop-*.jar",
+            ]:
+                jars = sorted(target_dir.glob(pattern))
+                jars = [j for j in jars if not j.name.startswith("original-")]
+                if jars:
+                    return str(jars[0])
+    return ""
+
+
 def _resolve_lab_jar() -> str:
     target_dir = Path(__file__).parent / "target"
     if target_dir.exists():
@@ -142,7 +171,7 @@ def main():
     args = _parse_args()
     setup_logging(logging.DEBUG if args.verbose else logging.INFO)
 
-    CFG.forge_jar       = args.forge_jar
+    CFG.forge_jar       = args.forge_jar or _resolve_forge_jar()
     CFG.forge_dir       = args.forge_dir
     CFG.forge_decks_dir = args.forge_decks_dir or _resolve_forge_decks_dir()
     CFG.lab_jar         = args.lab_jar or _resolve_lab_jar()
