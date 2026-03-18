@@ -31,9 +31,9 @@ async def list_precons():
 @router.post("/api/lab/precons/install")
 async def install_precon(req: dict):
     """Install a precon deck to the Forge decks directory.
-    Body: {"fileName": "Elven_Empire.dck"}
+    Body: {"fileName": "Elven_Empire.dck"} or {"name": "Elven_Empire.dck"}
     """
-    file_name = req.get("fileName", "")
+    file_name = req.get("fileName", "") or req.get("name", "")
     if not file_name:
         raise HTTPException(400, "fileName is required")
 
@@ -60,9 +60,9 @@ async def install_precon(req: dict):
 @router.post("/api/lab/precons/install-batch")
 async def install_precons_batch(req: dict):
     """Install multiple precon decks at once.
-    Body: {"fileNames": ["Elven_Empire.dck", "Necron_Dynasties.dck"]}
+    Body: {"fileNames": ["Elven_Empire.dck", ...]} or {"names": ["Elven_Empire.dck", ...]}
     """
-    file_names = req.get("fileNames", [])
+    file_names = req.get("fileNames", []) or req.get("names", [])
     if not file_names:
         raise HTTPException(400, "fileNames list is required")
 

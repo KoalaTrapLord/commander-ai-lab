@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import glob
 import json
+import math
 import os
 import re
 import threading
@@ -50,6 +51,19 @@ from routes.shared import (
 )
 
 router = APIRouter(tags=["lab"])
+
+
+def _sanitize_floats(obj):
+    """Replace NaN/Infinity with None so JSONResponse (allow_nan=False) won't crash."""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_floats(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_floats(v) for v in obj]
+    return obj
 
 
 @router.post("/api/lab/start", response_model=StartResponse)
@@ -162,8 +176,12 @@ async def get_result(batchId: Optional[str] = None):
         raise HTTPException(500, state.error)
     if not state.result_path or not os.path.exists(state.result_path):
         raise HTTPException(500, "Result file not found")
-    with open(state.result_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(state.result_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        raise HTTPException(500, f"Failed to read result file: {e}")
+    data = _sanitize_floats(data)
     return JSONResponse(content=data)
 
 
