@@ -296,6 +296,106 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
         traceback.print_exc()
 
 # ══════════════════════════════════════════════════════════════
+# N-Player Sim Thread
+# ══════════════════════════════════════════════════════════════
+
+
+def _run_sim_thread_n_player(sim_id: str, decks_data: list[list[dict]],
+                              deck_names: list[str], num_games: int,
+                              record_logs: bool, engine_type: str):
+    """Background thread: N-player (2-4) batch simulation."""
+    try:
+        _ensure_src_path()
+        from commander_ai_lab.sim.engine import GameEngine
+        from commander_ai_lab.sim.deepseek_engine import DeepSeekGameEngine
+
+        with _sim_lock:
+            _sim_runs[sim_id]['status'] = 'running'
+
+        n_players = len(decks_data)
+        built_decks = [_build_deck_from_card_data(cd) for cd in decks_data]
+
+        if engine_type == 'deepseek':
+            brain = _get_deepseek_brain()
+            if brain and not brain._connected:
+                brain.check_connection()
+            engine = DeepSeekGameEngine(
+                brain=brain, ai_player_index=1,
+                max_turns=25, record_log=record_logs)
+        else:
+            engine = GameEngine(max_turns=25, record_log=record_logs)
+
+        # Per-seat accumulators
+        seat_wins = [0] * n_players
+        seat_turns = [0] * n_players
+        seat_damage_dealt = [0] * n_players
+        seat_spells_cast = [0] * n_players
+        seat_creatures_played = [0] * n_players
+        seat_removal_used = [0] * n_players
+        seat_ramp_played = [0] * n_players
+        seat_cards_drawn = [0] * n_players
+        seat_max_board = [0] * n_players
+
+        game_results = []
+        start = time.time()
+
+        for i in range(num_games):
+            result = engine.run_n(decks=built_decks, names=deck_names)
+            game_data = result.to_dict()
+            game_data['gameNumber'] = i + 1
+            game_results.append(game_data)
+
+            if 0 <= result.winner_seat < n_players:
+                seat_wins[result.winner_seat] += 1
+
+            for pr in result.players:
+                si = pr.seat_index
+                seat_turns[si] += result.turns
+                if pr.stats:
+                    seat_damage_dealt[si] += pr.stats.damage_dealt
+                    seat_spells_cast[si] += pr.stats.spells_cast
+                    seat_creatures_played[si] += pr.stats.creatures_played
+                    seat_removal_used[si] += pr.stats.removal_used
+                    seat_ramp_played[si] += pr.stats.ramp_played
+                    seat_cards_drawn[si] += pr.stats.cards_drawn
+                    seat_max_board[si] += pr.stats.max_board_size
+
+            with _sim_lock:
+                _sim_runs[sim_id]['completed'] = i + 1
+
+        elapsed = time.time() - start
+        n = num_games if num_games > 0 else 1
+
+        players_summary = []
+        for si in range(n_players):
+            players_summary.append({
+                'seat': si,
+                'deckName': deck_names[si],
+                'wins': seat_wins[si],
+                'winRate': round(seat_wins[si] / n * 100, 1),
+                'avgTurns': round(seat_turns[si] / n, 1),
+                'avgDamageDealt': round(seat_damage_dealt[si] / n, 1),
+                'avgSpellsCast': round(seat_spells_cast[si] / n, 1),
+                'avgCreaturesPlayed': round(seat_creatures_played[si] / n, 1),
+                'avgRemovalUsed': round(seat_removal_used[si] / n, 1),
+                'avgRampPlayed': round(seat_ramp_played[si] / n, 1),
+                'avgCardsDrawn': round(seat_cards_drawn[si] / n, 1),
+                'avgMaxBoardSize': round(seat_max_board[si] / n, 1),
+            })
+
+        summary = {
+            'playerCount': n_players,
+            'totalGames': num_games,
+            'players': players_summary,
+            'elapsedSeconds': round(elapsed, 3),
+        }
+        _finish_sim(sim_id, summary, game_results)
+    except Exception as e:
+        _fail_sim(sim_id, e)
+        traceback.print_exc()
+
+
+# ══════════════════════════════════════════════════════════════
 # Simulation API Endpoints
 # ══════════════════════════════════════════════════════════════
 
@@ -445,6 +545,43 @@ async def sim_run_deepseek(request: FastAPIRequest):
     return JSONResponse({'simId': sim_id, 'status': 'queued',
                          'total': num_games, 'deckName': deck_name,
                          'opponentType': 'deepseek'})
+
+
+@router.post('/api/sim/run-n-player')
+async def sim_run_n_player(request: FastAPIRequest):
+    """Start an N-player (2-4) batch simulation."""
+    body = await request.json()
+    deck_ids = body.get('deckIds', [])
+    num_games = body.get('numGames', 10)
+    record_logs = body.get('recordLogs', True)
+    engine_type = body.get('engineType', 'heuristic')
+
+    if len(deck_ids) < 2 or len(deck_ids) > 4:
+        return JSONResponse({'error': '2-4 decks required'}, status_code=400)
+    if num_games < 1 or num_games > 1000:
+        return JSONResponse({'error': 'numGames must be 1-1000'}, status_code=400)
+
+    decks_data = []
+    deck_names = []
+    for did in deck_ids:
+        name, cards = _fetch_deck_card_data(did)
+        if name is None:
+            return JSONResponse({'error': f'Deck {did} not found'}, status_code=404)
+        if not cards:
+            return JSONResponse({'error': f'Deck {did} has no cards'}, status_code=400)
+        deck_names.append(name)
+        decks_data.append(cards)
+
+    sim_id = _create_sim_run(num_games, ' vs '.join(deck_names))
+    _threading.Thread(target=_run_sim_thread_n_player,
+                      args=(sim_id, decks_data, deck_names, num_games,
+                            record_logs, engine_type),
+                      daemon=True).start()
+    return JSONResponse({
+        'simId': sim_id, 'status': 'queued', 'total': num_games,
+        'deckNames': deck_names, 'playerCount': len(deck_ids),
+    })
+
 
 # ══════════════════════════════════════════════════════════════
 # DeepSeek AI Brain Endpoints
