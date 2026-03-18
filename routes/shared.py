@@ -195,7 +195,7 @@ from models.state import AI_PROFILES
 # ══════════════════════════════════════════════════════════════
 # Java / Sim Helpers (extracted to services/forge_runner.py)
 from services.forge_runner import (
-    _find_java17, get_java17, build_java_command, parse_dck_file,
+    _find_java17, get_java17, build_java_command,
     run_batch_subprocess, _run_process_blocking,
     _run_deepseek_batch_thread, _get_deepseek_brain,
 )
