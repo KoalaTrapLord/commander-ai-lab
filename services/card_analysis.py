@@ -15,7 +15,7 @@ def _detect_card_roles(oracle_text: str, type_line: str, keywords) -> list:
             kw_raw = []
     kw = " ".join(str(k).lower() for k in kw_raw)
 
-        if ("add {" in ot or "add one mana" in ot
+    if ("add {" in ot or "add one mana" in ot
             or ("search your library for a" in ot and "land" in ot)
             or "treasure token" in ot or "add mana" in ot):
         roles.append("Ramp")
@@ -29,7 +29,7 @@ def _detect_card_roles(oracle_text: str, type_line: str, keywords) -> list:
             or re.search(r"deals? x damage to (target|any target)", ot)
             or "target creature gets -" in ot or "fights target" in ot):
         roles.append("Removal")
-            if ("destroy all" in ot or "exile all" in ot
+    if ("destroy all" in ot or "exile all" in ot
             or re.search(r"all creatures get -\d+/-\d+", ot)
             or re.search(r"each creature gets -\d+/-\d+", ot)
             or ("deals" in ot and "to each creature" in ot)):
@@ -47,7 +47,7 @@ def _detect_card_roles(oracle_text: str, type_line: str, keywords) -> list:
     if ("target creature gains" in ot and ("hexproof" in ot or "indestructible" in ot or "shroud" in ot))\
             or ("protection" in kw):
         roles.append("Protection")
-            if ("sacrifice" in ot and ("whenever" in ot or "you may" in ot)):
+    if ("sacrifice" in ot and ("whenever" in ot or "you may" in ot)):
         roles.append("Sacrifice")
     if ("return" in ot and ("from your graveyard" in ot and "onto the battlefield" in ot)
             or ("put" in ot and "from a graveyard" in ot and "onto the battlefield" in ot)):
@@ -61,7 +61,7 @@ def _detect_card_roles(oracle_text: str, type_line: str, keywords) -> list:
             or "each opponent loses" in ot and "life" in ot
             or "deals damage to each opponent" in ot):
         roles.append("Burn")
-            if ("can't cast" in ot or "can't attack" in ot or "can't activate" in ot
+    if ("can't cast" in ot or "can't attack" in ot or "can't activate" in ot
             or ("enters the battlefield tapped" in ot and "opponents" in ot)
             or "each player can't" in ot or "players can't" in ot
             or ("cost {" in ot and "more to cast" in ot)):

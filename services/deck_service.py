@@ -34,7 +34,7 @@ def _classify_card_type(type_line: str) -> str:
     return "Other"
 
 
-    def _get_deck_or_404(deck_id: int):
+def _get_deck_or_404(deck_id: int):
     conn = _get_db_conn()
     row = conn.execute("SELECT * FROM decks WHERE id = ?", (deck_id,)).fetchone()
     if not row:
@@ -47,7 +47,7 @@ def _classify_card_type(type_line: str) -> str:
     return d
 
 
-    def _compute_deck_analysis(deck_id: int) -> dict:
+def _compute_deck_analysis(deck_id: int) -> dict:
     conn = _get_db_conn()
     rows = conn.execute("""
         SELECT dc.id, dc.scryfall_id, dc.card_name, dc.quantity, dc.is_commander, dc.role_tag,
@@ -59,7 +59,7 @@ def _classify_card_type(type_line: str) -> str:
         ) ce ON ce.scryfall_id = dc.scryfall_id
         WHERE dc.deck_id = ?
     """, (deck_id,)).fetchall()
-        counts_by_type = {t: 0 for t in _TYPE_PRIORITY}
+    counts_by_type = {t: 0 for t in _TYPE_PRIORITY}
     counts_by_type["Other"] = 0
     mana_curve = {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6+": 0}
     color_pips = {"W": 0, "U": 0, "B": 0, "R": 0, "G": 0, "C": 0}
@@ -96,21 +96,21 @@ def _classify_card_type(type_line: str) -> str:
     }
 
 
-    def _check_ratio_limit(deck_id: int, card_type: str, count_to_add: int = 1) -> bool:
+def _check_ratio_limit(deck_id: int, card_type: str, count_to_add: int = 1) -> bool:
     analysis = _compute_deck_analysis(deck_id)
     current = analysis["counts_by_type"].get(card_type, 0)
     target_max = _TYPE_TARGETS.get(card_type, [0, 9999])[1]
     return (current + count_to_add) <= target_max
 
 
-    def _to_edhrec_slug(name: str) -> str:
+def _to_edhrec_slug(name: str) -> str:
     slug = name.lower()
     slug = re.sub(r"[',.]" , "", slug)
     slug = re.sub(r"[^a-z0-9]+", "-", slug)
     return slug.strip("-")
 
 
-    def parse_dck_file(deck_path: str) -> dict:
+def parse_dck_file(deck_path: str) -> dict:
     """Parse a Forge .dck file into {name, commanders, mainboard, colorIdentity, totalCards}."""
     path = Path(deck_path)
     if not path.exists():
@@ -153,7 +153,7 @@ def _classify_card_type(type_line: str) -> str:
     return {"name": name, "commander": commander_name, "commanders": commanders, "mainboard": mainboard, "colorIdentity": [], "totalCards": total}
 
 
-    def _save_profile_to_dck(profile: dict) -> Path:
+def _save_profile_to_dck(profile: dict) -> Path:
     lines = ["[metadata]", f"Name={profile.get('name', 'Imported Deck')}", "", "[Commander]"]
     for name, qty in profile.get("commanders", {}).items():
         lines.append(f"{qty} {name}")
@@ -174,7 +174,7 @@ def _classify_card_type(type_line: str) -> str:
     return out_path
 
 
-    def _load_deck_cards_by_name(deck_name: str) -> list:
+def _load_deck_cards_by_name(deck_name: str) -> list:
     """Load cards from a deck by name, returning list of card dicts."""
     conn = _get_db_conn()
     deck_row = conn.execute("SELECT id FROM decks WHERE name = ?", (deck_name,)).fetchone()

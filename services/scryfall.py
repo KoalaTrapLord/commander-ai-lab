@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 
 # Lazy import to avoid circular dependency
 def _detect_card_roles(oracle_text, type_line, keywords):
-        from services.card_analysis import _detect_card_roles as _dcr
+    from services.card_analysis import _detect_card_roles as _dcr
     return _dcr(oracle_text, type_line, keywords)
 
 
@@ -31,7 +31,7 @@ class _ScryfallCache:
         self._misses = 0
         self._init_db()
 
-            def _init_db(self):
+    def _init_db(self):
         self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("""
@@ -43,11 +43,11 @@ class _ScryfallCache:
         """)
         self._conn.commit()
 
-            @staticmethod
+    @staticmethod
     def _make_key(name: str, set_code: str, collector_number: str) -> str:
         return f"{name.strip().lower()}|{(set_code or '').strip().lower()}|{(collector_number or '').strip()}"
 
-            def get(self, name: str, set_code: str = "", collector_number: str = "") -> Optional[dict]:
+    def get(self, name: str, set_code: str = "", collector_number: str = "") -> Optional[dict]:
         key = self._make_key(name, set_code, collector_number)
         with self._lock:
             row = self._conn.execute(
@@ -59,7 +59,7 @@ class _ScryfallCache:
         self._misses += 1
         return None
 
-            def put(self, name: str, set_code: str, collector_number: str, data: dict):
+    def put(self, name: str, set_code: str, collector_number: str, data: dict):
         key = self._make_key(name, set_code, collector_number)
         blob = json.dumps(data)
         with self._lock:
@@ -69,12 +69,12 @@ class _ScryfallCache:
             )
             self._conn.commit()
 
-                def stats(self) -> dict:
+    def stats(self) -> dict:
         with self._lock:
             count = self._conn.execute("SELECT COUNT(*) FROM scryfall_cache").fetchone()[0]
         return {"cached": count, "hits": self._hits, "misses": self._misses}
 
-            def clear(self) -> int:
+    def clear(self) -> int:
         with self._lock:
             count = self._conn.execute("SELECT COUNT(*) FROM scryfall_cache").fetchone()[0]
             self._conn.execute("DELETE FROM scryfall_cache")
@@ -95,7 +95,7 @@ class _ScryfallCache:
         return deleted
 
 
-        _scryfall_cache = _ScryfallCache()
+_scryfall_cache = _ScryfallCache()
 _scryfall_lock = threading.Lock()
 _scryfall_last_call = 0.0
 
@@ -110,7 +110,7 @@ def _scryfall_rate_limit():
         _scryfall_last_call = time.monotonic()
 
 
-        def _fetch_scryfall_api(name: str, set_code: str = "", collector_number: str = "") -> dict:
+def _fetch_scryfall_api(name: str, set_code: str = "", collector_number: str = "") -> dict:
     from urllib.parse import quote
     cached = _scryfall_cache.get(name, set_code, collector_number)
     if cached is not None:
@@ -133,7 +133,7 @@ def _scryfall_rate_limit():
                 card_data = json.loads(resp.read().decode("utf-8"))
         except Exception as e:
             last_error = str(e)
-                if not card_data or card_data.get("object") == "error":
+    if not card_data or card_data.get("object") == "error":
         err_detail = card_data.get("details", "unknown error") if card_data else last_error
         return {"_error": f"Scryfall returned error for '{name}': {err_detail}"}
     _scryfall_cache.put(name, set_code, collector_number, card_data)
@@ -143,7 +143,7 @@ def _scryfall_rate_limit():
     return card_data
 
 
-    def _enrich_from_scryfall(name: str, set_code: str = "", collector_number: str = "") -> dict:
+def _enrich_from_scryfall(name: str, set_code: str = "", collector_number: str = "") -> dict:
     card_data = _fetch_scryfall_api(name, set_code, collector_number)
     if not card_data or "_error" in card_data:
         return card_data or {}
@@ -165,7 +165,7 @@ def _scryfall_rate_limit():
     oracle_text = card_data.get("oracle_text", "")
     if not oracle_text and card_data.get("card_faces"):
         oracle_text = "\n//\n".join(f.get("oracle_text", "") for f in card_data["card_faces"] if f.get("oracle_text"))
-            power = card_data.get("power", "")
+    power = card_data.get("power", "")
     toughness = card_data.get("toughness", "")
     if not power and card_data.get("card_faces"):
         power = card_data["card_faces"][0].get("power", "")
@@ -199,7 +199,7 @@ def _scryfall_rate_limit():
     }
 
 
-    def _scryfall_fuzzy_lookup(name: str) -> Optional[dict]:
+def _scryfall_fuzzy_lookup(name: str) -> Optional[dict]:
     """Fuzzy-search Scryfall for a card name. Returns raw Scryfall JSON dict, or None on failure."""
     from urllib.parse import quote
     _scryfall_rate_limit()

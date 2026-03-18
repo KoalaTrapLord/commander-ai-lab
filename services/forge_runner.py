@@ -38,7 +38,7 @@ def get_java17() -> str:
     return _JAVA17_PATH
 
 
-    def build_java_command(
+def build_java_command(
     decks: list, num_games: int, threads: int, seed: Optional[int],
     clock: int, output_path: str, use_learned_policy: bool = False,
     policy_server: str = "http://localhost:8080", policy_style: str = "midrange",
@@ -70,7 +70,7 @@ def get_java17() -> str:
     return cmd
 
 
-    def _run_process_blocking(state: BatchState, cmd: list):
+def _run_process_blocking(state: BatchState, cmd: list):
     """Run Forge subprocess, parse progress, generate deck reports."""
     log.info(f"Running: {' '.join(cmd)}")
     state.started_at = datetime.datetime.now().isoformat()
@@ -91,7 +91,7 @@ def get_java17() -> str:
         state.error = str(e)
         log.error(f"Failed to start subprocess: {e}")
         return
-            last_activity = [time.monotonic()]
+    last_activity = [time.monotonic()]
     stall_limit = 300  # 5 min
     def watchdog():
         while proc.poll() is None:
@@ -127,7 +127,7 @@ def get_java17() -> str:
     state.ended_at = datetime.datetime.now().isoformat()
 
 
-    async def run_batch_subprocess(
+async def run_batch_subprocess(
     state: BatchState, decks: list, num_games: int, threads: int,
     seed: Optional[int] = None, clock: int = 6000, output_path: str = "results",
     use_learned_policy: bool = False, **kwargs,
