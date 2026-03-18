@@ -16,7 +16,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 import routes.shared as _shared                    # module reference, not value import
-from routes.shared import CFG, PRECON_DIR, download_precon_database, log
+from routes.shared import CFG, download_precon_database, log
+from services.precon_service import _get_precon_dir
 
 router = APIRouter(tags=["precon"])
 
@@ -36,7 +37,7 @@ async def install_precon(req: dict):
     if not file_name:
         raise HTTPException(400, "fileName is required")
 
-    src = PRECON_DIR / file_name
+    src = _get_precon_dir() / file_name
     if not src.exists():
         raise HTTPException(404, f"Precon not found: {file_name}")
 
@@ -71,7 +72,7 @@ async def install_precons_batch(req: dict):
 
     results = []
     for file_name in file_names:
-        src = PRECON_DIR / file_name
+        src = _get_precon_dir() / file_name
         if not src.exists():
             results.append({"fileName": file_name, "installed": False, "error": "not found"})
             continue

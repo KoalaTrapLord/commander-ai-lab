@@ -12,7 +12,9 @@ from urllib.request import urlopen, Request
 
 log = logging.getLogger("commander_ai_lab.api")
 
-PRECON_DIR = Path(__file__).parent.parent / "precon-decks"
+# Fallback default — used only when CFG.precon_dir has not been resolved yet.
+_DEFAULT_PRECON_DIR = Path(__file__).parent.parent / "precon-decks"
+
 PRECON_INDEX: list[dict] = []
 GITHUB_PRECON_URL = (
     "https://raw.githubusercontent.com/taw/magic-preconstructed-decks-data/"
@@ -21,9 +23,23 @@ GITHUB_PRECON_URL = (
 PRECON_CACHE_HOURS = 168
 
 
+def _get_precon_dir() -> Path:
+    """Return the active precon-decks directory from CFG, with fallback."""
+    from models.state import CFG
+    if CFG.precon_dir:
+        return Path(CFG.precon_dir)
+    return _DEFAULT_PRECON_DIR
+
+
+# Re-export for backwards compat — callers that import PRECON_DIR at module
+# level will get the default.  Runtime code should call _get_precon_dir().
+PRECON_DIR = _DEFAULT_PRECON_DIR
+
+
 def load_precon_index():
     global PRECON_INDEX
-    idx_path = PRECON_DIR / "precon-index.json"
+    precon_dir = _get_precon_dir()
+    idx_path = precon_dir / "precon-index.json"
     if idx_path.exists():
         with open(idx_path, "r", encoding="utf-8") as f:
             PRECON_INDEX = json.load(f)
@@ -61,7 +77,8 @@ def _deck_to_dck(deck_data: dict) -> str:
 
 def download_precon_database(force: bool = False) -> dict:
     global PRECON_INDEX
-    idx_path = PRECON_DIR / "precon-index.json"
+    precon_dir = _get_precon_dir()
+    idx_path = precon_dir / "precon-index.json"
     if not force and idx_path.exists():
         try:
             with open(idx_path, "r", encoding="utf-8") as f:
@@ -91,7 +108,7 @@ def download_precon_database(force: bool = False) -> dict:
         and (d.get('format') or '').lower() == 'commander'
     ]
     log.info(f"  Precons: Found {len(commander_decks)} Commander precon decks")
-    PRECON_DIR.mkdir(parents=True, exist_ok=True)
+    precon_dir.mkdir(parents=True, exist_ok=True)
     name_counts = Counter(_sanitize_filename(d['name']) for d in commander_decks)
     dup_names = {n for n, c in name_counts.items() if c > 1}
     index = []
@@ -102,7 +119,7 @@ def download_precon_database(force: bool = False) -> dict:
             sc = (deck.get('set_code') or 'unk').upper()
             safe_name = f"{safe_name}_{sc}"
         file_name = f"{safe_name}.dck"
-        dck_path = PRECON_DIR / file_name
+        dck_path = precon_dir / file_name
         commanders = deck.get('commander', [])
         cmdr_names = [c['name'] for c in commanders] if commanders else []
         total_cards = sum(c.get('count', 1) for c in deck.get('cards', [])) + sum(c.get('count', 1) for c in commanders)

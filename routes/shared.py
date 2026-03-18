@@ -186,6 +186,7 @@ from services.import_service import (
 from services.precon_service import (
     PRECON_DIR, PRECON_INDEX, GITHUB_PRECON_URL, PRECON_CACHE_HOURS,
     load_precon_index, _sanitize_filename, _deck_to_dck, download_precon_database,
+    _get_precon_dir,
 )
 
 # ══════════════════════════════════════════════════════════════

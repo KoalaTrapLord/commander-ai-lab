@@ -38,8 +38,6 @@ from routes.shared import (
     StartResponse,
     StatusResponse,
     AI_PROFILES,
-    PRECON_DIR,
-    PRECON_INDEX,
     build_java_command,
     run_batch_subprocess,
     _run_deepseek_batch_thread,

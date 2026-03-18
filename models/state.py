@@ -20,6 +20,7 @@ class Config:
     forge_dir: str = ""
     forge_decks_dir: str = ""
     lab_jar: str = ""
+    precon_dir: str = ""
     results_dir: str = "results"
     port: int = 8080
     ximilar_api_key: str = ""

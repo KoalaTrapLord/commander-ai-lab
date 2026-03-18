@@ -64,6 +64,9 @@ app.include_router(ml_router)
 async def _on_startup():
     """Ensure DB and precon index are ready (supports uvicorn --reload)."""
     import routes.shared as _shared
+    # Ensure precon_dir is resolved even when started via uvicorn directly
+    if not CFG.precon_dir:
+        CFG.precon_dir = _resolve_precon_dir()
     _shared.init_collection_db()
     if not _shared.PRECON_INDEX:
         _shared.download_precon_database()
@@ -98,6 +101,7 @@ def _parse_args():
     p.add_argument("--forge-dir",   default=os.environ.get("FORGE_DIR", ""))
     p.add_argument("--forge-decks-dir", default=os.environ.get("FORGE_DECKS_DIR", ""))
     p.add_argument("--lab-jar",     default=os.environ.get("LAB_JAR", ""))
+    p.add_argument("--precon-dir",  default=os.environ.get("PRECON_DIR", ""))
     p.add_argument("--port",        type=int, default=int(os.environ.get("LAB_PORT", "8080")))
     p.add_argument("--ximilar-key", default=os.environ.get("XIMILAR_API_KEY", ""))
     p.add_argument("--pplx-key",    default=os.environ.get("PPLX_API_KEY", ""))
@@ -225,6 +229,33 @@ def _resolve_lab_jar() -> str:
     return ""
 
 
+def _resolve_precon_dir() -> str:
+    """Auto-detect the precon-decks directory.
+
+    The precon-decks dir lives in the project root and contains downloaded
+    .dck files plus precon-index.json.  We check relative to this file
+    (lab_api.py) first, then common sibling paths.
+    """
+    project_root = Path(__file__).parent
+    # 1. Standard location: <project-root>/precon-decks
+    candidate = project_root / "precon-decks"
+    if candidate.is_dir():
+        return str(candidate)
+    # 2. Check parent directory (in case running from a subdirectory)
+    candidate = project_root.parent / "precon-decks"
+    if candidate.is_dir():
+        return str(candidate)
+    # 3. Derive from forge_dir if available
+    if CFG.forge_dir:
+        candidate = Path(CFG.forge_dir) / "precon-decks"
+        if candidate.is_dir():
+            return str(candidate)
+    # 4. Fall back: create the directory in the project root so downloads work
+    fallback = project_root / "precon-decks"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return str(fallback)
+
+
 def main():
     args = _parse_args()
     setup_logging(logging.DEBUG if args.verbose else logging.INFO)
@@ -233,6 +264,7 @@ def main():
     CFG.forge_dir       = args.forge_dir or _resolve_forge_dir()
     CFG.forge_decks_dir = args.forge_decks_dir or _resolve_forge_decks_dir()
     CFG.lab_jar         = args.lab_jar or _resolve_lab_jar()
+    CFG.precon_dir      = args.precon_dir or _resolve_precon_dir()
     CFG.port            = args.port
     CFG.ximilar_api_key = args.ximilar_key
     CFG.pplx_api_key    = args.pplx_key
@@ -245,6 +277,7 @@ def main():
     log.info(f"  Forge JAR:  {CFG.forge_jar or 'NOT SET'}")
     log.info(f"  Forge Dir:  {CFG.forge_dir or 'NOT SET'}")
     log.info(f"  Decks Dir:  {CFG.forge_decks_dir or 'NOT SET'}")
+    log.info(f"  Precon Dir: {CFG.precon_dir or 'NOT SET'}")
     log.info(f"  Lab JAR:    {CFG.lab_jar or 'NOT SET'}")
     log.info(f"  Results:    {CFG.results_dir}")
     log.info(f"  Ximilar:    {'configured' if CFG.ximilar_api_key else 'NOT SET'}")
