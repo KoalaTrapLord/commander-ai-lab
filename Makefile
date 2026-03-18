@@ -16,7 +16,7 @@ UVICORN ?= uvicorn
 PORT    ?= 8000
 SRC     = src/commander_ai_lab
 
-.PHONY: test test-unit test-integration test-benchmark coverage serve lint fmt clean
+.PHONY: test test-unit test-integration test-benchmark coverage serve lint fmt clean frontend-dev frontend-build test-frontend
 
 test:
 	$(PYTHON) -m pytest tests/ -q
@@ -63,3 +63,12 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name '*.pyc' -delete
 	rm -rf .coverage htmlcov .mypy_cache .ruff_cache dist build
+
+frontend-dev:
+	cd frontend && npm run dev
+
+frontend-build:
+	cd frontend && npm run build
+
+test-frontend:
+	cd frontend && npx vitest run

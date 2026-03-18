@@ -23,12 +23,15 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from commander_ai_lab.web.routers.api    import router as api_router
 from commander_ai_lab.web.routers.ws     import router as ws_router
 from commander_ai_lab.web.routers.art    import router as art_router
 
+# Prefer the React build output; fall back to legacy static dir
+_FRONTEND_DIST = Path(__file__).parents[3] / "frontend" / "dist"
 _STATIC_DIR = Path(__file__).parent / "static"
 
 
@@ -64,14 +67,24 @@ def create_app(
     app.include_router(ws_router)                          # /ws/game/{game_id}
     app.include_router(art_router,  prefix="/api/v1")
 
-    # Static files (web client)
-    sd = static_dir or _STATIC_DIR
+    # Static files (web client) — prefer React build, fall back to legacy
+    sd = static_dir or (_FRONTEND_DIST if _FRONTEND_DIST.exists() else _STATIC_DIR)
     if sd.exists():
         app.mount("/static", StaticFiles(directory=str(sd), html=True), name="static")
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict:
         return {"status": "ok", "version": "0.5.0"}
+
+    # SPA catch-all: serve index.html for non-API, non-WS paths
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str) -> FileResponse:
+        index = sd / "index.html"
+        if index.exists():
+            return FileResponse(str(index))
+        # Fall back to legacy static
+        legacy = _STATIC_DIR / "index.html"
+        return FileResponse(str(legacy))
 
     return app
 
