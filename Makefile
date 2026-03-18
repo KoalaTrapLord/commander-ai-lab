@@ -16,7 +16,7 @@ UVICORN ?= uvicorn
 PORT    ?= 8000
 SRC     = src/commander_ai_lab
 
-.PHONY: test test-unit test-integration test-benchmark coverage serve lint fmt clean frontend-dev frontend-build
+.PHONY: test test-unit test-integration test-benchmark coverage serve lint fmt clean frontend-dev frontend-build test-frontend
 
 test:
 	$(PYTHON) -m pytest tests/ -q
@@ -69,3 +69,6 @@ frontend-dev:
 
 frontend-build:
 	cd frontend && npm run build
+
+test-frontend:
+	cd frontend && npx vitest run

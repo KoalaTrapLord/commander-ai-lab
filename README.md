@@ -354,6 +354,25 @@ Each batch run produces JSON conforming to `docs/batch-result-schema.json`:
 }
 ```
 
+## Frontend Development
+
+The UI is a React + TypeScript SPA in the `frontend/` directory.
+
+### Dev server (with hot reload)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Vite proxies `/api` and `/ws` to `localhost:8000`, so start the FastAPI backend first.
+
+### Production build
+```bash
+cd frontend
+npm run build
+```
+FastAPI serves the built assets from `frontend/dist/`.
+
 ## Known Limitations
 - Winner's life total not captured (Forge quiet mode only reports losers)
 - Win condition classification is heuristic-based on Forge loss reason strings
