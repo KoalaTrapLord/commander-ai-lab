@@ -123,6 +123,64 @@ def _resolve_forge_decks_dir() -> str:
     return ""
 
 
+def _resolve_forge_dir() -> str:
+    """Auto-detect the Forge installation directory.
+
+    The Forge dir is the root of a Forge install — it typically contains
+    a 'res' subdirectory with card data.  We derive it from the JAR
+    location (parent of 'target/') or look in common install paths.
+    """
+    import sys
+
+    # 1. If forge_jar is already resolved, derive forge_dir from it.
+    #    JAR lives in  <forge-root>/forge-gui-desktop/target/<jar>
+    #    so forge_dir = JAR's grandparent's parent.
+    if CFG.forge_jar and os.path.isfile(CFG.forge_jar):
+        jar_path = Path(CFG.forge_jar)
+        # target/ -> forge-gui-desktop/ -> <forge-root>
+        candidate = jar_path.parent.parent.parent
+        if candidate.is_dir() and (candidate / "res").is_dir():
+            return str(candidate)
+        # Also try just one level up from target/
+        candidate = jar_path.parent.parent
+        if candidate.is_dir() and (candidate / "res").is_dir():
+            return str(candidate)
+        # Fall back to the directory containing the JAR itself
+        candidate = jar_path.parent
+        if candidate.is_dir():
+            return str(candidate)
+
+    # 2. Check common sibling/child directories relative to project root
+    project_root = Path(__file__).parent
+    for candidate in [
+        project_root / "forge",
+        project_root.parent / "forge-repo",
+        project_root.parent / "forge",
+        project_root / "forge-gui-desktop",
+    ]:
+        if candidate.is_dir():
+            # Prefer directory that has 'res' subfolder
+            if (candidate / "res").is_dir():
+                return str(candidate)
+
+    # 3. Platform-specific user data directories
+    if sys.platform == "win32":
+        appdata = os.environ.get("APPDATA", "")
+        if appdata:
+            candidate = Path(appdata) / "Forge"
+            if candidate.is_dir():
+                return str(candidate)
+    home = Path.home()
+    for candidate in [
+        home / ".forge",
+        home / "Forge",
+    ]:
+        if candidate.is_dir():
+            return str(candidate)
+
+    return ""
+
+
 def _resolve_forge_jar() -> str:
     """Auto-detect the Forge GUI desktop JAR in common locations."""
     project_root = Path(__file__).parent
@@ -172,7 +230,7 @@ def main():
     setup_logging(logging.DEBUG if args.verbose else logging.INFO)
 
     CFG.forge_jar       = args.forge_jar or _resolve_forge_jar()
-    CFG.forge_dir       = args.forge_dir
+    CFG.forge_dir       = args.forge_dir or _resolve_forge_dir()
     CFG.forge_decks_dir = args.forge_decks_dir or _resolve_forge_decks_dir()
     CFG.lab_jar         = args.lab_jar or _resolve_lab_jar()
     CFG.port            = args.port
@@ -185,7 +243,10 @@ def main():
     log.info("Commander AI Lab — API Server v3.0.0")
     log.info(f"  Port:       {CFG.port}")
     log.info(f"  Forge JAR:  {CFG.forge_jar or 'NOT SET'}")
+    log.info(f"  Forge Dir:  {CFG.forge_dir or 'NOT SET'}")
     log.info(f"  Decks Dir:  {CFG.forge_decks_dir or 'NOT SET'}")
+    log.info(f"  Lab JAR:    {CFG.lab_jar or 'NOT SET'}")
+    log.info(f"  Results:    {CFG.results_dir}")
     log.info(f"  Ximilar:    {'configured' if CFG.ximilar_api_key else 'NOT SET'}")
     log.info(f"  Perplexity: {'configured' if CFG.pplx_api_key else 'NOT SET'}")
     log.info(f"  Java 17:    {j17}")
