@@ -67,6 +67,13 @@
             <version>3.45.1.0</version>
         </dependency>
 
+        <!-- WebSocket server for Unity/Godot client -->
+        <dependency>
+            <groupId>org.java-websocket</groupId>
+            <artifactId>Java-WebSocket</artifactId>
+            <version>1.5.6</version>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
