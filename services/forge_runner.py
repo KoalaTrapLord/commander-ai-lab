@@ -1,6 +1,5 @@
 """Forge batch simulation runner: Java discovery, command building, process management."""
 import asyncio
-import datetime
 import json
 import logging
 import os
@@ -81,72 +80,103 @@ def build_java_command(
 def _run_process_blocking(state: BatchState, cmd: list):
     """Run Forge subprocess, parse progress, generate deck reports."""
     log.info(f"Running: {' '.join(cmd)}")
-    state.started_at = datetime.datetime.now().isoformat()
-    state.status = "running"
+
+    # Ensure Forge subprocesses use Java 17
     env = os.environ.copy()
     java17 = get_java17()
-    java_bin = os.path.dirname(java17)
-    if java_bin:
-        env["JAVA_HOME"] = os.path.dirname(java_bin)
-        env["PATH"] = java_bin + os.pathsep + env.get("PATH", "")
+    if java17 != 'java':
+        java17_bin = os.path.dirname(java17)
+        java17_home = os.path.dirname(java17_bin)
+        env['JAVA_HOME'] = java17_home
+        env['PATH'] = java17_bin + os.pathsep + env.get('PATH', '')
+
     try:
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1, env=env,
         )
+        state.process = proc
     except Exception as e:
-        state.status = "error"
+        state.running = False
         state.error = str(e)
         log.error(f"Failed to start subprocess: {e}")
         return
+
     last_activity = [time.monotonic()]
     stall_limit = 300  # 5 min
+
     def watchdog():
         while proc.poll() is None:
             if (time.monotonic() - last_activity[0]) > stall_limit:
                 log.warning("Stall detected, killing process")
+                state.log_lines.append('[WATCHDOG] Process stalled. Killed.')
                 proc.kill()
-                state.status = "error"
+                state.running = False
                 state.error = "Stall detected (5 min no output)"
                 return
             time.sleep(5)
+
     wd = threading.Thread(target=watchdog, daemon=True)
     wd.start()
-    output_lines = []
+
     for line in proc.stdout:
         last_activity[0] = time.monotonic()
         line = line.rstrip()
-        output_lines.append(line)
+        state.log_lines.append(line)
         gm = re.match(r'\[Game (\d+)/(\d+)\]', line)
         if gm:
-            state.games_done = int(gm.group(1))
-            state.games_total = int(gm.group(2))
+            state.completed_games = int(gm.group(1))
+            state.total_games = int(gm.group(2))
         pm = re.match(r'\[PROGRESS\].*?(\d+\.?\d*)\s*sims/sec', line)
         if pm:
-            state.throughput = float(pm.group(1))
+            state.sims_per_sec = float(pm.group(1))
+
     proc.wait()
-    state.log = '\n'.join(output_lines)
+    elapsed = (_datetime.now() - state.start_time).total_seconds() * 1000
+    state.elapsed_ms = int(elapsed)
     if proc.returncode != 0:
-        state.status = "error"
+        state.running = False
         state.error = f"Exit code {proc.returncode}"
     else:
-        state.status = "done"
-        state.games_done = state.games_total
-    state.ended_at = datetime.datetime.now().isoformat()
+        state.running = False
+        state.completed_games = state.total_games
 
 
 async def run_batch_subprocess(
-    state: BatchState, decks: list, num_games: int, threads: int,
-    seed: Optional[int] = None, clock: int = 6000, output_path: str = "results",
-    use_learned_policy: bool = False, **kwargs,
+    state: BatchState,
+    decks: list,
+    num_games: int,
+    threads: int,
+    seed: Optional[int] = None,
+    clock: int = 6000,
+    output_path: str = "results",
+    use_learned_policy: bool = False,
+    policy_style: str = "midrange",
+    policy_greedy: bool = False,
+    ai_simplified: bool = False,
+    ai_think_time_ms: int = -1,
+    max_queue_depth: int = -1,
 ):
     """Async wrapper that runs Forge subprocess in executor."""
-    cmd = build_java_command(
-        decks, num_games, threads, seed, clock, output_path,
-        use_learned_policy=use_learned_policy, **kwargs,
-    )
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, _run_process_blocking, state, cmd)
+    try:
+        policy_server = f"http://localhost:{CFG.port}"
+        cmd = build_java_command(
+            decks, num_games, threads, seed, clock, output_path,
+            use_learned_policy=use_learned_policy,
+            policy_server=policy_server,
+            policy_style=policy_style,
+            policy_greedy=policy_greedy,
+            ai_simplified=ai_simplified,
+            ai_think_time_ms=ai_think_time_ms,
+            max_queue_depth=max_queue_depth,
+        )
+        log.info(f"Starting batch {state.batch_id}: {' '.join(cmd[:6])}...")
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _run_process_blocking, state, cmd)
+    except Exception as e:
+        state.error = str(e)
+        state.running = False
+        log.error(f"Batch {state.batch_id} ERROR: {e}")
 
 
 def _get_deepseek_brain():
