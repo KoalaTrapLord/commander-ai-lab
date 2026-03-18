@@ -169,12 +169,12 @@ def _row_to_dict(row) -> dict:
     return d
 
 
-    def _snake_to_camel(s: str) -> str:
+def _snake_to_camel(s: str) -> str:
     parts = s.split("_")
     return parts[0] + "".join(p.capitalize() for p in parts[1:])
 
 
-    def _add_image_url(card: dict) -> dict:
+def _add_image_url(card: dict) -> dict:
     scryfall_id = card.get("scryfall_id", "")
     if scryfall_id:
         card["imageUrl"] = f"https://api.scryfall.com/cards/{scryfall_id}?format=image&version=normal"
@@ -188,7 +188,7 @@ def _row_to_dict(row) -> dict:
     return card
 
 
-    def _build_collection_filters(
+def _build_collection_filters(
     q=None, colors=None, types=None, isLegendary=None, isBasic=None,
     isGameChanger=None, highSalt=None, finish=None, cmcMin=None, cmcMax=None,
     priceMin=None, priceMax=None, category=None, rarity=None, setCode=None,
@@ -197,7 +197,7 @@ def _row_to_dict(row) -> dict:
 ) -> tuple:
     conditions = []
     params = []
-        if q:
+    if q:
         like_q = f"%{q}%"
         conditions.append("(name LIKE ? OR type_line LIKE ? OR oracle_text LIKE ?)")
         params.extend([like_q, like_q, like_q])
