@@ -218,11 +218,11 @@ def _finish_sim(sim_id, summary, game_results):
 
         # Auto-generate deck report for training dashboard / coach
         try:
-            from commander_ai_lab.lab.reports import generate_single_deck_report
+            from coach.report_generator import generate_deck_reports
             reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'deck-reports')
             os.makedirs(reports_dir, exist_ok=True)
-            generate_single_deck_report(batch_data, reports_dir)
-            logger.info(f'Generated deck report for {deck_name}')
+            generate_deck_reports(str(results_dir), str(reports_dir))
+            logger.info(f'Generated deck reports after sim {sim_id}')
         except ImportError:
             logger.warning('reports module not available; skipping deck report generation')
         except Exception as e:
