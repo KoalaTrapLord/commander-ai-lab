@@ -384,7 +384,7 @@ def _run_deepseek_batch_thread(
             color_identity_set = set()
             deck_objs = []
             for cd in raw_cards:
-                c = Card(name=cd['name'])
+                c = Card(name=(cd.get('card_name') or cd.get('name', '')))
                 if cd.get('type_line'): c.type_line = cd['type_line']
                 if cd.get('cmc'): c.cmc = float(cd['cmc'])
                 if cd.get('power') and cd.get('toughness'):
@@ -401,7 +401,7 @@ def _run_deepseek_batch_thread(
                     if isinstance(kw, list): c.keywords = kw
                 if cd.get('is_commander'):
                     c.is_commander = True
-                    commander_name = cd['name']
+                    commander_name = (cd.get('card_name') or cd.get('name', ''))
                 ci_str = cd.get('color_identity', '')
                 if ci_str:
                     try:
