@@ -798,6 +798,7 @@ async def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperatu
                 f'{base_url}/chat/completions',
                 json=payload,
                 headers=headers,
+                      )
             resp.raise_for_status()
             data = resp.json()
     except httpx.HTTPStatusError as e:
