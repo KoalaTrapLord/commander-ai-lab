@@ -21,6 +21,7 @@ GITHUB_PRECON_URL = (
     "master/decks_v2.json"
 )
 PRECON_CACHE_HOURS = 168
+_SCRYFALL_COLLECTION_URL = "https://api.scryfall.com/cards/collection"
 
 
 def _get_precon_dir() -> Path:
@@ -96,12 +97,16 @@ def download_precon_database(force: bool = False) -> dict:
             with open(idx_path, "r", encoding="utf-8") as f:
                 existing = json.load(f)
             if len(existing) > 50:
+                # Invalidate cache if missing enrichment fields (imageUrl, colors)
+                has_enrichment = existing[0].get("imageUrl") or existing[0].get("colors")
                 age_hours = (time.time() - idx_path.stat().st_mtime) / 3600
-                if age_hours < PRECON_CACHE_HOURS:
+                if has_enrichment and age_hours < PRECON_CACHE_HOURS:
                     log.info(f"  Precons: {len(existing)} decks cached ({age_hours:.0f}h old)")
                     PRECON_INDEX.clear()
                     PRECON_INDEX.extend(existing)
                     return {"downloaded": 0, "skipped": True, "total": len(existing), "error": None}
+                if not has_enrichment:
+                    log.info("  Precons: Cache missing enrichment data, re-downloading...")
         except Exception:
             pass
     log.info("  Precons: Downloading full precon database from GitHub...")
@@ -135,6 +140,14 @@ def download_precon_database(force: bool = False) -> dict:
         dck_path = precon_dir / file_name
         commanders = deck.get('commander', [])
         cmdr_names = [c['name'] for c in commanders] if commanders else []
+        # Build Scryfall art_crop image URL from first commander's set/number
+        image_url = ""
+        if commanders:
+            c0 = commanders[0]
+            sc = (c0.get('set_code') or '').lower()
+            num = c0.get('number', '')
+            if sc and num:
+                image_url = f"https://api.scryfall.com/cards/{sc}/{num}?format=image&version=art_crop"
         total_cards = sum(c.get('count', 1) for c in deck.get('cards', [])) + sum(c.get('count', 1) for c in commanders)
         with open(dck_path, "w", encoding="utf-8") as f:
             f.write(_deck_to_dck(deck))
@@ -147,10 +160,71 @@ def download_precon_database(force: bool = False) -> dict:
             "set": deck.get('set_name', ''), "setCode": deck.get('set_code', ''),
             "year": year, "releaseDate": release, "theme": "",
             "fileName": file_name, "cardCount": total_cards,
+            "imageUrl": image_url,
         })
+    # Enrich with color identity from Scryfall (best-effort)
+    _enrich_colors(index)
     with open(idx_path, "w", encoding="utf-8") as f:
         json.dump(index, f, indent=2, ensure_ascii=False)
     PRECON_INDEX.clear()
     PRECON_INDEX.extend(index)
     log.info(f"  Precons: {written} .dck files written, index saved")
     return {"downloaded": written, "skipped": False, "total": written, "error": None}
+
+
+def _enrich_colors(index: list[dict]) -> None:
+    """Batch-fetch color_identity for commanders via Scryfall /cards/collection.
+
+    Scryfall accepts up to 75 identifiers per request.  We look up each unique
+    commander name once, then propagate the result to every index entry.
+    """
+    # Build unique commander -> identifiers map
+    cmdr_lookup: dict[str, dict] = {}   # name -> {"name": ...}
+    for entry in index:
+        name = entry.get("commander", "")
+        if name and name != "Unknown" and name not in cmdr_lookup:
+            cmdr_lookup[name] = {"name": name}
+    if not cmdr_lookup:
+        return
+
+    names = list(cmdr_lookup.keys())
+    color_map: dict[str, list[str]] = {}  # commander name -> ["W","U",...]
+
+    # Batch in chunks of 75
+    for i in range(0, len(names), 75):
+        batch = [{"name": n} for n in names[i:i + 75]]
+        try:
+            payload = json.dumps({"identifiers": batch}).encode("utf-8")
+            req = Request(
+                _SCRYFALL_COLLECTION_URL,
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "CommanderAILab/3.0",
+                },
+                method="POST",
+            )
+            with urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read())
+            for card in result.get("data", []):
+                cname = card.get("name", "")
+                ci = card.get("color_identity", [])
+                if cname and ci:
+                    color_map[cname] = ci
+                    # Handle double-faced names: "A // B" -> also store "A"
+                    if " // " in cname:
+                        front = cname.split(" // ")[0]
+                        color_map[front] = ci
+            # Respect Scryfall rate limit (100ms between requests)
+            time.sleep(0.15)
+        except Exception as e:
+            log.warning(f"  Precons: Scryfall color lookup failed for batch {i}: {e}")
+
+    # Apply colors to index entries
+    enriched = 0
+    for entry in index:
+        name = entry.get("commander", "")
+        if name in color_map:
+            entry["colors"] = color_map[name]
+            enriched += 1
+    log.info(f"  Precons: Enriched {enriched}/{len(index)} decks with color identity")

@@ -316,7 +316,7 @@ const AiLab = (() => {
 
             <!-- v3: Precon Picker Modal -->
             <div class="lab-modal-overlay" id="lab-precon-modal">
-                <div class="lab-modal-content lab-modal-wide">
+                <div class="lab-modal-content lab-modal-precon">
                     <div class="lab-modal-header">
                         <h3>Precon Decks — Official Commander Precons</h3>
                         <button class="lab-modal-close" onclick="AiLab.closePreconPicker()">✕</button>
@@ -796,16 +796,25 @@ const AiLab = (() => {
             const installLabel = isInstalled ? 'Installed' : 'Install & Use';
             const installClass = isInstalled ? 'lab-precon-card-installed' : '';
 
+            // Commander art from Scryfall — use imageUrl if backend provided it,
+            // otherwise build a fuzzy lookup URL from the commander name
+            const artUrl = p.imageUrl
+                || `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(p.commander)}&format=image&version=art_crop`;
+
             return `
             <div class="lab-precon-card ${installClass}" onclick="AiLab.installPrecon('${escapeAttr(p.fileName)}')">
-                <div class="precon-card-colors">${colors}</div>
-                <div class="precon-card-name">${escapeHtml(p.name)}</div>
-                <div class="precon-card-commander">${escapeHtml(p.commander)}</div>
-                <div class="precon-card-set">${escapeHtml(p.set)} (${p.year})</div>
-                <div class="precon-card-theme">${escapeHtml(p.theme || '')}</div>
-                <button class="lab-precon-install-btn" title="Install to Forge and add to deck list">
-                    ${installLabel}
-                </button>
+                <img class="precon-card-art" src="${artUrl}" alt="${escapeAttr(p.commander)}" loading="lazy"
+                     onerror="this.style.display='none'" />
+                <div class="precon-card-body">
+                    <div class="precon-card-colors">${colors}</div>
+                    <div class="precon-card-name">${escapeHtml(p.name)}</div>
+                    <div class="precon-card-commander">${escapeHtml(p.commander)}</div>
+                    <div class="precon-card-set">${escapeHtml(p.set)} (${p.year})</div>
+                    ${p.theme ? `<div class="precon-card-theme">${escapeHtml(p.theme)}</div>` : ''}
+                    <button class="lab-precon-install-btn" title="Install to Forge and add to deck list">
+                        ${installLabel}
+                    </button>
+                </div>
             </div>`;
         }).join('');
     }
