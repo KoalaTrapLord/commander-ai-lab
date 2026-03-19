@@ -354,7 +354,8 @@ namespace CommanderAILab.UI
       }
 
       int max = 1;
-      foreach (int v in buckets) if (v > max) max = v;kets.Length; i++)
+      foreach (int v in buckets) if (v > max) max = v;
+            for (int i = 0; i < buckets.Length; i++)
             {
                 var bar = Instantiate(manaCurveBarPrefab, manaCurveBarParent);
                 var rt = bar.GetComponent<RectTransform>();
@@ -420,8 +421,6 @@ namespace CommanderAILab.UI
         [System.Serializable]
         private class DecksWrapper { public List<DeckModel> decks; }
         [System.Serializable]
-        private class CollectionResponse { public List<CardModel> cards; }
+                private class CollectionResponse { public List<CardModel> cards; }
     }
 }
-
-      for (int i = 0; i < buc
