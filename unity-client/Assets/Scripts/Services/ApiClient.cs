@@ -204,7 +204,7 @@ namespace CommanderAILab.Services
 
         public Coroutine GetDecks(Action<string> onSuccess, Action<string> onError = null)
         {
-            return StartCoroutine(GetRawCoroutine("/api/decks", onSuccess, onError));
+            return StartCoroutine(GetRawCoroutine("/api/lab/decks", onSuccess, onError));
         }
 
         public Coroutine CreateDeck(string deckJson, Action<string> onSuccess, Action<string> onError = null)
@@ -214,6 +214,11 @@ namespace CommanderAILab.Services
 
         // -- Simulator ------------------------------------------------------
 
+        public Coroutine GetProfiles(Action<string> onSuccess, Action<string> onError = null)
+        {
+            return StartCoroutine(GetRawCoroutine("/api/lab/profiles", onSuccess, onError));
+        }
+
         public Coroutine StartSim(string configJson, Action<string> onSuccess, Action<string> onError = null)
         {
             return PostRaw("/api/lab/start", configJson, onSuccess, onError);
@@ -221,12 +226,12 @@ namespace CommanderAILab.Services
 
         public Coroutine GetSimStatus(string simId, Action<string> onSuccess, Action<string> onError = null)
         {
-            return StartCoroutine(GetRawCoroutine($"/api/lab/status/{simId}", onSuccess, onError));
+            return StartCoroutine(GetRawCoroutine($"/api/lab/status?batchId={simId}", onSuccess, onError));
         }
 
         public Coroutine GetSimResults(string simId, Action<string> onSuccess, Action<string> onError = null)
         {
-            return StartCoroutine(GetRawCoroutine($"/api/lab/results/{simId}", onSuccess, onError));
+            return StartCoroutine(GetRawCoroutine($"/api/lab/result?batchId={simId}", onSuccess, onError));
         }
 
         // -- Coach ----------------------------------------------------------
