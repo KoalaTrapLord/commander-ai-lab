@@ -253,14 +253,38 @@ const DeckGenerator = (() => {
         $('dg-commander-dropdown').classList.remove('open');
     }
 
+        // -- Conversation Log Helper --
+    function logMessage(msg, type = 'info') {
+        const log = $('dg-conversation-log');
+        if (!log) return;
+        log.style.display = 'block';
+        const entry = document.createElement('div');
+        entry.className = 'dg-log-entry dg-log-' + type;
+        const ts = new Date().toLocaleTimeString();
+        entry.innerHTML = '<span class="dg-log-ts">[' + ts + ']</span> ' + msg;
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function clearLog() {
+        const log = $('dg-conversation-log');
+        if (!log) return;
+        log.innerHTML = '';
+        log.style.display = 'none';
+    }
+
     // ── Generate Deck ───────────────────────────────────────
     async function generateDeck() {
+                clearLog();
+        logMessage('Connecting to local AI model (gpt-oss:20b)...', 'info');
         if (!state.commander) { toast('Select a commander first', 'error'); return; }
         if (!state.v3Ready) { toast('V3 generator not ready — check Perplexity API key', 'error'); return; }
+                logMessage('Building request body with commander: <b>' + state.commander.name + '</b>', 'info');
 
-        setLoading(true, 'Generating deck via Perplexity AI...');
+                setLoading(true, 'Generating deck via Local AI...');
 
         const body = buildRequestBody();
+                    logMessage('Sending request to AI model... this may take a moment.', 'info');
         state.lastRequestBody = body;
 
         try {
@@ -276,12 +300,16 @@ const DeckGenerator = (() => {
             }
 
             state.previewResult = await resp.json();
+                        logMessage('AI response received! Processing deck data...', 'success');
+                                    const cardCount = (stats.total_cards || 0);
+            logMessage('Deck generated: <b>' + cardCount + ' cards</b> | $' + (stats.total_price || 0).toFixed(2) + ' estimated', 'success');
             renderResults(state.previewResult);
 
             const stats = state.previewResult.stats || {};
             toast('Deck generated: ' + (stats.total_cards || 0) + ' cards | $' + (stats.total_price_usd || 0), 'success');
         } catch (e) {
             toast(e.message || 'Generation failed', 'error');
+                        logMessage('Error: ' + (e.message || 'Unknown error'), 'error');
             setLoading(false);
         }
     }

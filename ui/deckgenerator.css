@@ -1256,3 +1256,45 @@
 .dg-stat-substituted .dg-stat-num { color: #60a5fa; }
 .dg-stat-missing .dg-stat-num { color: #f59e0b; }
 .dg-stat-price .dg-stat-num { color: #a78bfa; }
+
+
+/* -- Conversation Log ---------------------------------------- */
+.dg-conversation-log {
+    margin-top: var(--sp-3);
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-3);
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    scrollbar-width: thin;
+}
+
+.dg-log-entry {
+    padding: 3px 0;
+    line-height: 1.5;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.dg-log-entry:last-child {
+    border-bottom: none;
+}
+
+.dg-log-ts {
+    color: var(--text-muted);
+    margin-right: 6px;
+}
+
+.dg-log-info {
+    color: var(--text);
+}
+
+.dg-log-success {
+    color: #60a5fa;
+}
+
+.dg-log-error {
+    color: #f59e0b;
+}
