@@ -353,6 +353,74 @@ namespace CommanderAILab.UI
       }
 
       int max = 1;
-      foreach (int v in buckets) if (v > max) max = v;
+      foreach (int v in buckets) if (v > max) max = v;kets.Length; i++)
+            {
+                var bar = Instantiate(manaCurveBarPrefab, manaCurveBarParent);
+                var rt = bar.GetComponent<RectTransform>();
+                float height = (buckets[i] / (float)max) * 120f;
+                rt.sizeDelta = new Vector2(rt.sizeDelta.x, height);
+                var label = bar.GetComponentInChildren<TMP_Text>();
+                if (label) label.text = buckets[i].ToString();
+            }
+        }
+
+        private void BuildColorPie()
+        {
+            if (colorPieSlices == null || colorPieSlices.Length == 0) return;
+
+            // Count WUBRGC from mana costs
+            int[] counts = new int[6]; // W U B R G C
+            foreach (var card in _deckCards)
+            {
+                string mc = card.manaCost ?? "";
+                if (mc.Contains("W")) counts[0]++;
+                if (mc.Contains("U")) counts[1]++;
+                if (mc.Contains("B")) counts[2]++;
+                if (mc.Contains("R")) counts[3]++;
+                if (mc.Contains("G")) counts[4]++;
+                // colorless: has digits but no WUBRG
+                if (!mc.Contains("W") && !mc.Contains("U") && !mc.Contains("B")
+                    && !mc.Contains("R") && !mc.Contains("G") && mc.Length > 0)
+                    counts[5]++;
+            }
+
+            int total = 0;
+            foreach (int c in counts) total += c;
+            if (total == 0) total = 1;
+
+            for (int i = 0; i < colorPieSlices.Length && i < counts.Length; i++)
+            {
+                colorPieSlices[i].fillAmount = counts[i] / (float)total;
+            }
+        }
+
+        // ── Error / Prompt ────────────────────────────────────────────────────
+        private void ShowError(string msg)
+        {
+            errorPanel.SetActive(true);
+            errorText.text = msg;
+        }
+
+        private void PromptSave()
+        {
+            // Simple: just save and navigate
+            OnSaveDeck();
+            SceneManager.LoadScene("MainMenu");
+        }
+
+        private void OnExportToSim()
+        {
+            if (_activeDeck == null) return;
+            PlayerPrefs.SetString("SimDeck", JsonConvert.SerializeObject(_activeDeck));
+            SceneManager.LoadScene("Simulator");
+        }
+
+        // ── Helper Models ─────────────────────────────────────────────────────
+        [System.Serializable]
+        private class DecksWrapper { public List<DeckModel> decks; }
+        [System.Serializable]
+        private class CollectionResponse { public List<CardModel> cards; }
+    }
+}
 
       for (int i = 0; i < buc
