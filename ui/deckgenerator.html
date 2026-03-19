@@ -132,8 +132,7 @@
                         <div class="dg-model-row">
                             <label class="dg-label">AI Model</label>
                             <select class="dg-select" id="dg-model">
-                                <option value="sonar">Sonar (fast, ~$0.004)</option>
-                                <option value="sonar-pro">Sonar Pro (deep, ~$0.04)</option>
+                                                        <option value="gpt-oss:20b" selected>gpt-oss:20b (Local Ollama)</option>
                             </select>
                         </div>
                     </div>
@@ -160,7 +159,7 @@
                 <!-- Loading State -->
                 <div class="dg-loading" id="dg-loading" style="display:none">
                     <div class="dg-spinner"></div>
-                    <div class="dg-loading-text" id="dg-loading-text">Generating deck via Perplexity AI...</div>
+                    <div class="dg-loading-text" id="dg-loading-text">Generating deck via Local AI...</div>
                 </div>
 
                 <!-- Results -->
