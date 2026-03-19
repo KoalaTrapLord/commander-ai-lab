@@ -159,6 +159,12 @@ def _resolve_forge_dir() -> str:
             return str(candidate)
         # Also try just one level up from target/
         candidate = jar_path.parent.parent
+                    # Check sibling dirs of forge-gui-desktop for res/ (e.g. forge-gui/res)
+            repo_root = jar_path.parent.parent.parent
+            if repo_root.is_dir():
+                for sibling in sorted(repo_root.iterdir()):
+                    if sibling.is_dir() and (sibling / "res").is_dir():
+                        return str(sibling)
         if candidate.is_dir() and (candidate / "res").is_dir():
             return str(candidate)
         # Fall back to the directory containing the JAR itself
