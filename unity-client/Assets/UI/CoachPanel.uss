@@ -4,9 +4,9 @@
     flex-direction: row;
     align-items: center;
     padding: 8px 14px;
-    background-color: rgb(17, 15, 28);
+    background-color: rgb(17,15,28);
     border-bottom-width: 1px;
-    border-bottom-color: rgb(50, 40, 80);
+    border-bottom-color: rgb(50,40,80);
 }
 
 .deck-dropdown   { flex-grow: 1; margin: 0 8px; }
@@ -24,7 +24,7 @@
     flex-direction: column;
     border-radius: 0;
     border-right-width: 1px;
-    border-right-color: rgb(50, 40, 80);
+    border-right-color: rgb(50,40,80);
     margin: 0;
     padding: 0;
 }
@@ -37,32 +37,32 @@
 /* Bubbles */
 .chat-bubble-user {
     align-self: flex-end;
-    background-color: rgb(60, 42, 110);
+    background-color: rgb(60,42,110);
     border-radius: 14px 14px 4px 14px;
     padding: 8px 14px;
     max-width: 70%;
     margin: 4px 8px;
-    color: rgb(230, 220, 255);
+    color: rgb(230,220,255);
     font-size: 13px;
     white-space: normal;
 }
 
 .chat-bubble-coach {
     align-self: flex-start;
-    background-color: rgb(24, 20, 40);
+    background-color: rgb(24,20,40);
     border-width: 1px;
-    border-color: rgb(70, 55, 110);
+    border-color: rgb(70,55,110);
     border-radius: 14px 14px 14px 4px;
     padding: 8px 14px;
     max-width: 78%;
     margin: 4px 8px;
-    color: rgb(200, 195, 215);
+    color: rgb(200,195,215);
     font-size: 13px;
     white-space: normal;
 }
 
 .typing-indicator {
-    color: rgb(140, 120, 200);
+    color: rgb(140,120,200);
     font-size: 12px;
     padding: 4px 14px;
     -unity-font-style: italic;
@@ -73,8 +73,8 @@
     align-items: center;
     padding: 8px 12px;
     border-top-width: 1px;
-    border-top-color: rgb(50, 40, 80);
-    background-color: rgb(17, 15, 28);
+    border-top-color: rgb(50,40,80);
+    background-color: rgb(17,15,28);
 }
 
 .chat-input { flex-grow: 1; margin-right: 6px; }
@@ -97,30 +97,30 @@
 
 .stat-chip {
     flex-grow: 1;
-    background-color: rgb(28, 24, 44);
+    background-color: rgb(28,24,44);
     border-radius: 8px;
     padding: 8px;
     margin: 3px;
     border-width: 1px;
-    border-color: rgb(70, 55, 100);
+    border-color: rgb(70,55,100);
 }
 
 .chart-rect {
-    background-color: rgb(16, 14, 26);
+    background-color: rgb(16,14,26);
     border-radius: 6px;
     border-width: 1px;
-    border-color: rgb(55, 42, 90);
+    border-color: rgb(55,42,90);
     margin: 4px 0;
 }
 
 .mana-chart   { height: 100px; }
-.chart-sub    { font-size: 10px; color: rgb(120, 110, 150); margin-top: 2px; }
+.chart-sub    { font-size: 10px; color: rgb(120,110,150); margin-top: 2px; }
 
 .precon-panel {
-    background-color: rgb(22, 18, 35);
+    background-color: rgb(22,18,35);
     border-radius: 8px;
     padding: 10px;
     margin-top: 8px;
     border-width: 1px;
-    border-color: rgb(60, 45, 90);
+    border-color: rgb(60,45,90);
 }

@@ -7,8 +7,8 @@
 .lab-root {
     flex-direction: column;
     flex-grow: 1;
-    background-color: rgb(13, 13, 20);
-    color: rgb(220, 210, 190);
+    background-color: rgb(13,13,20);
+    color: rgb(220,210,190);
     font-size: 14px;
 }
 
@@ -17,15 +17,15 @@
     flex-direction: row;
     align-items: center;
     padding: 10px 18px;
-    background-color: rgb(20, 16, 30);
+    background-color: rgb(20,16,30);
     border-bottom-width: 2px;
-    border-bottom-color: rgb(90, 60, 160);
+    border-bottom-color: rgb(90,60,160);
     height: 54px;
 }
 
 .nav-title {
     font-size: 20px;
-    color: rgb(180, 140, 255);
+    color: rgb(180,140,255);
     -unity-font-style: bold;
     flex-grow: 1;
     letter-spacing: 1px;
@@ -33,56 +33,55 @@
 
 /* ── Buttons ── */
 .btn {
-    background-color: rgb(60, 42, 100);
-    color: rgb(220, 210, 190);
+    background-color: rgb(60,42,100);
+    color: rgb(220,210,190);
     border-width: 1px;
-    border-color: rgb(100, 70, 180);
+    border-color: rgb(100,70,180);
     border-radius: 6px;
     padding: 8px 16px;
     margin: 4px;
     font-size: 13px;
-    cursor: auto;
     transition-duration: 0.15s;
 }
 
 .btn:hover {
-    background-color: rgb(80, 55, 140);
-    border-color: rgb(150, 110, 255);
+    background-color: rgb(80,55,140);
+    border-color: rgb(150,110,255);
 }
 
 .btn:active {
-    background-color: rgb(50, 35, 85);
+    background-color: rgb(50,35,85);
 }
 
 .btn-primary {
-    background-color: rgb(80, 50, 170);
-    border-color: rgb(150, 100, 255);
-    color: rgb(255, 255, 255);
+    background-color: rgb(80,50,170);
+    border-color: rgb(150,100,255);
+    color: rgb(255,255,255);
     -unity-font-style: bold;
 }
 
 .btn-primary:hover {
-    background-color: rgb(100, 65, 210);
+    background-color: rgb(100,65,210);
 }
 
 .btn-danger {
-    background-color: rgb(120, 30, 40);
-    border-color: rgb(200, 60, 70);
-    color: rgb(255, 180, 180);
+    background-color: rgb(120,30,40);
+    border-color: rgb(200,60,70);
+    color: rgb(255,180,180);
 }
 
 .btn-danger:hover {
-    background-color: rgb(160, 40, 55);
+    background-color: rgb(160,40,55);
 }
 
 .btn-success {
-    background-color: rgb(30, 100, 50);
-    border-color: rgb(60, 180, 90);
-    color: rgb(180, 255, 190);
+    background-color: rgb(30,100,50);
+    border-color: rgb(60,180,90);
+    color: rgb(180,255,190);
 }
 
 .btn-success:hover {
-    background-color: rgb(40, 130, 65);
+    background-color: rgb(40,130,65);
 }
 
 .btn-icon {
@@ -92,9 +91,9 @@
 
 /* ── Panel / Cards ── */
 .panel {
-    background-color: rgb(20, 18, 32);
+    background-color: rgb(20,18,32);
     border-width: 1px;
-    border-color: rgb(60, 45, 100);
+    border-color: rgb(60,45,100);
     border-radius: 10px;
     padding: 14px;
     margin: 6px;
@@ -102,21 +101,21 @@
 
 .panel-header {
     font-size: 16px;
-    color: rgb(180, 140, 255);
+    color: rgb(180,140,255);
     -unity-font-style: bold;
     margin-bottom: 10px;
     border-bottom-width: 1px;
-    border-bottom-color: rgb(60, 45, 100);
+    border-bottom-color: rgb(60,45,100);
     padding-bottom: 6px;
 }
 
 /* ── Inputs & Dropdowns ── */
 .input-field {
-    background-color: rgb(28, 24, 44);
+    background-color: rgb(28,24,44);
     border-width: 1px;
-    border-color: rgb(80, 60, 130);
+    border-color: rgb(80,60,130);
     border-radius: 6px;
-    color: rgb(220, 210, 190);
+    color: rgb(220,210,190);
     padding: 6px 10px;
     font-size: 13px;
     margin: 3px 0;
@@ -124,15 +123,15 @@
 }
 
 .input-field:focus {
-    border-color: rgb(140, 100, 255);
+    border-color: rgb(140,100,255);
 }
 
 .dropdown {
-    background-color: rgb(28, 24, 44);
+    background-color: rgb(28,24,44);
     border-width: 1px;
-    border-color: rgb(80, 60, 130);
+    border-color: rgb(80,60,130);
     border-radius: 6px;
-    color: rgb(220, 210, 190);
+    color: rgb(220,210,190);
     padding: 4px 8px;
     font-size: 13px;
     margin: 3px 0;
@@ -141,35 +140,35 @@
 
 /* ── Labels ── */
 .label {
-    color: rgb(160, 150, 180);
+    color: rgb(160,150,180);
     font-size: 13px;
     margin-bottom: 2px;
 }
 
 .label-bold {
-    color: rgb(200, 190, 220);
+    color: rgb(200,190,220);
     font-size: 13px;
     -unity-font-style: bold;
 }
 
 .stat-value {
-    color: rgb(140, 200, 255);
+    color: rgb(140,200,255);
     font-size: 22px;
     -unity-font-style: bold;
 }
 
 /* ── Error Panel ── */
 .error-panel {
-    background-color: rgb(60, 15, 20);
+    background-color: rgb(60,15,20);
     border-width: 1px;
-    border-color: rgb(180, 50, 60);
+    border-color: rgb(180,50,60);
     border-radius: 8px;
     padding: 12px;
     margin: 8px;
 }
 
 .error-text {
-    color: rgb(255, 140, 140);
+    color: rgb(255,140,140);
     font-size: 13px;
 }
 
@@ -179,69 +178,69 @@
     height: 32px;
     border-radius: 16px;
     border-width: 3px;
-    border-color: rgb(100, 70, 200);
-    border-top-color: rgb(200, 160, 255);
+    border-color: rgb(100,70,200);
+    border-top-color: rgb(200,160,255);
     margin: 8px auto;
 }
 
 /* ── Scroll area ── */
 .scroll-view {
     flex-grow: 1;
-    background-color: rgb(16, 14, 26);
+    background-color: rgb(16,14,26);
     border-radius: 6px;
 }
 
 /* ── Divider ── */
 .divider {
     height: 1px;
-    background-color: rgb(50, 40, 80);
+    background-color: rgb(50,40,80);
     margin: 8px 0;
 }
 
 /* ── Badge / Chip ── */
 .badge {
-    background-color: rgb(60, 45, 100);
+    background-color: rgb(60,45,100);
     border-radius: 12px;
     padding: 2px 10px;
     font-size: 11px;
-    color: rgb(200, 180, 255);
+    color: rgb(200,180,255);
     margin: 2px;
 }
 
-.badge-green  { background-color: rgb(20, 70, 35);  color: rgb(160, 255, 170); }
-.badge-red    { background-color: rgb(70, 20, 25);  color: rgb(255, 150, 150); }
-.badge-blue   { background-color: rgb(20, 45, 90);  color: rgb(140, 200, 255); }
-.badge-gold   { background-color: rgb(70, 55, 10);  color: rgb(255, 215, 100); }
+.badge-green  { background-color: rgb(20,70,35);  color: rgb(160,255,170); }
+.badge-red    { background-color: rgb(70,20,25);  color: rgb(255,150,150); }
+.badge-blue   { background-color: rgb(20,45,90);  color: rgb(140,200,255); }
+.badge-gold   { background-color: rgb(70,55,10);  color: rgb(255,215,100); }
 
 /* ── MTG color identity dots ── */
-.color-w { background-color: rgb(248, 231, 185); border-radius: 8px; width:14px; height:14px; margin:1px; }
-.color-u { background-color: rgb( 14, 104, 171); border-radius: 8px; width:14px; height:14px; margin:1px; }
-.color-b { background-color: rgb( 21,  11,  0 ); border-radius: 8px; width:14px; height:14px; margin:1px; }
-.color-r { background-color: rgb(211,  32,  42); border-radius: 8px; width:14px; height:14px; margin:1px; }
-.color-g { background-color: rgb(  0, 115,  62); border-radius: 8px; width:14px; height:14px; margin:1px; }
-.color-c { background-color: rgb(180, 180, 180); border-radius: 8px; width:14px; height:14px; margin:1px; }
+.color-w { background-color: rgb(248,231,185); border-radius: 8px; width:14px; height:14px; margin:1px; }
+.color-u { background-color: rgb(14,104,171); border-radius: 8px; width:14px; height:14px; margin:1px; }
+.color-b { background-color: rgb(21,11,0); border-radius: 8px; width:14px; height:14px; margin:1px; }
+.color-r { background-color: rgb(211,32,42); border-radius: 8px; width:14px; height:14px; margin:1px; }
+.color-g { background-color: rgb(0,115,62); border-radius: 8px; width:14px; height:14px; margin:1px; }
+.color-c { background-color: rgb(180,180,180); border-radius: 8px; width:14px; height:14px; margin:1px; }
 
 /* ── Progress bar ── */
 .progress-track {
     height: 12px;
-    background-color: rgb(30, 25, 50);
+    background-color: rgb(30,25,50);
     border-radius: 6px;
     border-width: 1px;
-    border-color: rgb(70, 55, 110);
+    border-color: rgb(70,55,110);
     overflow: hidden;
     margin: 4px 0;
 }
 
 .progress-fill {
     height: 12px;
-    background-color: rgb(100, 70, 220);
+    background-color: rgb(100,70,220);
     border-radius: 6px;
     transition-duration: 0.3s;
 }
 
 /* ── Toggle ── */
 .toggle-label {
-    color: rgb(180, 170, 200);
+    color: rgb(180,170,200);
     font-size: 13px;
     flex-direction: row;
     align-items: center;

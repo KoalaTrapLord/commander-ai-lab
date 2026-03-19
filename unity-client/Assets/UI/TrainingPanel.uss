@@ -26,17 +26,17 @@
 
 .stat-cell {
     width: 48%;
-    background-color: rgb(24, 20, 40);
+    background-color: rgb(24,20,40);
     border-radius: 7px;
     padding: 8px 10px;
     margin: 3px;
     border-width: 1px;
-    border-color: rgb(60, 48, 95);
+    border-color: rgb(60,48,95);
 }
 
 .train-status {
     font-size: 13px;
-    color: rgb(160, 230, 160);
+    color: rgb(160,230,160);
     margin-bottom: 8px;
 }
 
@@ -50,18 +50,18 @@
 .charts-panel { flex-grow: 1; }
 
 .train-chart {
-    background-color: rgb(16, 14, 26);
+    background-color: rgb(16,14,26);
     border-radius: 6px;
     border-width: 1px;
-    border-color: rgb(55, 42, 90);
+    border-color: rgb(55,42,90);
     height: 80px;
     margin: 4px 0 10px 0;
     position: relative;
     overflow: hidden;
 }
 
-.accuracy-chart { border-color: rgb(40, 110, 55); }
-.loss-chart     { border-color: rgb(110, 35, 40); }
+.accuracy-chart { border-color: rgb(40,110,55); }
+.loss-chart     { border-color: rgb(110,35,40); }
 
 /* ── Right Column ── */
 .train-right {
@@ -85,28 +85,28 @@
 .feature-bar-label {
     width: 100px;
     font-size: 11px;
-    color: rgb(180, 170, 200);
+    color: rgb(180,170,200);
     margin-right: 6px;
 }
 
 .feature-bar-track {
     flex-grow: 1;
     height: 10px;
-    background-color: rgb(30, 25, 50);
+    background-color: rgb(30,25,50);
     border-radius: 5px;
     overflow: hidden;
 }
 
 .feature-bar-fill {
     height: 10px;
-    background-color: rgb(100, 70, 200);
+    background-color: rgb(100,70,200);
     border-radius: 5px;
 }
 
 .feature-bar-value {
     width: 44px;
     font-size: 10px;
-    color: rgb(140, 130, 170);
+    color: rgb(140,130,170);
     margin-left: 6px;
     -unity-text-align: middle-right;
 }
@@ -120,16 +120,16 @@
     flex-direction: row;
     padding: 6px 10px;
     border-bottom-width: 1px;
-    border-bottom-color: rgb(40, 32, 65);
+    border-bottom-color: rgb(40,32,65);
 }
 
-.history-row:hover    { background-color: rgb(28, 22, 46); }
-.history-header       { background-color: rgb(22, 18, 38); }
-.history-header Label { color: rgb(130, 115, 185); -unity-font-style: bold; font-size: 12px; }
+.history-row:hover    { background-color: rgb(28,22,46); }
+.history-header       { background-color: rgb(22,18,38); }
+.history-header Label { color: rgb(130,115,185); -unity-font-style: bold; font-size: 12px; }
 
-.h-ver  { width: 70px;  font-size: 13px; color: rgb(200, 180, 255); }
-.h-acc  { flex-grow: 1; font-size: 13px; color: rgb(140, 200, 140); }
-.h-date { width: 140px; font-size: 11px; color: rgb(130, 120, 160); }
+.h-ver  { width: 70px;  font-size: 13px; color: rgb(200,180,255); }
+.h-acc  { flex-grow: 1; font-size: 13px; color: rgb(140,200,140); }
+.h-date { width: 140px; font-size: 11px; color: rgb(130,120,160); }
 
 /* Log */
 .log-panel  { flex-grow: 1; }
@@ -137,7 +137,7 @@
 
 .log-text {
     font-size: 11px;
-    color: rgb(150, 195, 150);
+    color: rgb(150,195,150);
     white-space: normal;
     padding: 6px;
     font-family: monospace;

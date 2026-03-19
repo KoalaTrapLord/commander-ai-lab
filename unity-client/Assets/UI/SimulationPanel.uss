@@ -28,7 +28,7 @@
 
 .slot-label {
     width: 24px;
-    color: rgb(150, 130, 200);
+    color: rgb(150,130,200);
     -unity-font-style: bold;
     font-size: 13px;
     margin-right: 8px;
@@ -70,7 +70,7 @@
 
 .status-text {
     font-size: 14px;
-    color: rgb(180, 240, 180);
+    color: rgb(180,240,180);
     margin: 4px 0;
 }
 
@@ -82,7 +82,7 @@
 
 .winner-text {
     font-size: 18px;
-    color: rgb(255, 215, 100);
+    color: rgb(255,215,100);
     -unity-font-style: bold;
     margin: 6px 0;
 }
@@ -96,14 +96,14 @@
     padding: 7px 10px;
     border-radius: 4px;
     border-bottom-width: 1px;
-    border-bottom-color: rgb(40, 32, 65);
+    border-bottom-color: rgb(40,32,65);
 }
 
-.result-row:hover     { background-color: rgb(30, 25, 50); }
-.result-header        { background-color: rgb(25, 20, 42); }
-.result-header > Label { color: rgb(140, 120, 200); -unity-font-style: bold; }
+.result-row:hover     { background-color: rgb(30,25,50); }
+.result-header        { background-color: rgb(25,20,42); }
+.result-header > Label { color: rgb(140,120,200); -unity-font-style: bold; }
 
 .col-name { flex-grow: 1; }
-.col-wr   { width: 70px;  color: rgb(140, 200, 140); -unity-font-style: bold; }
-.col-w    { width: 55px;  color: rgb(140, 200, 255); }
-.col-l    { width: 55px;  color: rgb(255, 140, 140); }
+.col-wr   { width: 70px;  color: rgb(140,200,140); -unity-font-style: bold; }
+.col-w    { width: 55px;  color: rgb(140,200,255); }
+.col-l    { width: 55px;  color: rgb(255,140,140); }
