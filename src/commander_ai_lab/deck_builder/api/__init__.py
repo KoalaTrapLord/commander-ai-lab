@@ -1,11 +1,13 @@
 """API subpackage – external service clients (Scryfall, EDHRec, Ollama)."""
 
-from .scryfall import ScryfallClient
-from .edhrec import EDHRecClient
-from .ollama_client import OllamaClient
+from . import scryfall
+from . import edhrec
+from . import ollama_client
+from .community_scraper import CommunityScraper
 
 __all__ = [
-    "ScryfallClient",
-    "EDHRecClient",
-    "OllamaClient",
+    "scryfall",
+    "edhrec",
+    "ollama_client",
+    "CommunityScraper",
 ]
