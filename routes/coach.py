@@ -30,7 +30,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from models.requests import CoachRequestBody, CoachChatMessage, CoachChatRequest, CoachApplyRequest, CoachGoalsRequest
 
 from routes.shared import (
     CFG,
@@ -184,33 +184,6 @@ async def coach_get_report(deck_id: str):
     if report is None:
         raise HTTPException(404, f"Deck report not found: {deck_id}")
     return report.model_dump()
-
-
-class CoachRequestBody(BaseModel):
-    goals: Optional[dict] = None
-
-
-class CoachChatMessage(BaseModel):
-    role: str  # "user" or "assistant"
-    content: str
-
-class CoachChatRequest(BaseModel):
-    deck_id: str
-    messages: list[dict]  # conversation history [{role, content}]
-    goals: Optional[dict] = None
-    stream: Optional[bool] = False
-
-class CoachApplyRequest(BaseModel):
-    session_id: str
-    deck_id: int  # numeric deck ID in the DB
-    accepted_cuts: list[str] = []  # card names to remove
-    accepted_adds: list[str] = []  # card names to add
-
-class CoachGoalsRequest(BaseModel):
-    target_power_level: Optional[int] = None  # 1-10
-    meta_focus: Optional[str] = None  # aggro, control, combo, midrange, stax
-    budget: Optional[str] = None  # budget, medium, no-limit
-    focus_areas: list[str] = []  # e.g., ["ramp", "card draw"]
 
 
 @router.post("/api/coach/decks/{deck_id}")
