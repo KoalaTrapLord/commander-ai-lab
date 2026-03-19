@@ -15,6 +15,7 @@ Python simulator & DeepSeek AI opponent endpoints:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 import time
@@ -33,6 +34,7 @@ from routes.shared import (
     _get_deepseek_brain,
     _ml_logging_enabled,
 )
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["deepseek"])
 
@@ -179,10 +181,55 @@ def _build_summary(stats: dict, deck_name: str, opponent_name: str,
 def _finish_sim(sim_id, summary, game_results):
     """Mark a sim run as complete."""
     with _sim_lock:
-        _sim_runs[sim_id]['status'] = 'complete'
+              _sim_runs[sim_id]['status'] = 'complete'
         _sim_runs[sim_id]['result'] = {'summary': summary, 'games': game_results}
 
+          # --- Persist batch-*.json for coach / training dashboard ---
+    try:
+        deck_name = summary.get('deckName', 'Unknown')
+        opponent_name = summary.get('opponentName', 'Training Deck')
+        batch_data = {
+            'format': 'python-sim',
+            'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            'simId': sim_id,
+            'decks': [
+                {
+                    'deckName': deck_name,
+                    'seatIndex': 0,
+                    'commanderName': summary.get('commanderName', ''),
+                    'colorIdentity': summary.get('colorIdentity', []),
+                    'games': game_results,
+                },
+                {
+                    'deckName': opponent_name,
+                    'seatIndex': 1,
+                    'commanderName': '',
+                    'colorIdentity': [],
+                },
+            ],
+            'summary': summary,
+        }
+        results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'results')
+        os.makedirs(results_dir, exist_ok=True)
+        batch_path = os.path.join(results_dir, f'batch-sim-{sim_id}.json')
+        with open(batch_path, 'w') as f:
+            json.dump(batch_data, f, indent=2, default=str)
+        logger.info(f'Saved batch results to {batch_path}')
 
+        # Auto-generate deck report for training dashboard / coach
+        try:
+            from commander_ai_lab.lab.reports import generate_single_deck_report
+            reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'deck-reports')
+            os.makedirs(reports_dir, exist_ok=True)
+            generate_single_deck_report(batch_data, reports_dir)
+            logger.info(f'Generated deck report for {deck_name}')
+        except ImportError:
+            logger.warning('reports module not available; skipping deck report generation')
+        except Exception as e:
+            logger.warning(f'Could not generate deck report: {e}')
+    except Exception as e:
+        logger.error(f'Failed to persist sim results: {e}')
+        
 def _fail_sim(sim_id, error):
     """Mark a sim run as errored."""
     with _sim_lock:
