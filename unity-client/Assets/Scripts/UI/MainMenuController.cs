@@ -92,7 +92,15 @@ namespace CommanderAILab.UI
 
         private void LoadScene(string sceneName)
         {
-            if (isConnected) SceneManager.LoadScene(sceneName);
+            if (!isConnected) return;
+            try
+            {
+                SceneManager.LoadScene(sceneName);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Failed to load scene '{sceneName}': {e.Message}. Is it added to Build Settings?");
+            }
         }
     }
 }

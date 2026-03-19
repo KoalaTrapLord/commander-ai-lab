@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using TMPro;
 using System.Reflection;
+using System.Linq;
 
 public static class CreateCollectionScene
 {
@@ -205,7 +206,10 @@ public static class CreateCollectionScene
             AssetDatabase.CreateFolder("Assets", "Scenes");
         string path = "Assets/Scenes/Collection.unity";
         EditorSceneManager.SaveScene(scene, path);
-        EditorBuildSettings.scenes = new EditorBuildSettingsScene[] { new EditorBuildSettingsScene(path, true) };
+        var existing = new System.Collections.Generic.List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
+        if (!existing.Any(s => s.path == path))
+            existing.Add(new EditorBuildSettingsScene(path, true));
+        EditorBuildSettings.scenes = existing.ToArray();
         Debug.Log("[CreateCollectionScene] Collection scene created and saved to " + path);
     }
 

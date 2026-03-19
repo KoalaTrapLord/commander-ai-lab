@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using TMPro;
 using System.Reflection;
+using System.Linq;
 
 public static class CreateMainMenuScene
 {
@@ -121,8 +122,10 @@ public static class CreateMainMenuScene
         // -- Save --
         string path = "Assets/Scenes/MainMenu.unity";
         EditorSceneManager.SaveScene(scene, path);
-        EditorBuildSettingsScene[] buildScenes = { new EditorBuildSettingsScene(path, true) };
-        EditorBuildSettings.scenes = buildScenes;
+        var existing = new System.Collections.Generic.List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
+        if (!existing.Any(s => s.path == path))
+            existing.Add(new EditorBuildSettingsScene(path, true));
+        EditorBuildSettings.scenes = existing.ToArray();
 
         Debug.Log("MainMenu scene created and saved to " + path);
         EditorUtility.DisplayDialog("Done", "MainMenu scene created!\n\nHit Play to test.\nMake sure your FastAPI backend is running on port 8080.", "OK");

@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using TMPro;
 using System.Reflection;
+using System.Linq;
 
 public static class CreateTrainingScene
 {
@@ -170,7 +171,10 @@ public static class CreateTrainingScene
             AssetDatabase.CreateFolder("Assets", "Scenes");
         string path = "Assets/Scenes/Training.unity";
         EditorSceneManager.SaveScene(scene, path);
-        EditorBuildSettings.scenes = new EditorBuildSettingsScene[] { new EditorBuildSettingsScene(path, true) };
+        var existing = new System.Collections.Generic.List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
+        if (!existing.Any(s => s.path == path))
+            existing.Add(new EditorBuildSettingsScene(path, true));
+        EditorBuildSettings.scenes = existing.ToArray();
         UnityEngine.Debug.Log("[CreateTrainingScene] Training scene created and saved to " + path);
     }
 

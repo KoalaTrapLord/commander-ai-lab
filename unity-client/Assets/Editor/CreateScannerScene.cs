@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using TMPro;
 using System.Reflection;
+using System.Linq;
 
 public static class CreateScannerScene
 {
@@ -92,7 +93,10 @@ public static class CreateScannerScene
             AssetDatabase.CreateFolder("Assets", "Scenes");
         string path = "Assets/Scenes/Scanner.unity";
         EditorSceneManager.SaveScene(scene, path);
-        EditorBuildSettings.scenes = new EditorBuildSettingsScene[] { new EditorBuildSettingsScene(path, true) };
+        var existing = new System.Collections.Generic.List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
+        if (!existing.Any(s => s.path == path))
+            existing.Add(new EditorBuildSettingsScene(path, true));
+        EditorBuildSettings.scenes = existing.ToArray();
         Debug.Log("[CreateScannerScene] Scanner scene created and saved to " + path);
     }
 
