@@ -257,7 +257,6 @@ const DeckGenerator = (() => {
     function logMessage(msg, type = 'info') {
         const log = $('dg-conversation-log');
         if (!log) return;
-        log.style.display = 'block';
         const entry = document.createElement('div');
         entry.className = 'dg-log-entry dg-log-' + type;
         const ts = new Date().toLocaleTimeString();
@@ -270,7 +269,7 @@ const DeckGenerator = (() => {
         const log = $('dg-conversation-log');
         if (!log) return;
         log.innerHTML = '';
-        log.style.display = 'none';
+        
     }
 
     // ── Generate Deck ───────────────────────────────────────
