@@ -1224,12 +1224,8 @@ async def deck_gen_v3_status():
         'initialized': _coach._deck_gen_v3 is not None,
         'pplx_configured': bool(CFG.pplx_api_key),
         'model': _coach._deck_gen_v3.pplx.model if _coach._deck_gen_v3 else None,
-        'embeddings_loaded': (
-            _coach_embeddings.loaded if _coach_embeddings else False
-        ),
-        'embedding_cards': (
-            _coach_embeddings.card_count if _coach_embeddings else 0
-        ),
+                'embeddings_loaded': False,
+        'embedding_cards': 0,
         'error': _coach._deck_gen_v3_error,
     }
 
