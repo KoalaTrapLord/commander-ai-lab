@@ -30,6 +30,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from urllib.request import urlopen, Request
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 from fastapi.responses import JSONResponse
@@ -1085,7 +1087,6 @@ def _scryfall_fuzzy_lookup(name: str) -> Optional[dict]:
     Fuzzy-search Scryfall for a card name (used by the scanner pipeline).
     Returns the raw Scryfall JSON dict, or None on failure.
     """
-    from urllib.parse import quote
     _scryfall_rate_limit()
     try:
         encoded = quote(name)
@@ -1098,4 +1099,3 @@ def _scryfall_fuzzy_lookup(name: str) -> Optional[dict]:
         return data
     except Exception:
         return None
-
