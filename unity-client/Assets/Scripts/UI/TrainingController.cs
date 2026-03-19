@@ -108,7 +108,21 @@ namespace CommanderAILab.UI
                 {
                     try
                     {
-                        var models = JsonConvert.DeserializeObject<List<MlModel>>(json);
+                        // The API returns a wrapped object {"models":[...]} rather than
+                        // a bare array. Try the wrapped form first, then fall back to
+                        // a bare array so either shape works without a backend change.
+                        List<MlModel> models;
+                        if (json.TrimStart().StartsWith("{"))
+                        {
+                            var wrapper = JsonConvert.DeserializeObject<MlModelsResponse>(json);
+                            models = wrapper?.models ?? new List<MlModel>();
+                        }
+                        else
+                        {
+                            models = JsonConvert.DeserializeObject<List<MlModel>>(json)
+                                     ?? new List<MlModel>();
+                        }
+
                         foreach (var m in models)
                         {
                             var row = Instantiate(historyRowPrefab, historyParent);
@@ -296,6 +310,11 @@ namespace CommanderAILab.UI
             public int    session_count;
             public string model_version;
             public string last_trained;
+        }
+
+        [Serializable] private class MlModelsResponse
+        {
+            public List<MlModel> models;
         }
 
         [Serializable] private class MlModel
