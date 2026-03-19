@@ -183,10 +183,10 @@ def _load_deck_cards_by_name(deck_name: str) -> list:
     deck_id = deck_row[0]
     rows = conn.execute("""
         SELECT dc.card_name, dc.quantity, dc.is_commander, dc.role_tag, dc.scryfall_id,
-               ce.type_line, ce.oracle_text, ce.cmc, ce.color_identity, ce.mana_cost
+               ce.type_line, ce.oracle_text, ce.cmc, ce.color_identity, ce.mana_cost, ce.power, ce.toughness, ce.keywords
         FROM deck_cards dc
         LEFT JOIN (
-            SELECT scryfall_id, type_line, oracle_text, cmc, color_identity, mana_cost
+            SELECT scryfall_id, type_line, oracle_text, cmc, color_identity, mana_cost, power, toughness, keywords
             FROM collection_entries GROUP BY scryfall_id
         ) ce ON ce.scryfall_id = dc.scryfall_id
         WHERE dc.deck_id = ?
