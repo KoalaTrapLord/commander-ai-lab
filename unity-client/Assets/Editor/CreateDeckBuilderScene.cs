@@ -147,4 +147,163 @@ public static class CreateDeckBuilderScene
         SetAnchors(colorPieParent.GetComponent<RectTransform>(), new Vector2(0.02f, 0.13f), new Vector2(0.98f, 0.27f));
         var pieHlg = colorPieParent.AddComponent<HorizontalLayoutGroup>();
         pieHlg.spacing = 6; pieHlg.childForceExpandWidth = true; pieHlg.childForceExpandHeight = false;
-        Color[] pieColors = { Color.white, new Color(0.3f,0.6f,1f), new Color(0.1f,0.
+        Color[] pieColors = { Color.white, new Color(0.3f,0.6f,1f), new Color(0.1f,0.1f,0.1f), new Color(0.8f,0.2f,0.2f), new Color(0.2f,0.7f,0.2f) };
+        string[] pieLabels = { "W", "U", "B", "R", "G" };
+        for (int i = 0; i < pieColors.Length; i++)
+        {
+            var slice = new GameObject("Slice_" + pieLabels[i]);
+            slice.transform.SetParent(colorPieParent.transform, false);
+            var sliceImg = slice.AddComponent<Image>();
+            sliceImg.color = pieColors[i];
+            var sliceText = CreateTMPText(slice.transform, "Label", pieLabels[i], 14, FontStyles.Bold, TextAlignmentOptions.Center);
+        }
+
+        // -- Card type breakdown --
+        var typeLabel = CreateTMPText(rightPanel.transform, "TypeBreakdownLabel", "Card Types", 16, FontStyles.Bold, TextAlignmentOptions.Center);
+        SetAnchors(typeLabel.GetComponent<RectTransform>(), new Vector2(0f, 0.08f), new Vector2(1f, 0.13f));
+        var typeText = CreateTMPText(rightPanel.transform, "TypeBreakdownText", "", 14, FontStyles.Normal, TextAlignmentOptions.TopLeft);
+        SetAnchors(typeText.GetComponent<RectTransform>(), new Vector2(0.05f, 0.01f), new Vector2(0.95f, 0.08f));
+
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        Debug.Log("[CreateDeckBuilderScene] DeckBuilder scene created.");
+    }
+
+    // -- Helpers --
+
+    static void SetField(object target, string fieldName, object value)
+    {
+        var field = target.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+        if (field != null) field.SetValue(target, value);
+        else Debug.LogWarning("Could not find field: " + fieldName);
+    }
+
+    static void SetAnchors(RectTransform rt, Vector2 min, Vector2 max)
+    {
+        rt.anchorMin = min;
+        rt.anchorMax = max;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+    }
+
+    static GameObject CreatePanel(Transform parent, string name, Color color, bool stretch = false)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var img = go.AddComponent<Image>();
+        img.color = color;
+        var rt = go.GetComponent<RectTransform>();
+        if (stretch) SetAnchors(rt, Vector2.zero, Vector2.one);
+        return go;
+    }
+
+    static GameObject CreateTMPText(Transform parent, string name, string text, int fontSize, FontStyles style, TextAlignmentOptions alignment)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var tmp = go.AddComponent<TextMeshProUGUI>();
+        tmp.text = text;
+        tmp.fontSize = fontSize;
+        tmp.fontStyle = style;
+        tmp.alignment = alignment;
+        tmp.color = Color.white;
+        var rt = go.GetComponent<RectTransform>();
+        SetAnchors(rt, Vector2.zero, Vector2.one);
+        return go;
+    }
+
+    static GameObject CreateTMPButton(Transform parent, string name, string label, Color bgColor)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var img = go.AddComponent<Image>();
+        img.color = bgColor;
+        var btn = go.AddComponent<Button>();
+        btn.targetGraphic = img;
+        var colors = btn.colors;
+        colors.highlightedColor = bgColor * 1.2f;
+        colors.pressedColor = bgColor * 0.8f;
+        btn.colors = colors;
+
+        var textGo = new GameObject("Text");
+        textGo.transform.SetParent(go.transform, false);
+        var tmp = textGo.AddComponent<TextMeshProUGUI>();
+        tmp.text = label;
+        tmp.fontSize = 22;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = Color.white;
+        SetAnchors(textGo.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+
+        var le = go.AddComponent<LayoutElement>();
+        le.minHeight = 50;
+
+        return go;
+    }
+
+    static GameObject CreateTMPDropdown(Transform parent, string name, string[] options)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var img = go.AddComponent<Image>();
+        img.color = new Color(0.15f, 0.15f, 0.2f);
+
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(go.transform, false);
+        var labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
+        labelTmp.text = options.Length > 0 ? options[0] : "";
+        labelTmp.fontSize = 16;
+        labelTmp.alignment = TextAlignmentOptions.Left;
+        labelTmp.color = Color.white;
+        SetAnchors(labelGo.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+
+        var dd = go.AddComponent<TMP_Dropdown>();
+        dd.captionText = labelTmp;
+        dd.ClearOptions();
+        dd.AddOptions(new System.Collections.Generic.List<string>(options));
+
+        var le = go.AddComponent<LayoutElement>();
+        le.minHeight = 40;
+
+        return go;
+    }
+
+    static GameObject CreateTMPInputField(Transform parent, string name, string defaultText)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var img = go.AddComponent<Image>();
+        img.color = new Color(0.15f, 0.15f, 0.2f);
+
+        var textArea = new GameObject("Text Area");
+        textArea.transform.SetParent(go.transform, false);
+        textArea.AddComponent<RectMask2D>();
+        SetAnchors(textArea.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+
+        var placeholder = new GameObject("Placeholder");
+        placeholder.transform.SetParent(textArea.transform, false);
+        var phTmp = placeholder.AddComponent<TextMeshProUGUI>();
+        phTmp.text = defaultText;
+        phTmp.fontSize = 18;
+        phTmp.fontStyle = FontStyles.Italic;
+        phTmp.color = new Color(0.5f, 0.5f, 0.5f, 0.8f);
+        phTmp.alignment = TextAlignmentOptions.Left;
+        SetAnchors(placeholder.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+
+        var inputText = new GameObject("Text");
+        inputText.transform.SetParent(textArea.transform, false);
+        var itTmp = inputText.AddComponent<TextMeshProUGUI>();
+        itTmp.fontSize = 18;
+        itTmp.color = Color.white;
+        itTmp.alignment = TextAlignmentOptions.Left;
+        SetAnchors(inputText.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+
+        var inputField = go.AddComponent<TMP_InputField>();
+        inputField.textViewport = textArea.GetComponent<RectTransform>();
+        inputField.textComponent = itTmp;
+        inputField.placeholder = phTmp;
+        inputField.text = defaultText;
+        inputField.fontAsset = itTmp.font;
+
+        return go;
+    }
+}
+#endif

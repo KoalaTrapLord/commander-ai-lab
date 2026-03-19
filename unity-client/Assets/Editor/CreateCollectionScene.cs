@@ -159,4 +159,187 @@ public static class CreateCollectionScene
         SetAnchors(errorPanel.GetComponent<RectTransform>(), new Vector2(0.2f, 0.02f), new Vector2(0.8f, 0.10f));
         var errorText  = CreateTMPText(errorPanel.transform, "ErrorText", "", 16, FontStyles.Normal, TextAlignmentOptions.Center);
         SetAnchors(errorText.GetComponent<RectTransform>(), new Vector2(0f, 0.2f), new Vector2(0.75f, 1f));
-        var retryBtn   = CreateTMPButton(errorPanel.transform, "RetryButton", "Retry", new Color(0.6f
+        var retryBtn   = CreateTMPButton(errorPanel.transform, "RetryButton", "Retry", new Color(0.6f, 0.25f, 0.25f));
+        SetAnchors(retryBtn.GetComponent<RectTransform>(), new Vector2(0.78f, 0.2f), new Vector2(0.98f, 0.8f));
+        errorPanel.SetActive(false);
+
+        // -- Wire controller --
+        var ctrl = canvasGo.AddComponent<CommanderAILab.UI.CollectionController>();
+        SetField(ctrl, "backButton",          backBtn.GetComponent<Button>());
+        SetField(ctrl, "searchInput",         searchInput.GetComponent<TMP_InputField>());
+        SetField(ctrl, "sortDropdown",        sortDd.GetComponent<TMP_Dropdown>());
+        SetField(ctrl, "searchButton",        searchBtn.GetComponent<Button>());
+        SetField(ctrl, "filterToggleButton",  filterToggle.GetComponent<Button>());
+        SetField(ctrl, "filterPanel",         filterPanel);
+        SetField(ctrl, "colorFilterDropdown",  colorDd.GetComponent<TMP_Dropdown>());
+        SetField(ctrl, "typeFilterDropdown",   typeDd.GetComponent<TMP_Dropdown>());
+        SetField(ctrl, "setFilterDropdown",    setDd.GetComponent<TMP_Dropdown>());
+        SetField(ctrl, "rarityFilterDropdown", rarityDd.GetComponent<TMP_Dropdown>());
+        SetField(ctrl, "ownedFilterDropdown",  ownedDd.GetComponent<TMP_Dropdown>());
+        SetField(ctrl, "applyFilterButton",   applyBtn.GetComponent<Button>());
+        SetField(ctrl, "clearFilterButton",   clearBtn.GetComponent<Button>());
+        SetField(ctrl, "cardGridParent",      gridContent.transform);
+        SetField(ctrl, "cardPrefab",          null); // assign in Inspector
+        SetField(ctrl, "gridScrollRect",      gridScroll.GetComponent<ScrollRect>());
+        SetField(ctrl, "loadMoreButton",      loadMoreBtn.GetComponent<Button>());
+        SetField(ctrl, "pageInfoText",        pageInfo.GetComponent<TMP_Text>());
+        SetField(ctrl, "loadingSpinner",      spinner);
+        SetField(ctrl, "detailPanel",         detailPanel);
+        SetField(ctrl, "detailCardFront",     detailFront.GetComponent<Image>());
+        SetField(ctrl, "detailCardBack",      detailBack.GetComponent<Image>());
+        SetField(ctrl, "detailCardName",      detailName.GetComponent<TMP_Text>());
+        SetField(ctrl, "detailManaCost",      detailMana.GetComponent<TMP_Text>());
+        SetField(ctrl, "detailType",          detailType.GetComponent<TMP_Text>());
+        SetField(ctrl, "detailRarity",        detailRarity.GetComponent<TMP_Text>());
+        SetField(ctrl, "detailSet",           detailSet.GetComponent<TMP_Text>());
+        SetField(ctrl, "detailOracleText",    detailOracle.GetComponent<TMP_Text>());
+        SetField(ctrl, "detailQuantity",      detailQty.GetComponent<TMP_Text>());
+        SetField(ctrl, "detailAddToDeckButton", addToDeckBtn.GetComponent<Button>());
+        SetField(ctrl, "detailCloseButton",   closeDetailBtn.GetComponent<Button>());
+        SetField(ctrl, "errorPanel",          errorPanel);
+        SetField(ctrl, "errorText",           errorText.GetComponent<TMP_Text>());
+        SetField(ctrl, "retryButton",         retryBtn.GetComponent<Button>());
+
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        Debug.Log("[CreateCollectionScene] Collection scene created.");
+    }
+
+    // -- Helpers --
+
+    static void SetField(object target, string fieldName, object value)
+    {
+        var field = target.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+        if (field != null) field.SetValue(target, value);
+        else Debug.LogWarning("Could not find field: " + fieldName);
+    }
+
+    static void SetAnchors(RectTransform rt, Vector2 min, Vector2 max)
+    {
+        rt.anchorMin = min;
+        rt.anchorMax = max;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+    }
+
+    static GameObject CreatePanel(Transform parent, string name, Color color, bool stretch = false)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var img = go.AddComponent<Image>();
+        img.color = color;
+        var rt = go.GetComponent<RectTransform>();
+        if (stretch) SetAnchors(rt, Vector2.zero, Vector2.one);
+        return go;
+    }
+
+    static GameObject CreateTMPText(Transform parent, string name, string text, int fontSize, FontStyles style, TextAlignmentOptions alignment)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var tmp = go.AddComponent<TextMeshProUGUI>();
+        tmp.text = text;
+        tmp.fontSize = fontSize;
+        tmp.fontStyle = style;
+        tmp.alignment = alignment;
+        tmp.color = Color.white;
+        var rt = go.GetComponent<RectTransform>();
+        SetAnchors(rt, Vector2.zero, Vector2.one);
+        return go;
+    }
+
+    static GameObject CreateTMPButton(Transform parent, string name, string label, Color bgColor)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var img = go.AddComponent<Image>();
+        img.color = bgColor;
+        var btn = go.AddComponent<Button>();
+        btn.targetGraphic = img;
+        var colors = btn.colors;
+        colors.highlightedColor = bgColor * 1.2f;
+        colors.pressedColor = bgColor * 0.8f;
+        btn.colors = colors;
+
+        var textGo = new GameObject("Text");
+        textGo.transform.SetParent(go.transform, false);
+        var tmp = textGo.AddComponent<TextMeshProUGUI>();
+        tmp.text = label;
+        tmp.fontSize = 22;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = Color.white;
+        SetAnchors(textGo.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+
+        var le = go.AddComponent<LayoutElement>();
+        le.minHeight = 50;
+
+        return go;
+    }
+
+    static GameObject CreateTMPDropdown(Transform parent, string name, string[] options)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var img = go.AddComponent<Image>();
+        img.color = new Color(0.15f, 0.15f, 0.2f);
+
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(go.transform, false);
+        var labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
+        labelTmp.text = options.Length > 0 ? options[0] : "";
+        labelTmp.fontSize = 16;
+        labelTmp.alignment = TextAlignmentOptions.Left;
+        labelTmp.color = Color.white;
+        SetAnchors(labelGo.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+
+        var dd = go.AddComponent<TMP_Dropdown>();
+        dd.captionText = labelTmp;
+        dd.ClearOptions();
+        dd.AddOptions(new System.Collections.Generic.List<string>(options));
+
+        var le = go.AddComponent<LayoutElement>();
+        le.minHeight = 40;
+
+        return go;
+    }
+
+    static GameObject CreateTMPInputField(Transform parent, string name, string defaultText)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var img = go.AddComponent<Image>();
+        img.color = new Color(0.15f, 0.15f, 0.2f);
+
+        var textArea = new GameObject("Text Area");
+        textArea.transform.SetParent(go.transform, false);
+        textArea.AddComponent<RectMask2D>();
+        SetAnchors(textArea.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+
+        var placeholder = new GameObject("Placeholder");
+        placeholder.transform.SetParent(textArea.transform, false);
+        var phTmp = placeholder.AddComponent<TextMeshProUGUI>();
+        phTmp.text = defaultText;
+        phTmp.fontSize = 18;
+        phTmp.fontStyle = FontStyles.Italic;
+        phTmp.color = new Color(0.5f, 0.5f, 0.5f, 0.8f);
+        phTmp.alignment = TextAlignmentOptions.Left;
+        SetAnchors(placeholder.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+
+        var inputText = new GameObject("Text");
+        inputText.transform.SetParent(textArea.transform, false);
+        var itTmp = inputText.AddComponent<TextMeshProUGUI>();
+        itTmp.fontSize = 18;
+        itTmp.color = Color.white;
+        itTmp.alignment = TextAlignmentOptions.Left;
+        SetAnchors(inputText.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+
+        var inputField = go.AddComponent<TMP_InputField>();
+        inputField.textViewport = textArea.GetComponent<RectTransform>();
+        inputField.textComponent = itTmp;
+        inputField.placeholder = phTmp;
+        inputField.text = defaultText;
+        inputField.fontAsset = itTmp.font;
+
+        return go;
+    }
+}
+#endif

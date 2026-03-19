@@ -73,4 +73,86 @@ public static class CreateScannerScene
         SetAnchors(resultImg.GetComponent<RectTransform>(), new Vector2(0.03f, 0.55f), new Vector2(0.45f, 0.98f));
 
         var rName       = CreateTMPText(resultPanel.transform, "ResultCardName",  "", 22, FontStyles.Bold,   TextAlignmentOptions.Left);
-        SetAnchors(r
+        SetAnchors(rName.GetComponent<RectTransform>(), new Vector2(0.48f, 0.88f), new Vector2(0.97f, 0.98f));
+        var rType       = CreateTMPText(resultPanel.transform, "ResultTypeLine",  "", 16, FontStyles.Italic, TextAlignmentOptions.Left);
+        SetAnchors(rType.GetComponent<RectTransform>(), new Vector2(0.48f, 0.80f), new Vector2(0.97f, 0.88f));
+        var rOracle     = CreateTMPText(resultPanel.transform, "ResultOracleText","", 14, FontStyles.Normal, TextAlignmentOptions.TopLeft);
+        SetAnchors(rOracle.GetComponent<RectTransform>(), new Vector2(0.48f, 0.55f), new Vector2(0.97f, 0.80f));
+        var rStatus     = CreateTMPText(resultPanel.transform, "ResultStatus",    "", 14, FontStyles.Normal, TextAlignmentOptions.Left);
+        SetAnchors(rStatus.GetComponent<RectTransform>(), new Vector2(0.03f, 0.45f), new Vector2(0.97f, 0.55f));
+
+        var addCollBtn  = CreateTMPButton(resultPanel.transform, "AddToCollectionButton", "Add to Collection", new Color(0.2f, 0.55f, 0.2f));
+        SetAnchors(addCollBtn.GetComponent<RectTransform>(), new Vector2(0.03f, 0.03f), new Vector2(0.48f, 0.12f));
+        var addDeckBtn  = CreateTMPButton(resultPanel.transform, "AddToDeckButton",       "Add to Deck",       new Color(0.2f, 0.3f, 0.6f));
+        SetAnchors(addDeckBtn.GetComponent<RectTransform>(), new Vector2(0.52f, 0.03f), new Vector2(0.97f, 0.12f));
+        resultPanel.SetActive(false);
+
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        Debug.Log("[CreateScannerScene] Scanner scene created.");
+    }
+
+    // -- Helpers --
+
+    static void SetAnchors(RectTransform rt, Vector2 min, Vector2 max)
+    {
+        rt.anchorMin = min;
+        rt.anchorMax = max;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+    }
+
+    static GameObject CreatePanel(Transform parent, string name, Color color, bool stretch = false)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var img = go.AddComponent<Image>();
+        img.color = color;
+        var rt = go.GetComponent<RectTransform>();
+        if (stretch) SetAnchors(rt, Vector2.zero, Vector2.one);
+        return go;
+    }
+
+    static GameObject CreateTMPText(Transform parent, string name, string text, int fontSize, FontStyles style, TextAlignmentOptions alignment)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var tmp = go.AddComponent<TextMeshProUGUI>();
+        tmp.text = text;
+        tmp.fontSize = fontSize;
+        tmp.fontStyle = style;
+        tmp.alignment = alignment;
+        tmp.color = Color.white;
+        var rt = go.GetComponent<RectTransform>();
+        SetAnchors(rt, Vector2.zero, Vector2.one);
+        return go;
+    }
+
+    static GameObject CreateTMPButton(Transform parent, string name, string label, Color bgColor)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var img = go.AddComponent<Image>();
+        img.color = bgColor;
+        var btn = go.AddComponent<Button>();
+        btn.targetGraphic = img;
+        var colors = btn.colors;
+        colors.highlightedColor = bgColor * 1.2f;
+        colors.pressedColor = bgColor * 0.8f;
+        btn.colors = colors;
+
+        var textGo = new GameObject("Text");
+        textGo.transform.SetParent(go.transform, false);
+        var tmp = textGo.AddComponent<TextMeshProUGUI>();
+        tmp.text = label;
+        tmp.fontSize = 22;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = Color.white;
+        SetAnchors(textGo.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+
+        var le = go.AddComponent<LayoutElement>();
+        le.minHeight = 50;
+
+        return go;
+    }
+}
+#endif
