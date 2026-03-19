@@ -247,7 +247,7 @@ class DeckGeneratorV3:
         truncated = card_count < 90  # Commander decks should have ~100 cards
         logger.info("Deck generated: %d cards, bracket %d%s",
                      card_count,
-                     raw_deck.get("bracket", {}).get("level", 0),
+                     (raw_deck.get("bracket", {}).get("level", 0) if isinstance(raw_deck.get("bracket"), dict) else raw_deck.get("bracket", 0)),
                      " (TRUNCATED — response may have hit token limit)" if truncated else "")
 
         # Step 5: Check ownership and build enriched card list
