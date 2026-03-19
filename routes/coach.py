@@ -89,47 +89,24 @@ def init_coach_service():
         else:
             log_coach.warning(f"  Coach LLM:    Not connected (start LM Studio on 192.168.0.122:1234)")
 
-        log_coach.info("  Coach:        Service initialized")
-
-        if CFG.pplx_api_key or os.environ.get('DECK_GEN_PROVIDER') == 'local':
-          _deck_gen_v3_error = None
-            try:
-                from coach.clients.perplexity_client import PerplexityClient
-                from coach.services.deck_generator import DeckGeneratorV3
-                from coach.config import DECK_GEN_MODEL, DECK_GEN_PROVIDER, DECK_GEN_BASE_URL
-
-                if DECK_GEN_PROVIDER == 'local':
-                    pplx_client = PerplexityClient(
-                        api_key='ollama',
-                        model=DECK_GEN_MODEL,
-                        base_url=DECK_GEN_BASE_URL,
-                    )
-                else:
-                    pplx_client = PerplexityClient(
-                        api_key=CFG.pplx_api_key,
-                        model=DECK_GEN_MODEL,
-                    )
-                _deck_gen_v3 = DeckGeneratorV3(
-                    pplx_client=pplx_client,
-                    db_conn_factory=_get_db_conn,
-                    embedding_index=_coach_embeddings,
-                )
-                log_deckgen.info(f"  Deck Gen V3:  Initialized (model: {DECK_GEN_MODEL})")
-            except ImportError as e:
-                _deck_gen_v3_error = (
-                    f"Missing dependency: {e}. Run: pip install openai\n"
-                    + traceback.format_exc()
-                )
-                log_deckgen.error(f"  Deck Gen V3:  {_deck_gen_v3_error}")
-                _deck_gen_v3 = None
-            except Exception as e:
-                _deck_gen_v3_error = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
-                log_deckgen.error(f"  Deck Gen V3:  Failed to initialize:\n{_deck_gen_v3_error}")
-                _deck_gen_v3 = None
-        else:
-            _deck_gen_v3_error = "PPLX_API_KEY not set"
-            log_deckgen.info("  Deck Gen V3:  Skipped (no PPLX_API_KEY)")
-
+              # Initialize V3 Deck Generator (Ollama-based)
+      _deck_gen_v3_error = None
+      try:
+        from src.commander_ai_lab.deck_builder.adapter import DeckBuilderAdapter
+        _deck_gen_v3 = DeckBuilderAdapter(
+          db_conn_factory=_get_db_conn,
+          model="gpt-oss:20b",
+        )
+        log_deckgen.info(" Deck Gen V3:  Initialized (Ollama DeckBuilderAdapter)")
+      except ImportError as e:
+        _deck_gen_v3_error = f"Missing dependency: {e}"
+        log_deckgen.error(f" Deck Gen V3:  {_deck_gen_v3_error}")
+        _deck_gen_v3 = None
+      except Exception as e:
+        _deck_gen_v3_error = str(e)
+        log_deckgen.error(f" Deck Gen V3:  Failed to initialize: {e}")
+        _deck_gen_v3 = None
+            
     except Exception as e:
         log_coach.error(f"  Coach:        Failed to initialize: {e}\n{traceback.format_exc()}")
         _coach_service = None
