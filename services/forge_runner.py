@@ -22,6 +22,58 @@ log_sim = logging.getLogger("commander_ai_lab.sim")
 _deepseek_brain = None
 _deepseek_lock = threading.Lock()
 
+# ── Global watchdog: single thread monitors all active batches ──
+_watchdog_registry: dict[str, dict] = {}   # batch_id -> {state, proc, last_activity}
+_watchdog_lock = threading.Lock()
+_watchdog_started = False
+_STALL_LIMIT = 300  # 5 min
+
+def _global_watchdog_loop():
+    """Single daemon thread that checks all active batches for stalls."""
+    while True:
+        time.sleep(5)
+        with _watchdog_lock:
+            finished = []
+            for bid, entry in _watchdog_registry.items():
+                proc = entry["proc"]
+                if proc.poll() is not None:
+                    finished.append(bid)
+                    continue
+                if (time.monotonic() - entry["last_activity"]) > _STALL_LIMIT:
+                    log.warning(f"Stall detected for batch {bid}, killing process")
+                    entry["state"].log_lines.append("[WATCHDOG] Process stalled. Killed.")
+                    proc.kill()
+                    entry["state"].running = False
+                    entry["state"].error = "Stall detected (5 min no output)"
+                    finished.append(bid)
+            for bid in finished:
+                del _watchdog_registry[bid]
+
+def _ensure_watchdog_started():
+    global _watchdog_started
+    if not _watchdog_started:
+        with _watchdog_lock:
+            if not _watchdog_started:
+                t = threading.Thread(target=_global_watchdog_loop, daemon=True)
+                t.start()
+                _watchdog_started = True
+
+def _register_batch(batch_id: str, state, proc):
+    _ensure_watchdog_started()
+    with _watchdog_lock:
+        _watchdog_registry[batch_id] = {
+            "state": state, "proc": proc, "last_activity": time.monotonic()
+        }
+
+def _touch_batch(batch_id: str):
+    with _watchdog_lock:
+        if batch_id in _watchdog_registry:
+            _watchdog_registry[batch_id]["last_activity"] = time.monotonic()
+
+def _unregister_batch(batch_id: str):
+    with _watchdog_lock:
+        _watchdog_registry.pop(batch_id, None)
+
 
 def _find_java17() -> str:
     search_dirs = [r'C:\Program Files\Eclipse Adoptium', r'C:\Program Files\Java']
@@ -102,25 +154,10 @@ def _run_process_blocking(state: BatchState, cmd: list):
         log.error(f"Failed to start subprocess: {e}")
         return
 
-    last_activity = [time.monotonic()]
-    stall_limit = 300  # 5 min
-
-    def watchdog():
-        while proc.poll() is None:
-            if (time.monotonic() - last_activity[0]) > stall_limit:
-                log.warning("Stall detected, killing process")
-                state.log_lines.append('[WATCHDOG] Process stalled. Killed.')
-                proc.kill()
-                state.running = False
-                state.error = "Stall detected (5 min no output)"
-                return
-            time.sleep(5)
-
-    wd = threading.Thread(target=watchdog, daemon=True)
-    wd.start()
+    _register_batch(state.batch_id, state, proc)
 
     for line in proc.stdout:
-        last_activity[0] = time.monotonic()
+        _touch_batch(state.batch_id)
         line = line.rstrip()
         state.log_lines.append(line)
         gm = re.match(r'\[Game (\d+)/(\d+)\]', line)
@@ -132,6 +169,7 @@ def _run_process_blocking(state: BatchState, cmd: list):
             state.sims_per_sec = float(pm.group(1))
 
     proc.wait()
+    _unregister_batch(state.batch_id)
     elapsed = (_datetime.now() - state.start_time).total_seconds() * 1000
     state.elapsed_ms = int(elapsed)
     if proc.returncode != 0:
