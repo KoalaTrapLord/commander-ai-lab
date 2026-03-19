@@ -44,7 +44,7 @@ def _global_watchdog_loop():
                     entry["state"].log_lines.append("[WATCHDOG] Process stalled. Killed.")
                     proc.kill()
                     entry["state"].running = False
-                                entry["state"].error = "Stall detected (10 min no output)"
+                    entry["state"].error = "Stall detected (10 min no output)"
                     finished.append(bid)
             for bid in finished:
                 del _watchdog_registry[bid]
