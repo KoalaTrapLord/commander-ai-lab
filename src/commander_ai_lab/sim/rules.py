@@ -12,6 +12,9 @@ scale with pod size (e.g. Propaganda is worth more vs 3 opponents).
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
+import os
 import re
 from typing import Optional
 
@@ -71,6 +74,35 @@ AI_DEFAULT_WEIGHTS: dict[str, float] = {
     # Commander bonus
     "commander_bonus": 5.0,
 }
+
+_log = logging.getLogger(__name__)
+
+# Default path for learned weights (written by ml/scripts/update_weights.py)
+_LEARNED_WEIGHTS_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), 'learned_weights.json'
+)
+
+
+def load_weights(path: Optional[str] = None) -> dict[str, float]:
+    """Load AI weights from a JSON file, falling back to AI_DEFAULT_WEIGHTS.
+
+    If *path* is None the default ``learned_weights.json`` next to this
+    module is checked.  If the file does not exist or is invalid the
+    built-in defaults are returned silently.
+    """
+    fpath = path or _LEARNED_WEIGHTS_PATH
+    if os.path.isfile(fpath):
+        try:
+            with open(fpath, 'r', encoding='utf-8') as f:
+                learned = json.load(f)
+            if isinstance(learned, dict):
+                merged = dict(AI_DEFAULT_WEIGHTS)
+                merged.update(learned)
+                _log.info('Loaded learned weights from %s (%d keys)', fpath, len(learned))
+                return merged
+        except Exception as exc:
+            _log.warning('Failed to load learned weights from %s: %s', fpath, exc)
+    return dict(AI_DEFAULT_WEIGHTS)
 
 
 # ══════════════════════════════════════════════════════════════
