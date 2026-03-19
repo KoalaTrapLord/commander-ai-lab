@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import traceback
 from pathlib import Path
 from typing import Optional
 
@@ -109,19 +110,22 @@ def init_coach_service():
                 )
                 log_deckgen.info(f"  Deck Gen V3:  Initialized (model: {DECK_GEN_MODEL})")
             except ImportError as e:
-                _deck_gen_v3_error = f"Missing dependency: {e}. Run: pip install openai"
+                _deck_gen_v3_error = (
+                    f"Missing dependency: {e}. Run: pip install openai\n"
+                    + traceback.format_exc()
+                )
                 log_deckgen.error(f"  Deck Gen V3:  {_deck_gen_v3_error}")
                 _deck_gen_v3 = None
             except Exception as e:
-                _deck_gen_v3_error = str(e)
-                log_deckgen.error(f"  Deck Gen V3:  Failed to initialize: {e}")
+                _deck_gen_v3_error = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+                log_deckgen.error(f"  Deck Gen V3:  Failed to initialize:\n{_deck_gen_v3_error}")
                 _deck_gen_v3 = None
         else:
             _deck_gen_v3_error = "PPLX_API_KEY not set"
             log_deckgen.info("  Deck Gen V3:  Skipped (no PPLX_API_KEY)")
 
     except Exception as e:
-        log_coach.error(f"  Coach:        Failed to initialize: {e}")
+        log_coach.error(f"  Coach:        Failed to initialize: {e}\n{traceback.format_exc()}")
         _coach_service = None
 
 
@@ -585,6 +589,7 @@ async def coach_apply_suggestions(body: CoachApplyRequest):
             # Try Scryfall API lookup
             try:
                 import urllib.parse
+                from urllib.request import urlopen, Request as UrlRequest
                 encoded = urllib.parse.quote(card_name)
                 scry_req = UrlRequest(
                     f"https://api.scryfall.com/cards/named?fuzzy={encoded}",
@@ -681,5 +686,3 @@ async def coach_generate_reports():
         }
     except Exception as e:
         raise HTTPException(500, f"Report generation failed: {e}")
-
-
