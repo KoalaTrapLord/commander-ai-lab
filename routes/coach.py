@@ -235,34 +235,34 @@ def _build_deck_report_from_db(deck_slug: str):
     conn = _get_db_conn()
 
     # --- Input validation ---
-  import re
-  if not deck_slug or len(deck_slug) > 200:
-    return None
-  deck_slug = re.sub(r'[^a-zA-Z0-9 _-]', '', deck_slug)
-  if not deck_slug:
-    return None
+    import re
+    if not deck_slug or len(deck_slug) > 200:
+        return None
+    deck_slug = re.sub(r'[^a-zA-Z0-9 _-]', '', deck_slug)
+    if not deck_slug:
+        return None
 
-  # Find the deck by parameterized query instead of full-table scan
-  slug_lower = deck_slug.lower()
-  slug_hyphenated = slug_lower.replace(' ', '-')
-  clean_slug = re.sub(r'[^a-z0-9]+', '-', slug_lower).strip('-')
+    # Find the deck by parameterized query instead of full-table scan
+    slug_lower = deck_slug.lower()
+    slug_hyphenated = slug_lower.replace(' ', '-')
+    clean_slug = re.sub(r'[^a-z0-9]+', '-', slug_lower).strip('-')
 
-  if slug_lower.isdigit():
-    # Numeric slug — match by ID directly
-    matched_deck = conn.execute(
-      "SELECT id, name, commander_name, color_identity FROM decks WHERE id = ?",
-      (int(slug_lower),)
-    ).fetchone()
-  else:
-    # Try exact name match, hyphenated match, or clean-slug match
-    matched_deck = conn.execute(
-      """SELECT id, name, commander_name, color_identity FROM decks
-         WHERE LOWER(name) = ?
-            OR LOWER(REPLACE(name, ' ', '-')) = ?
-            OR LOWER(REPLACE(name, ' ', '-')) = ?
-         LIMIT 1""",
-      (slug_lower, slug_hyphenated, clean_slug)
-    ).fetchone()
+    if slug_lower.isdigit():
+        # Numeric slug -- match by ID directly
+        matched_deck = conn.execute(
+            "SELECT id, name, commander_name, color_identity FROM decks WHERE id = ?",
+            (int(slug_lower),)
+        ).fetchone()
+    else:
+        # Try exact name match, hyphenated match, or clean-slug match
+        matched_deck = conn.execute(
+            """SELECT id, name, commander_name, color_identity FROM decks
+               WHERE LOWER(name) = ?
+                  OR LOWER(REPLACE(name, ' ', '-')) = ?
+                  OR LOWER(REPLACE(name, ' ', '-')) = ?
+               LIMIT 1""",
+            (slug_lower, slug_hyphenated, clean_slug)
+        ).fetchone()
 
     if matched_deck is None:
         return None
