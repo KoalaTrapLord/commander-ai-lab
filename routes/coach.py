@@ -92,7 +92,7 @@ def init_coach_service():
         log_coach.info("  Coach:        Service initialized")
 
         if CFG.pplx_api_key or os.environ.get('DECK_GEN_PROVIDER') == 'local':
-        _deck_gen_v3_error = None
+          _deck_gen_v3_error = None
             try:
                 from coach.clients.perplexity_client import PerplexityClient
                 from coach.services.deck_generator import DeckGeneratorV3
