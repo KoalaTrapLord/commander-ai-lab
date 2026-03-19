@@ -72,26 +72,31 @@ class PerplexityClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        json_schema: dict,
+        json_schema: dict = None,
         schema_name: str = "response",
         model: str = None,
         temperature: float = 0.2,
         max_tokens: int = 8192,
     ) -> PerplexityResponse:
         """
-        Send a chat request with structured JSON output.
+        Send a chat request with JSON output.
+
+        Uses response_format={"type": "json_object"} because Perplexity's
+        Sonar models do not support the json_schema response_format.
+        Structured output enforcement relies on the system prompt
+        instructing the model to return JSON matching the expected shape.
 
         Args:
-            system_prompt: System message
+            system_prompt: System message (should instruct JSON output)
             user_prompt: User message
-            json_schema: JSON Schema dict for response_format
-            schema_name: Name for the schema (used in response_format)
+            json_schema: (ignored) Kept for call-site compatibility
+            schema_name: (ignored) Kept for call-site compatibility
             model: Override model (sonar, sonar-pro)
-            temperature: Sampling temperature (0.0–1.0)
+            temperature: Sampling temperature (0.0-1.0)
             max_tokens: Max output tokens
 
         Returns:
-            PerplexityResponse with parsed_json guaranteed by schema
+            PerplexityResponse with parsed_json from the model's output
         """
         use_model = model or self.model
 
@@ -106,13 +111,7 @@ class PerplexityClient:
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": schema_name,
-                        "schema": json_schema,
-                    },
-                },
+                response_format={"type": "json_object"},
             )
 
             choice = response.choices[0]

@@ -1290,9 +1290,7 @@ async def deck_gen_v3_generate(req: DeckGenV3Request):
     except ValueError as e:
         return JSONResponse({'error': str(e)}, status_code=422)
     except Exception as e:
-        log_deckgen.error(f'Error: {e}')
-        import traceback
-        traceback.print_exc()
+        log_deckgen.error(f'V3 generate error: {e}', exc_info=True)
         raise HTTPException(500, f'Deck generation failed: {str(e)}')
 
 
