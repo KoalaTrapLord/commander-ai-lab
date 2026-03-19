@@ -56,15 +56,15 @@ class PerplexityClient:
     """
 
     def __init__(self, api_key: str, model: str = SONAR,
-                 timeout: int = 120):
-        if not api_key:
-            raise ValueError("Perplexity API key is required")
+                                     timeout: int = 120, base_url: str = None):
+        if not api_key and not base_url:
+            raise ValueError("Perplexity API key is required (or provide base_url for local)")
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
         self._client = OpenAI(
             api_key=api_key,
-            base_url="https://api.perplexity.ai",
+            base_url=base_url or "https://api.perplexity.ai",
             timeout=timeout,
         )
 

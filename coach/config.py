@@ -13,8 +13,8 @@ from pathlib import Path
 LAB_ROOT = Path(os.environ.get("COMMANDER_LAB_ROOT", Path(__file__).parent.parent))
 
 # ── LM Studio (OpenAI-compatible API) ──────────────────────
-LM_STUDIO_URL = os.environ.get("LM_STUDIO_URL", "http://192.168.0.241:1234/v1")
-LM_STUDIO_MODEL = os.environ.get("LM_STUDIO_MODEL", "local-model")
+LM_STUDIO_URL = os.environ.get("LM_STUDIO_URL", "http://localhost:11434/v1")
+LM_STUDIO_MODEL = os.environ.get("LM_STUDIO_MODEL", "gpt-oss:20b")
 LM_STUDIO_TIMEOUT = int(os.environ.get("LM_STUDIO_TIMEOUT", "120"))  # seconds
 LM_STUDIO_MAX_RETRIES = 3
 
@@ -41,9 +41,10 @@ DEFAULT_MAX_TOKENS = 8192
 
 # ── Perplexity Deck Generation Settings ───────────────────────
 # Provider for deck generation: "perplexity" (V3) or "local" (V2 collection-based)
-DECK_GEN_PROVIDER = os.environ.get("DECK_GEN_PROVIDER", "perplexity")
+DECK_GEN_PROVIDER = os.environ.get("DECK_GEN_PROVIDER", "local")
 # Model for deck generation (sonar = fast/$0.004, sonar-pro = deep/$0.04)
-DECK_GEN_MODEL = os.environ.get("DECK_GEN_MODEL", "sonar")
+DECK_GEN_MODEL = os.environ.get("DECK_GEN_MODEL", "gpt-oss:20b")
+DECK_GEN_BASE_URL = os.environ.get("DECK_GEN_BASE_URL", "http://localhost:11434/v1")
 DECK_GEN_TEMPERATURE = float(os.environ.get("DECK_GEN_TEMPERATURE", "0.2"))
 DECK_GEN_MAX_TOKENS = int(os.environ.get("DECK_GEN_MAX_TOKENS", "16384"))
 
@@ -53,7 +54,7 @@ SUBSTITUTION_MIN_SIMILARITY = float(os.environ.get("SUBSTITUTION_MIN_SIMILARITY"
 # Maximum number of alternatives to suggest per missing card
 SUBSTITUTION_MAX_ALTERNATIVES = int(os.environ.get("SUBSTITUTION_MAX_ALTERNATIVES", "5"))
 # Model for substitution fallback (sonar is fine — small focused queries)
-SUBSTITUTION_MODEL = os.environ.get("SUBSTITUTION_MODEL", "sonar")
+SUBSTITUTION_MODEL = os.environ.get("SUBSTITUTION_MODEL", "gpt-oss:20b")
 # Enable Perplexity fallback for low-confidence embedding matches
 SUBSTITUTION_USE_PPLX_FALLBACK = os.environ.get("SUBSTITUTION_USE_PPLX_FALLBACK", "true").lower() == "true"
 

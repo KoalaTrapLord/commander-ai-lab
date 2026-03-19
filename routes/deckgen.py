@@ -771,26 +771,33 @@ async def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperatu
     Uses httpx.AsyncClient so the uvicorn event loop is never stalled.
     Returns the assistant message content.
     """
-    if not CFG.pplx_api_key:
-        raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var or --pplx-key.')
+    from coach.config import DECK_GEN_PROVIDER, DECK_GEN_BASE_URL, DECK_GEN_MODEL
+
+    if DECK_GEN_PROVIDER == 'local':
+        base_url = DECK_GEN_BASE_URL
+        model = DECK_GEN_MODEL
+        headers = {'Content-Type': 'application/json'}
+    else:
+        if not CFG.pplx_api_key:
+            raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var or --pplx-key.')
+        base_url = 'https://api.perplexity.ai'
+        model = 'sonar'
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {CFG.pplx_api_key}',
+        }
     payload = {
-        'model': 'sonar',
+        'model': model,
         'messages': messages,
         'max_tokens': max_tokens,
         'temperature': temperature,
-        'return_related_questions': False,
-    }
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'Bearer {CFG.pplx_api_key}',
     }
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(
-                'https://api.perplexity.ai/chat/completions',
+                f'{base_url}/chat/completions',
                 json=payload,
                 headers=headers,
-            )
             resp.raise_for_status()
             data = resp.json()
     except httpx.HTTPStatusError as e:

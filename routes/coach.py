@@ -91,18 +91,24 @@ def init_coach_service():
 
         log_coach.info("  Coach:        Service initialized")
 
-        # Initialize V3 Deck Generator (Perplexity)
+        if CFG.pplx_api_key or os.environ.get('DECK_GEN_PROVIDER') == 'local':
         _deck_gen_v3_error = None
-        if CFG.pplx_api_key:
             try:
                 from coach.clients.perplexity_client import PerplexityClient
                 from coach.services.deck_generator import DeckGeneratorV3
-                from coach.config import DECK_GEN_MODEL
+                from coach.config import DECK_GEN_MODEL, DECK_GEN_PROVIDER, DECK_GEN_BASE_URL
 
-                pplx_client = PerplexityClient(
-                    api_key=CFG.pplx_api_key,
-                    model=DECK_GEN_MODEL,
-                )
+                if DECK_GEN_PROVIDER == 'local':
+                    pplx_client = PerplexityClient(
+                        api_key='ollama',
+                        model=DECK_GEN_MODEL,
+                        base_url=DECK_GEN_BASE_URL,
+                    )
+                else:
+                    pplx_client = PerplexityClient(
+                        api_key=CFG.pplx_api_key,
+                        model=DECK_GEN_MODEL,
+                    )
                 _deck_gen_v3 = DeckGeneratorV3(
                     pplx_client=pplx_client,
                     db_conn_factory=_get_db_conn,
