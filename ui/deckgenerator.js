@@ -5,7 +5,7 @@
  * V3 Endpoints:
  *   GET   /api/deck/v3/status              — check V3 generator status
  *   GET   /api/deck-generator/commander-search  — autocomplete commanders
- *   POST  /api/deck/v3/generate            — generate deck (Perplexity structured output)
+ *   POST  /api/deck/v3/generate            — generate deck (local AI structured output)
  *   POST  /api/deck/v3/commit              — generate + save to Deck Builder
  *   POST  /api/deck/v3/export/csv          — export as CSV
  *   POST  /api/deck/v3/export/dck          — export as Forge .dck
@@ -68,7 +68,9 @@ const DeckGenerator = (() => {
             const data = await resp.json();
             state.v3Ready = data.initialized;
             if (!state.v3Ready) {
-                toast('V3 Deck Generator not available — check Perplexity API key', 'error');
+                // Warn but do not block — local/Ollama mode may still work
+                console.warn('V3 status: not initialized. Error:', data.error || 'unknown');
+                toast('V3 generator not ready — check that the local AI model (gpt-oss:20b) is running via Ollama', 'warning');
             }
         } catch (e) {
             console.warn('V3 status check failed:', e);
@@ -223,7 +225,6 @@ const DeckGenerator = (() => {
 
         const img = $('dg-commander-img');
         if (cmdr.image_url) {
-            // Use normal size for readable oracle text; ensure we don't have small version
             var imgUrl = cmdr.image_url;
             if (imgUrl.indexOf('version=small') !== -1) {
                 imgUrl = imgUrl.replace('version=small', 'version=normal');
@@ -253,7 +254,7 @@ const DeckGenerator = (() => {
         $('dg-commander-dropdown').classList.remove('open');
     }
 
-        // -- Conversation Log Helper --
+    // -- Conversation Log Helper --
     function logMessage(msg, type = 'info') {
         const log = $('dg-conversation-log');
         if (!log) return;
@@ -269,21 +270,23 @@ const DeckGenerator = (() => {
         const log = $('dg-conversation-log');
         if (!log) return;
         log.innerHTML = '';
-        
     }
 
     // ── Generate Deck ───────────────────────────────────────
     async function generateDeck() {
-                clearLog();
+        clearLog();
         logMessage('Connecting to local AI model (gpt-oss:20b)...', 'info');
         if (!state.commander) { toast('Select a commander first', 'error'); return; }
-        if (!state.v3Ready) { toast('V3 generator not ready — check Perplexity API key', 'error'); return; }
-                logMessage('Building request body with commander: <b>' + state.commander.name + '</b>', 'info');
+        // Non-blocking warning only — local Ollama mode does not require v3Ready
+        if (!state.v3Ready) {
+            logMessage('Warning: V3 status check failed. Attempting generation anyway via local AI...', 'warning');
+        }
+        logMessage('Building request body with commander: <b>' + state.commander.name + '</b>', 'info');
 
-                setLoading(true, 'Generating deck via Local AI...');
+        setLoading(true, 'Generating deck via Local AI...');
 
         const body = buildRequestBody();
-                    logMessage('Sending request to AI model... this may take a moment.', 'info');
+        logMessage('Sending request to AI model... this may take a moment.', 'info');
         state.lastRequestBody = body;
 
         try {
@@ -299,16 +302,17 @@ const DeckGenerator = (() => {
             }
 
             state.previewResult = await resp.json();
-                        logMessage('AI response received! Processing deck data...', 'success');
-                                    const cardCount = (stats.total_cards || 0);
-            logMessage('Deck generated: <b>' + cardCount + ' cards</b> | $' + (stats.total_price || 0).toFixed(2) + ' estimated', 'success');
-            renderResults(state.previewResult);
+            logMessage('AI response received! Processing deck data...', 'success');
 
             const stats = state.previewResult.stats || {};
+            const cardCount = (stats.total_cards || 0);
+            logMessage('Deck generated: <b>' + cardCount + ' cards</b> | $' + (stats.total_price_usd || 0).toFixed(2) + ' estimated', 'success');
+            renderResults(state.previewResult);
+
             toast('Deck generated: ' + (stats.total_cards || 0) + ' cards | $' + (stats.total_price_usd || 0), 'success');
         } catch (e) {
             toast(e.message || 'Generation failed', 'error');
-                        logMessage('Error: ' + (e.message || 'Unknown error'), 'error');
+            logMessage('Error: ' + (e.message || 'Unknown error'), 'error');
             setLoading(false);
         }
     }
@@ -392,7 +396,6 @@ const DeckGenerator = (() => {
         const cards = result.cards || [];
         const commander = result.commander;
 
-        // Group by category
         const groups = {};
         for (const card of cards) {
             const cat = card.category || 'Other';
@@ -407,7 +410,6 @@ const DeckGenerator = (() => {
 
         let html = '';
 
-        // Commander section
         if (commander) {
             html += '<div class="dg-card-group">'
                 + '<div class="dg-group-header">'
@@ -422,7 +424,6 @@ const DeckGenerator = (() => {
                 + '</div></div>';
         }
 
-        // Card groups
         for (const type of sortedTypes) {
             const groupCards = groups[type];
             if (!groupCards || groupCards.length === 0) continue;
@@ -446,7 +447,6 @@ const DeckGenerator = (() => {
 
         container.innerHTML = html;
 
-        // Collapse toggles
         container.querySelectorAll('.dg-group-header').forEach(header => {
             header.addEventListener('click', () => {
                 const type = header.dataset.type;
@@ -465,7 +465,6 @@ const DeckGenerator = (() => {
             .map(r => '<span class="dg-role-chip">' + escHtml(r) + '</span>')
             .join('');
 
-        // Substitution indicator
         let subHtml = '';
         if (card.status === 'substituted' && card.selected_substitute) {
             subHtml = '<div class="dg-card-sub-line">'
@@ -604,7 +603,6 @@ const DeckGenerator = (() => {
                 return;
             }
 
-            // Build and copy text
             const lines = ['Shopping List — ' + (data.commander || 'Deck'), ''];
             for (const item of list) {
                 lines.push(item.count + 'x ' + item.name + ' ($' + (item.estimated_price_usd || 0).toFixed(2) + ') — ' + item.category);
