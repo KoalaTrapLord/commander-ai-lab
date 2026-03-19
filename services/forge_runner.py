@@ -75,15 +75,80 @@ def _unregister_batch(batch_id: str):
         _watchdog_registry.pop(batch_id, None)
 
 
+# ── Java 17 Discovery ───────────────────────────────────────────────
+
+# Ordered list of directories to scan for JDK 17 installations.
+# Covers: Eclipse Temurin, Oracle, Amazon Corretto, Microsoft, Azul Zulu, SAP.
+_JAVA17_SEARCH_DIRS = [
+    r'C:\Program Files\Eclipse Adoptium',
+    r'C:\Program Files\Java',
+    r'C:\Program Files\Amazon Corretto',
+    r'C:\Program Files\Microsoft',
+    r'C:\Program Files\Zulu',
+    r'C:\Program Files\BellSoft',
+    r'C:\Program Files\SapMachine',
+]
+
+
 def _find_java17() -> str:
-    search_dirs = [r'C:\Program Files\Eclipse Adoptium', r'C:\Program Files\Java']
-    for d in search_dirs:
-        if os.path.isdir(d):
-            for child in os.listdir(d):
-                if child.startswith('jdk-17'):
-                    candidate = os.path.join(d, child, 'bin', 'java.exe')
-                    if os.path.isfile(candidate):
-                        return candidate
+    """
+    Search well-known JDK install directories for a Java 17 binary.
+    Falls back to JAVA17_HOME env var, then JAVA_HOME, then warns and returns 'java'.
+    Returns the absolute path to java.exe if found, otherwise 'java'.
+    """
+    # 1. Explicit override via env var
+    env_override = os.environ.get('JAVA17_HOME', '').strip()
+    if env_override:
+        candidate = os.path.join(env_override, 'bin', 'java.exe')
+        if os.path.isfile(candidate):
+            log.info(f"Java 17 found via JAVA17_HOME: {candidate}")
+            return candidate
+        log.warning(f"JAVA17_HOME set to '{env_override}' but java.exe not found there.")
+
+    # 2. Scan vendor directories
+    for d in _JAVA17_SEARCH_DIRS:
+        if not os.path.isdir(d):
+            continue
+        try:
+            children = os.listdir(d)
+        except OSError:
+            continue
+        for child in sorted(children):  # sorted = deterministic, picks lowest 17.x
+            if re.match(r'jdk-?17', child, re.IGNORECASE) or re.match(r'temurin-17', child, re.IGNORECASE):
+                candidate = os.path.join(d, child, 'bin', 'java.exe')
+                if os.path.isfile(candidate):
+                    log.info(f"Java 17 found: {candidate}")
+                    return candidate
+
+    # 3. JAVA_HOME fallback — only accept if it IS version 17
+    java_home = os.environ.get('JAVA_HOME', '').strip()
+    if java_home:
+        candidate = os.path.join(java_home, 'bin', 'java.exe')
+        if os.path.isfile(candidate):
+            try:
+                result = subprocess.run(
+                    [candidate, '-version'],
+                    capture_output=True, text=True, timeout=5
+                )
+                version_output = result.stderr or result.stdout
+                if 'version "17' in version_output:
+                    log.info(f"Java 17 found via JAVA_HOME: {candidate}")
+                    return candidate
+                else:
+                    log.warning(
+                        f"JAVA_HOME points to '{java_home}' but it is not Java 17. "
+                        f"Version output: {version_output.strip()!r}"
+                    )
+            except Exception as e:
+                log.warning(f"Could not probe JAVA_HOME java version: {e}")
+
+    # 4. Nothing found — warn loudly so the log surfaces the issue
+    log.error(
+        "Java 17 not found! Forge simulation requires Java 17. "
+        "Install Eclipse Temurin 17 (winget install EclipseAdoptium.Temurin.17.JDK) "
+        "or set the JAVA17_HOME environment variable to your JDK 17 install directory. "
+        "Falling back to system 'java' which may be the wrong version."
+    )
     return 'java'
 
 
@@ -95,6 +160,12 @@ def get_java17() -> str:
     if _JAVA17_PATH is None:
         _JAVA17_PATH = _find_java17()
     return _JAVA17_PATH
+
+
+def reset_java17_cache():
+    """Force re-discovery of Java 17 path (useful after installing JDK at runtime)."""
+    global _JAVA17_PATH
+    _JAVA17_PATH = None
 
 
 def build_java_command(
@@ -174,7 +245,9 @@ def _run_process_blocking(state: BatchState, cmd: list):
     state.elapsed_ms = int(elapsed)
     if proc.returncode != 0:
         state.running = False
-        state.error = f"Exit code {proc.returncode}"
+        # Include last few log lines in error for easier diagnosis
+        tail = '  |  '.join(state.log_lines[-5:]) if state.log_lines else '(no output)'
+        state.error = f"Exit code {proc.returncode} — last output: {tail}"
     else:
         state.running = False
         state.completed_games = state.total_games
@@ -230,7 +303,6 @@ def _get_deepseek_brain():
                         sys.path.insert(0, src_dir)
                     from commander_ai_lab.sim.deepseek_brain import DeepSeekBrain, DeepSeekConfig
                     cfg = DeepSeekConfig()
-                    # Allow env var overrides
                     if os.environ.get('DEEPSEEK_API_BASE'):
                         cfg.api_base = os.environ['DEEPSEEK_API_BASE']
                     if os.environ.get('DEEPSEEK_MODEL'):
@@ -272,9 +344,7 @@ def _run_deepseek_batch_thread(
 
         state.log_lines.append(f'[DeepSeek Batch] Connected to {brain.config.model}')
 
-        # Load all decks
-        # ── Look up historical win rates from past batch results ──
-        deck_win_rates = {}  # deck_name -> float (0-100)
+        deck_win_rates = {}
         try:
             results_dir = CFG.results_dir
             if os.path.isdir(results_dir):
@@ -294,14 +364,13 @@ def _run_deepseek_batch_thread(
             pass
 
         loaded_decks = {}
-        deck_meta = {}  # deck_name -> {commander_name, color_identity, archetype}
+        deck_meta = {}
         for dn in deck_names:
             raw_cards = _load_deck_cards_by_name(dn)
             if not raw_cards:
                 state.log_lines.append(f'[DeepSeek Batch] WARNING: Could not load deck "{dn}", skipping.')
                 continue
 
-            # Detect commander and color identity from card data
             commander_name = ''
             color_identity_set = set()
             deck_objs = []
@@ -321,11 +390,9 @@ def _run_deepseek_batch_thread(
                         try: kw = json.loads(kw)
                         except Exception: kw = []
                     if isinstance(kw, list): c.keywords = kw
-                # Set is_commander flag from DB data
                 if cd.get('is_commander'):
                     c.is_commander = True
                     commander_name = cd['name']
-                # Collect color identity
                 ci_str = cd.get('color_identity', '')
                 if ci_str:
                     try:
@@ -338,7 +405,6 @@ def _run_deepseek_batch_thread(
                 enrich_card(c)
                 deck_objs.append(c)
 
-            # Infer archetype from deck composition
             creature_count = sum(1 for c in deck_objs if c.is_creature())
             removal_count = sum(1 for c in deck_objs if c.is_removal)
             ramp_count = sum(1 for c in deck_objs if c.is_ramp)
@@ -373,7 +439,6 @@ def _run_deepseek_batch_thread(
             state.running = False
             return
 
-        # Build matchup schedule: each deck plays num_games vs DeepSeek AI
         deck_list = list(loaded_decks.keys())
         games_per_deck = max(1, num_games // len(deck_list))
         total_games = games_per_deck * len(deck_list)
@@ -383,7 +448,7 @@ def _run_deepseek_batch_thread(
 
         engine = DeepSeekGameEngine(
             brain=brain,
-            ai_player_index=0,  # AI pilots deck_a (user's deck) with full intelligence
+            ai_player_index=0,
             max_turns=25,
             record_log=True,
             ml_log=True,
@@ -395,7 +460,6 @@ def _run_deepseek_batch_thread(
 
         for deck_name in deck_list:
             deck_a = loaded_decks[deck_name]
-            # Generate a training opponent for each game
             from commander_ai_lab.lab.experiments import _generate_training_deck
 
             deck_stats = {
@@ -458,7 +522,6 @@ def _run_deepseek_batch_thread(
             deck_stats['avgDamageReceived'] = round(deck_stats['totalDamageReceived'] / n, 1) if n > 0 else 0.0
             deck_stats['avgSpellsCast'] = round(deck_stats['totalSpellsCast'] / n, 1) if n > 0 else 0.0
             deck_stats['avgCreaturesPlayed'] = round(deck_stats['totalCreaturesPlayed'] / n, 1) if n > 0 else 0.0
-            # Include deck intelligence metadata
             deck_stats['archetype'] = dk_archetype
             deck_stats['commander'] = dk_commander
             deck_stats['colorIdentity'] = dk_colors
@@ -469,7 +532,6 @@ def _run_deepseek_batch_thread(
         elapsed = time.time() - start_time
         ds_stats = brain.get_stats() if brain else {}
 
-        # Build result in compatible format
         batch_result = {
             'metadata': {
                 'batchId': state.batch_id,
@@ -484,7 +546,6 @@ def _run_deepseek_batch_thread(
             'deepseekStats': ds_stats,
         }
 
-        # Write ML decision JSONL for the training pipeline
         ml_decisions = engine.flush_ml_decisions()
         if ml_decisions:
             ml_jsonl_path = os.path.join(CFG.results_dir, f'ml-decisions-ds-{state.batch_id}.jsonl')
@@ -496,14 +557,12 @@ def _run_deepseek_batch_thread(
         else:
             state.log_lines.append('[ML Data] No decision snapshots captured (0 decisions)')
 
-        # Save to results dir
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(batch_result, f, indent=2, default=str)
 
         state.result_path = output_path
-        elapsed_ms = int(elapsed * 1000)
-        state.elapsed_ms = elapsed_ms
+        state.elapsed_ms = int(elapsed * 1000)
         state.running = False
         state.completed_games = total_games
 
