@@ -190,9 +190,11 @@ def _load_deck_cards_by_name(deck_name: str) -> list:
             FROM collection_entries GROUP BY scryfall_id
         ) ce ON ce.scryfall_id = dc.scryfall_id
         WHERE dc.deck_id = ?
+    """, (deck_id,)).fetchall()
+    return [_row_to_dict(r) for r in rows]
 
 
-        log_deckgen = logging.getLogger("commander_ai_lab.deckgen")
+log_deckgen = logging.getLogger("commander_ai_lab.deckgen")
 
 
 def _build_dck_lines(
@@ -251,5 +253,3 @@ def _write_dck_file(
 
     log_deckgen.info(f" Exported .dck: {dck_path}")
     return dck_path
-    """, (deck_id,)).fetchall()
-    return [_row_to_dict(r) for r in rows]
