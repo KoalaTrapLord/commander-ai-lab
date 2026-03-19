@@ -1231,7 +1231,7 @@ async def deck_gen_v3_status():
     return {
         'initialized': _coach._deck_gen_v3 is not None,
         'pplx_configured': bool(CFG.pplx_api_key),
-        'model': _coach._deck_gen_v3.pplx.model if _coach._deck_gen_v3 else None,
+        'model': getattr(_coach._deck_gen_v3, 'model', getattr(getattr(_coach._deck_gen_v3, 'pplx', None), 'model', 'ollama/gpt-oss:20b')) if _coach._deck_gen_v3 else None,
                 'embeddings_loaded': False,
         'embedding_cards': 0,
         'error': _coach._deck_gen_v3_error,
@@ -1252,7 +1252,7 @@ async def deck_gen_v3_generate(req: DeckGenV3Request):
       6. Return complete deck with substitution data
     """
     if _coach._deck_gen_v3 is None:
-        raise HTTPException(503, 'V3 Deck Generator not initialized. Check PPLX_API_KEY.')
+        raise HTTPException(503, 'V3 Deck Generator not initialized. Ensure Ollama is running with gpt-oss:20b model.')
 
     if not req.commander_name or len(req.commander_name.strip()) < 2:
         raise HTTPException(400, 'Commander name is required (min 2 chars)')
