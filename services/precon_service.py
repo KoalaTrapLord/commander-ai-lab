@@ -37,15 +37,22 @@ PRECON_DIR = _DEFAULT_PRECON_DIR
 
 
 def load_precon_index():
-    global PRECON_INDEX
+    """Load precon index from disk into the shared PRECON_INDEX list.
+
+    We mutate the list in-place (clear + extend) so that any module that
+    captured a reference via ``from precon_service import PRECON_INDEX``
+    will see the updated contents.
+    """
     precon_dir = _get_precon_dir()
     idx_path = precon_dir / "precon-index.json"
     if idx_path.exists():
         with open(idx_path, "r", encoding="utf-8") as f:
-            PRECON_INDEX = json.load(f)
+            data = json.load(f)
+        PRECON_INDEX.clear()
+        PRECON_INDEX.extend(data)
         log.info(f"  Precons: {len(PRECON_INDEX)} precon decks loaded")
     else:
-        PRECON_INDEX = []
+        PRECON_INDEX.clear()
         log.info(f"  Precons: index not found at {idx_path}")
 
 
@@ -76,7 +83,12 @@ def _deck_to_dck(deck_data: dict) -> str:
 
 
 def download_precon_database(force: bool = False) -> dict:
-    global PRECON_INDEX
+    """Download precon database from GitHub and populate PRECON_INDEX.
+
+    We mutate the list in-place (clear + extend) so that any module that
+    captured a reference via ``from precon_service import PRECON_INDEX``
+    will see the updated contents.
+    """
     precon_dir = _get_precon_dir()
     idx_path = precon_dir / "precon-index.json"
     if not force and idx_path.exists():
@@ -87,7 +99,8 @@ def download_precon_database(force: bool = False) -> dict:
                 age_hours = (time.time() - idx_path.stat().st_mtime) / 3600
                 if age_hours < PRECON_CACHE_HOURS:
                     log.info(f"  Precons: {len(existing)} decks cached ({age_hours:.0f}h old)")
-                    PRECON_INDEX = existing
+                    PRECON_INDEX.clear()
+                    PRECON_INDEX.extend(existing)
                     return {"downloaded": 0, "skipped": True, "total": len(existing), "error": None}
         except Exception:
             pass
@@ -137,6 +150,7 @@ def download_precon_database(force: bool = False) -> dict:
         })
     with open(idx_path, "w", encoding="utf-8") as f:
         json.dump(index, f, indent=2, ensure_ascii=False)
-    PRECON_INDEX = index
+    PRECON_INDEX.clear()
+    PRECON_INDEX.extend(index)
     log.info(f"  Precons: {written} .dck files written, index saved")
     return {"downloaded": written, "skipped": False, "total": written, "error": None}
