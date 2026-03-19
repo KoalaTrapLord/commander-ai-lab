@@ -11,7 +11,6 @@ from typing import Optional
 
 log_collect = logging.getLogger("commander_ai_lab.collection")
 
-
 # ══════════════════════════════════════════════════════════════
 # Collection Database
 # ══════════════════════════════════════════════════════════════
@@ -20,6 +19,7 @@ _db_local = threading.local()
 
 
 def _get_db_conn() -> sqlite3.Connection:
+    """Return the thread-local SQLite connection, creating it on first use."""
     if not hasattr(_db_local, "conn") or _db_local.conn is None:
         conn = sqlite3.connect(str(COLLECTION_DB_PATH), check_same_thread=False)
         conn.row_factory = sqlite3.Row
@@ -27,11 +27,26 @@ def _get_db_conn() -> sqlite3.Connection:
     return _db_local.conn
 
 
-def init_collection_db():
-    conn = sqlite3.connect(str(COLLECTION_DB_PATH), check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-    cur.executescript("""
+def _close_db_conn() -> None:
+    """Close and discard the thread-local connection (call on thread teardown)."""
+    conn = getattr(_db_local, "conn", None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        _db_local.conn = None
+
+
+def init_collection_db() -> None:
+    """Create tables, indexes, and run column migrations.
+
+    Uses _get_db_conn() so the same thread-local connection that route
+    handlers will use is warmed up and fully migrated before any request
+    arrives.  No separate connection is opened or closed here.
+    """
+    conn = _get_db_conn()
+    conn.executescript("""
         CREATE TABLE IF NOT EXISTS card_records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -124,36 +139,37 @@ def init_collection_db():
         CREATE INDEX IF NOT EXISTS idx_dk_commander ON decks(commander_scryfall_id);
     """)
     conn.commit()
+
+    # ── Column migrations (additive only) ─────────────────────────────────
     _migrate_columns = [
-        ("mana_cost", "TEXT DEFAULT ''"),
-        ("power", "TEXT DEFAULT ''"),
-        ("toughness", "TEXT DEFAULT ''"),
-        ("rarity", "TEXT DEFAULT ''"),
-        ("set_name", "TEXT DEFAULT ''"),
-        ("edhrec_rank", "INTEGER DEFAULT 0"),
+        ("mana_cost",    "TEXT DEFAULT ''"),
+        ("power",        "TEXT DEFAULT ''"),
+        ("toughness",    "TEXT DEFAULT ''"),
+        ("rarity",       "TEXT DEFAULT ''"),
+        ("set_name",     "TEXT DEFAULT ''"),
+        ("edhrec_rank",  "INTEGER DEFAULT 0"),
     ]
-    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(collection_entries)").fetchall()}
+    existing_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(collection_entries)").fetchall()
+    }
     for col_name, col_def in _migrate_columns:
         if col_name not in existing_cols:
             conn.execute(f"ALTER TABLE collection_entries ADD COLUMN {col_name} {col_def}")
-            log_collect.info(f" Migration: added column '{col_name}' to collection_entries")
+            log_collect.info(f"  Migration: added column '{col_name}' to collection_entries")
     conn.commit()
-    conn.close()
-    log_collect.info(f" Collection DB: {COLLECTION_DB_PATH}")
+
+    log_collect.info(f"  Collection DB ready: {COLLECTION_DB_PATH}")
 
 
 # ══════════════════════════════════════════════════════════════
 # Collection Utility Helpers
 # ══════════════════════════════════════════════════════════════
 _JSON_FIELDS = ("category", "color_identity", "subtypes", "keywords")
-
 VALID_SORT_FIELDS = {
     "name", "cmc", "tcg_price", "salt_score", "category", "color_identity",
     "quantity", "type_line", "finish", "rarity", "set_code", "power",
     "toughness", "edhrec_rank",
 }
-
-
 
 
 def _row_to_dict(row) -> dict:
@@ -189,11 +205,30 @@ def _add_image_url(card: dict) -> dict:
 
 
 def _build_collection_filters(
-    q=None, colors=None, types=None, isLegendary=None, isBasic=None,
-    isGameChanger=None, highSalt=None, finish=None, cmcMin=None, cmcMax=None,
-    priceMin=None, priceMax=None, category=None, rarity=None, setCode=None,
-    powerMin=None, powerMax=None, toughMin=None, toughMax=None, keyword=None,
-    edhrecMin=None, edhrecMax=None, qtyMin=None, qtyMax=None,
+    q=None,
+    colors=None,
+    types=None,
+    isLegendary=None,
+    isBasic=None,
+    isGameChanger=None,
+    highSalt=None,
+    finish=None,
+    cmcMin=None,
+    cmcMax=None,
+    priceMin=None,
+    priceMax=None,
+    category=None,
+    rarity=None,
+    setCode=None,
+    powerMin=None,
+    powerMax=None,
+    toughMin=None,
+    toughMax=None,
+    keyword=None,
+    edhrecMin=None,
+    edhrecMax=None,
+    qtyMin=None,
+    qtyMax=None,
 ) -> tuple:
     conditions = []
     params = []
