@@ -4,6 +4,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+    using UnityEngine.Networking;
 using TMPro;
 using Newtonsoft.Json;
 using CommanderAILab.Models;
