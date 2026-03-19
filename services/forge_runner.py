@@ -176,27 +176,36 @@ def build_java_command(
     ai_think_time_ms: int = -1, max_queue_depth: int = -1,
 ) -> list:
     java17 = get_java17()
+    lab_jar = CFG.lab_jar
     forge_jar = CFG.forge_jar
+    forge_dir = CFG.forge_dir
+    if not lab_jar or not os.path.isfile(lab_jar):
+        log.error(f"Lab JAR not found at '{lab_jar}'. Run 'mvn package' first.")
+        raise FileNotFoundError(f"Lab JAR not found: {lab_jar}")
     cmd = [
-        java17, '-jar', forge_jar, 'sim',
-        '-decks', ','.join(str(d) for d in decks),
-        '-games', str(num_games),
-        '-threads', str(threads),
-        '-clock', str(clock),
-        '-output', output_path,
+        java17, '-jar', lab_jar,
+        '--forge-jar', forge_jar,
+        '--forge-dir', forge_dir,
+        '--games', str(num_games),
+        '--threads', str(threads),
+        '--clock', str(clock),
+        '--output', output_path,
     ]
+    # Map deck list to --deck1 .. --deck4
+    for i, d in enumerate(decks[:4], start=1):
+        cmd += [f'--deck{i}', str(d)]
     if seed is not None:
-        cmd += ['-seed', str(seed)]
+        cmd += ['--seed', str(seed)]
     if use_learned_policy:
-        cmd += ['-policy', policy_style, '-policyServer', policy_server]
-    if policy_greedy:
-        cmd += ['-policyGreedy']
+        cmd += ['--policy', policy_style, '--policyServer', policy_server]
+        if policy_greedy:
+            cmd += ['--policyGreedy']
     if ai_simplified:
-        cmd += ['-aiSimplified']
+        cmd += ['--aiSimplified']
     if ai_think_time_ms > 0:
-        cmd += ['-aiThinkTimeMs', str(ai_think_time_ms)]
+        cmd += ['--aiThinkTimeMs', str(ai_think_time_ms)]
     if max_queue_depth > 0:
-        cmd += ['-maxQueueDepth', str(max_queue_depth)]
+        cmd += ['--maxQueueDepth', str(max_queue_depth)]
     return cmd
 
 
