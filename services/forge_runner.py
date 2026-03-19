@@ -26,7 +26,7 @@ _deepseek_lock = threading.Lock()
 _watchdog_registry: dict[str, dict] = {}   # batch_id -> {state, proc, last_activity}
 _watchdog_lock = threading.Lock()
 _watchdog_started = False
-_STALL_LIMIT = 300  # 5 min
+_STALL_LIMIT = 600  # 10 min
 
 def _global_watchdog_loop():
     """Single daemon thread that checks all active batches for stalls."""
@@ -44,7 +44,7 @@ def _global_watchdog_loop():
                     entry["state"].log_lines.append("[WATCHDOG] Process stalled. Killed.")
                     proc.kill()
                     entry["state"].running = False
-                    entry["state"].error = "Stall detected (5 min no output)"
+                                entry["state"].error = "Stall detected (10 min no output)"
                     finished.append(bid)
             for bid in finished:
                 del _watchdog_registry[bid]
