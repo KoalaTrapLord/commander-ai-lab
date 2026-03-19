@@ -89,24 +89,24 @@ def init_coach_service():
         else:
             log_coach.warning(f"  Coach LLM:    Not connected (start LM Studio on 192.168.0.122:1234)")
 
-              # Initialize V3 Deck Generator (Ollama-based)
-      _deck_gen_v3_error = None
-      try:
-        from src.commander_ai_lab.deck_builder.adapter import DeckBuilderAdapter
-        _deck_gen_v3 = DeckBuilderAdapter(
-          db_conn_factory=_get_db_conn,
-          model="gpt-oss:20b",
-        )
-        log_deckgen.info(" Deck Gen V3:  Initialized (Ollama DeckBuilderAdapter)")
-      except ImportError as e:
-        _deck_gen_v3_error = f"Missing dependency: {e}"
-        log_deckgen.error(f" Deck Gen V3:  {_deck_gen_v3_error}")
-        _deck_gen_v3 = None
-      except Exception as e:
-        _deck_gen_v3_error = str(e)
-        log_deckgen.error(f" Deck Gen V3:  Failed to initialize: {e}")
-        _deck_gen_v3 = None
-            
+        # Initialize V3 Deck Generator (Ollama-based)
+        _deck_gen_v3_error = None
+        try:
+            from src.commander_ai_lab.deck_builder.adapter import DeckBuilderAdapter
+            _deck_gen_v3 = DeckBuilderAdapter(
+                db_conn_factory=_get_db_conn,
+                model="gpt-oss:20b",
+            )
+            log_deckgen.info("  Deck Gen V3:  Initialized (Ollama DeckBuilderAdapter)")
+        except ImportError as e:
+            _deck_gen_v3_error = f"Missing dependency: {e}"
+            log_deckgen.error(f"  Deck Gen V3:  {_deck_gen_v3_error}")
+            _deck_gen_v3 = None
+        except Exception as e:
+            _deck_gen_v3_error = str(e)
+            log_deckgen.error(f"  Deck Gen V3:  Failed to initialize: {e}")
+            _deck_gen_v3 = None
+
     except Exception as e:
         log_coach.error(f"  Coach:        Failed to initialize: {e}\n{traceback.format_exc()}")
         _coach_service = None
