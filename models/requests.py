@@ -114,6 +114,62 @@ class DeckGenV3Request(BaseModel):
     deck_name: Optional[str] = ""
 
 
+
+
+# ══════════════════════════════════════════════════════════════
+# Deckgen requests (moved from routes/deckgen.py)
+# ══════════════════════════════════════════════════════════════
+
+
+class DeckResearchRequest(BaseModel):
+    deck_id: int  # Deck to research
+    goal: Optional[str] = "Identify weaknesses and suggest upgrades"
+    budget_usd: Optional[float] = None
+    omit_cards: Optional[list[str]] = []
+    use_collection: bool = True
+
+
+class DeckGenerateAIRequest(BaseModel):
+    commander: str
+    budget_usd: Optional[float] = None
+    budget_mode: str = "total"  # "total" or "per_card"
+    omit_cards: Optional[list[str]] = []
+    use_collection: bool = True
+
+
+# ══════════════════════════════════════════════════════════════
+# Coach requests (moved from routes/coach.py)
+# ══════════════════════════════════════════════════════════════
+
+
+class CoachRequestBody(BaseModel):
+    goals: Optional[dict] = None
+
+
+class CoachChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
+class CoachChatRequest(BaseModel):
+    deck_id: str
+    messages: list[dict]  # conversation history [{role, content}]
+    goals: Optional[dict] = None
+    stream: Optional[bool] = False
+
+
+class CoachApplyRequest(BaseModel):
+    session_id: str
+    deck_id: int  # numeric deck ID in the DB
+    accepted_cuts: list[str] = []  # card names to remove
+    accepted_adds: list[str] = []  # card names to add
+
+
+class CoachGoalsRequest(BaseModel):
+    target_power_level: Optional[int] = None  # 1-10
+    meta_focus: Optional[str] = None  # aggro, control, combo, midrange, stax
+    budget: Optional[str] = None  # budget, medium, no-limit
+    focus_areas: list[str] = []  # e.g., ["ramp", "card draw"]
 class DeckGenV3SubstituteRequest(BaseModel):
     card_name: str
     substitute_name: str
