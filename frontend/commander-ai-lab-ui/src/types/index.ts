@@ -559,5 +559,4 @@ export interface CommanderSearchResult {
 
 export interface PplxStatus {
   configured: boolean
-  key_prefix: string
 }

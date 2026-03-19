@@ -6945,7 +6945,6 @@ async def pplx_status():
     """Check if Perplexity API is configured."""
     return {
         'configured': bool(CFG.pplx_api_key),
-        'key_prefix': CFG.pplx_api_key[:8] + '...' if CFG.pplx_api_key else '',
     }
 
 
