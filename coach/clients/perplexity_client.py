@@ -81,8 +81,7 @@ class PerplexityClient:
         """
         Send a chat request with JSON output.
 
-        Uses response_format={"type": "json_object"} because Perplexity's
-        Sonar models do not support the json_schema response_format.
+        Uses        Sonar models do not support the json_schema response_format.
         Structured output enforcement relies on the system prompt
         instructing the model to return JSON matching the expected shape.
 
@@ -111,8 +110,7 @@ class PerplexityClient:
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                response_format={"type": "json_object"},
-            )
+                 )
 
             choice = response.choices[0]
             content = choice.message.content or ""
