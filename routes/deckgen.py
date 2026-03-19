@@ -43,6 +43,7 @@ from routes.shared import (
     DeckGenerationRequest, DeckGenV3Request, DeckGenV3SubstituteRequest,
     GeneratedDeckCard, DeckGenerationSourceConfig,
 )
+from services.deck_service import _write_dck_file, _build_dck_lines
 
 router = APIRouter(tags=["deckgen"])
 
@@ -540,29 +541,8 @@ async def deck_generator_commit(req: DeckGenerationRequest):
         )
     conn.commit()
 
-    # Also export a .dck file to the Forge decks directory so it appears in the Sim Lab
     try:
-        decks_dir = CFG.forge_decks_dir
-        if decks_dir and os.path.isdir(decks_dir):
-            safe_name = re.sub(r'[^a-zA-Z0-9_\-\s]', '', deck_name).strip().replace(' ', '_')
-            if not safe_name:
-                safe_name = f"AutoDeck_{deck_id}"
-            dck_path = os.path.join(decks_dir, f"{safe_name}.dck")
-            dck_lines = []
-            dck_lines.append("[metadata]")
-            dck_lines.append(f"Name={deck_name}")
-            dck_lines.append("")
-            dck_lines.append("[Commander]")
-            dck_lines.append(f"1 {commander['name']}")
-            dck_lines.append("")
-            dck_lines.append("[Main]")
-            for card in cards:
-                card_name = card.get("name", "")
-                if card_name:
-                    dck_lines.append(f"{card.get('quantity', 1)} {card_name}")
-            with open(dck_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(dck_lines))
-            log_deckgen.info(f"  Exported .dck file: {dck_path}")
+        _write_dck_file(deck_name, commander['name'], cards, fallback_id=deck_id)
     except Exception as e:
         log_deckgen.warning(f"  Warning: Failed to export .dck file: {e}")
 
@@ -1378,25 +1358,8 @@ async def deck_gen_v3_commit(req: DeckGenV3Request):
             )
         conn.commit()
 
-        # Export .dck for Forge
         try:
-            decks_dir = CFG.forge_decks_dir
-            if decks_dir and os.path.isdir(decks_dir):
-                safe_name = re.sub(r'[^a-zA-Z0-9_\-\s]', '', deck_name).strip().replace(' ', '_')
-                if not safe_name:
-                    safe_name = f"V3Deck_{deck_id}"
-                dck_path = os.path.join(decks_dir, f"{safe_name}.dck")
-                dck_lines = ["[metadata]", f"Name={deck_name}", "",
-                             "[Commander]", f"1 {commander['name']}", "", "[Main]"]
-                for card in cards:
-                    cname = card.get('name', '')
-                    if card.get('status') == 'substituted' and card.get('selected_substitute'):
-                        cname = card['selected_substitute']
-                    if cname and cname != commander.get('name', ''):
-                        dck_lines.append(f"{card.get('count', 1)} {cname}")
-                with open(dck_path, 'w', encoding='utf-8') as f:
-                    f.write('\n'.join(dck_lines))
-                log_deckgen.info(f"  Exported .dck: {dck_path}")
+            _write_dck_file(deck_name, commander['name'], cards, fallback_id=deck_id, resolve_substitutes=True)
         except Exception as e:
             log_deckgen.error(f"  .dck export failed: {e}")
 
@@ -1481,22 +1444,12 @@ async def deck_gen_v3_export_dck(req: DeckGenV3Request):
     cards = result.get('cards', [])
     commander = result.get('commander', {})
 
-    lines = [
-        '[metadata]',
-        f'Name={commander.get("name", "Deck")} - V3 Auto',
-        '',
-        '[Commander]',
-        f'1 {commander.get("name", "")}',
-        '',
-        '[Main]',
-    ]
-    for card in cards:
-        cname = card.get('name', '')
-        if card.get('status') == 'substituted' and card.get('selected_substitute'):
-            cname = card['selected_substitute']
-        if cname and cname != commander.get('name', ''):
-            lines.append(f"{card.get('count', 1)} {cname}")
-
+    lines = _build_dck_lines(
+        f"{commander.get('name', 'Deck')} - V3 Auto",
+        commander.get('name', ''),
+        cards,
+        resolve_substitutes=True,
+    )
     dck_content = '\n'.join(lines)
     safe_name = re.sub(r'[^a-zA-Z0-9_\-\s]', '', commander.get('name', 'deck')).strip().replace(' ', '_')
     return StreamingResponse(
