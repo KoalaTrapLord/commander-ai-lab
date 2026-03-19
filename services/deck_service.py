@@ -190,5 +190,66 @@ def _load_deck_cards_by_name(deck_name: str) -> list:
             FROM collection_entries GROUP BY scryfall_id
         ) ce ON ce.scryfall_id = dc.scryfall_id
         WHERE dc.deck_id = ?
+
+
+        log_deckgen = logging.getLogger("commander_ai_lab.deckgen")
+
+
+def _build_dck_lines(
+    deck_name: str,
+    commander_name: str,
+    cards: list[dict],
+    *,
+    resolve_substitutes: bool = False,
+) -> list[str]:
+    """Build Forge .dck file lines from deck name, commander, and card list."""
+    lines: list[str] = [
+        "[metadata]",
+        f"Name={deck_name}",
+        "",
+        "[Commander]",
+        f"1 {commander_name}",
+        "",
+        "[Main]",
+    ]
+    for card in cards:
+        cname = card.get("name", "")
+        if resolve_substitutes:
+            if card.get("status") == "substituted" and card.get("selected_substitute"):
+                cname = card["selected_substitute"]
+        if cname and cname != commander_name:
+            lines.append(f"{card.get('count', card.get('quantity', 1))} {cname}")
+    return lines
+
+
+def _write_dck_file(
+    deck_name: str,
+    commander_name: str,
+    cards: list[dict],
+    decks_dir: str | None = None,
+    *,
+    fallback_id: int | str = 0,
+    resolve_substitutes: bool = False,
+) -> str | None:
+    """Write a Forge .dck file to decks_dir. Returns path on success, None otherwise."""
+    if not decks_dir:
+        decks_dir = CFG.forge_decks_dir
+    if not decks_dir or not os.path.isdir(decks_dir):
+        return None
+
+    safe_name = re.sub(r"[^a-zA-Z0-9_\-\s]", "", deck_name).strip().replace(" ", "_")
+    if not safe_name:
+        safe_name = f"Deck_{fallback_id}"
+
+    dck_path = os.path.join(decks_dir, f"{safe_name}.dck")
+    lines = _build_dck_lines(
+        deck_name, commander_name, cards,
+        resolve_substitutes=resolve_substitutes,
+    )
+    with open(dck_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    log_deckgen.info(f" Exported .dck: {dck_path}")
+    return dck_path
     """, (deck_id,)).fetchall()
     return [_row_to_dict(r) for r in rows]
