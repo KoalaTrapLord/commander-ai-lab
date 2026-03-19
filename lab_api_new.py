@@ -2608,7 +2608,7 @@ async def deck_gen_v3_generate(req: DeckGenV3Request):
       6. Return complete deck with substitution data
     """
     if _deck_gen_v3 is None:
-        raise HTTPException(503, 'V3 Deck Generator not initialized. Check PPLX_API_KEY.')
+        raise HTTPException(503, 'V3 Deck Generator not initialized. Check Ollama is running.')
 
     if not req.commander_name or len(req.commander_name.strip()) < 2:
         raise HTTPException(400, 'Commander name is required (min 2 chars)')
@@ -2642,7 +2642,7 @@ async def deck_gen_v3_generate(req: DeckGenV3Request):
                 'missing': sub_result.missing_count,
             }
             # Recompute stats with updated cards
-            from coach.services.deck_generator import DeckGeneratorV3
+            from src.commander_ai_lab.deck_builder.adapter import DeckBuilderAdapter as DeckGeneratorV3
             result['stats'] = DeckGeneratorV3._compute_stats(sub_result.cards)
 
         return result
