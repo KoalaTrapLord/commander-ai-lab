@@ -2127,21 +2127,31 @@ def _build_collection_summary(color_identity: list[str] | None = None) -> dict:
 
 def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperature: float = 0.2) -> str:
     """Call Perplexity API chat/completions endpoint. Returns the assistant message content."""
-    if not CFG.pplx_api_key:
-        raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var or --pplx-key.')
+    from coach.config import DECK_GEN_PROVIDER, DECK_GEN_BASE_URL, DECK_GEN_MODEL
+
+    if DECK_GEN_PROVIDER == 'local':
+        api_url = f'{DECK_GEN_BASE_URL}/chat/completions'
+        model = DECK_GEN_MODEL
+        auth_header = None
+    else:
+        if not CFG.pplx_api_key:
+            raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var or --pplx-key.')
+        api_url = 'https://api.perplexity.ai/chat/completions'
+        model = 'sonar'
+        auth_header = f'Bearer {CFG.pplx_api_key}'
 
     payload = {
-        'model': 'sonar',
+        'model': model,
         'messages': messages,
         'max_tokens': max_tokens,
         'temperature': temperature,
-        'return_related_questions': False,
     }
 
     req_data = json.dumps(payload).encode('utf-8')
-    req = Request('https://api.perplexity.ai/chat/completions', data=req_data, method='POST')
+    req = Request(api_url, data=req_data, method='POST')
     req.add_header('Content-Type', 'application/json')
-    req.add_header('Authorization', f'Bearer {CFG.pplx_api_key}')
+    if auth_header:
+        req.add_header('Authorization', auth_header)
 
     try:
         with urlopen(req, timeout=120) as resp:
@@ -2984,16 +2994,23 @@ def init_coach_service():
 
         # Initialize V3 Deck Generator (Perplexity)
         _deck_gen_v3_error = None
-        if CFG.pplx_api_key:
+        if CFG.pplx_api_key or os.environ.get('DECK_GEN_PROVIDER') == 'local':
             try:
                 from coach.clients.perplexity_client import PerplexityClient
                 from coach.services.deck_generator import DeckGeneratorV3
-                from coach.config import DECK_GEN_MODEL
+                from coach.config import DECK_GEN_MODEL, DECK_GEN_PROVIDER, DECK_GEN_BASE_URL
 
-                pplx_client = PerplexityClient(
-                    api_key=CFG.pplx_api_key,
-                    model=DECK_GEN_MODEL,
-                )
+                if DECK_GEN_PROVIDER == 'local':
+                    pplx_client = PerplexityClient(
+                        api_key='ollama',
+                        model=DECK_GEN_MODEL,
+                        base_url=DECK_GEN_BASE_URL,
+                    )
+                else:
+                    pplx_client = PerplexityClient(
+                        api_key=CFG.pplx_api_key,
+                        model=DECK_GEN_MODEL,
+                    )
                 _deck_gen_v3 = DeckGeneratorV3(
                     pplx_client=pplx_client,
                     db_conn_factory=_get_db_conn,
