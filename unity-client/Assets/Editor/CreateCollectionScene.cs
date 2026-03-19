@@ -169,7 +169,7 @@ public static class CreateCollectionScene
         SetField(ctrl, "searchInput",         searchInput.GetComponent<TMP_InputField>());
         SetField(ctrl, "sortDropdown",        sortDd.GetComponent<TMP_Dropdown>());
         SetField(ctrl, "searchButton",        searchBtn.GetComponent<Button>());
-        SetField(ctrl, "filterToggleButton",  filterToggle.GetComponent<Button>());
+        SetField(ctrl, "filterToggleButton",  filterToggleBtn.GetComponent<Button>());
         SetField(ctrl, "filterPanel",         filterPanel);
         SetField(ctrl, "colorFilterDropdown",  colorDd.GetComponent<TMP_Dropdown>());
         SetField(ctrl, "typeFilterDropdown",   typeDd.GetComponent<TMP_Dropdown>());
@@ -178,15 +178,15 @@ public static class CreateCollectionScene
         SetField(ctrl, "ownedFilterDropdown",  ownedDd.GetComponent<TMP_Dropdown>());
         SetField(ctrl, "applyFilterButton",   applyBtn.GetComponent<Button>());
         SetField(ctrl, "clearFilterButton",   clearBtn.GetComponent<Button>());
-        SetField(ctrl, "cardGridParent",      gridContent.transform);
+        SetField(ctrl, "cardGridParent",      content.transform);
         SetField(ctrl, "cardPrefab",          null); // assign in Inspector
-        SetField(ctrl, "gridScrollRect",      gridScroll.GetComponent<ScrollRect>());
+        SetField(ctrl, "gridScrollRect",      scrollGo.GetComponent<ScrollRect>());
         SetField(ctrl, "loadMoreButton",      loadMoreBtn.GetComponent<Button>());
-        SetField(ctrl, "pageInfoText",        pageInfo.GetComponent<TMP_Text>());
+        SetField(ctrl, "pageInfoText",        pageInfoText.GetComponent<TMP_Text>());
         SetField(ctrl, "loadingSpinner",      spinner);
         SetField(ctrl, "detailPanel",         detailPanel);
-        SetField(ctrl, "detailCardFront",     detailFront.GetComponent<Image>());
-        SetField(ctrl, "detailCardBack",      detailBack.GetComponent<Image>());
+        SetField(ctrl, "detailCardFront",     detailCardFront.GetComponent<Image>());
+        SetField(ctrl, "detailCardBack",      detailCardBack.GetComponent<Image>());
         SetField(ctrl, "detailCardName",      detailName.GetComponent<TMP_Text>());
         SetField(ctrl, "detailManaCost",      detailMana.GetComponent<TMP_Text>());
         SetField(ctrl, "detailType",          detailType.GetComponent<TMP_Text>());

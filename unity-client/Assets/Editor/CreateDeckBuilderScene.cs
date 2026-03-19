@@ -170,6 +170,49 @@ public static class CreateDeckBuilderScene
 
     // -- Helpers --
 
+    /// <summary>
+    /// Creates a Viewport + Content hierarchy inside the given scroll GameObject,
+    /// wires up the ScrollRect, and returns the Content RectTransform.
+    /// </summary>
+    static RectTransform CreateScrollContent(GameObject scrollGo, out ScrollRect scrollRect)
+    {
+        scrollRect = scrollGo.GetComponent<ScrollRect>();
+        if (scrollRect == null)
+            scrollRect = scrollGo.AddComponent<ScrollRect>();
+
+        // Viewport
+        var viewport = new GameObject("Viewport");
+        viewport.transform.SetParent(scrollGo.transform, false);
+        viewport.AddComponent<RectMask2D>();
+        var vpRect = viewport.GetComponent<RectTransform>();
+        vpRect.anchorMin = Vector2.zero;
+        vpRect.anchorMax = Vector2.one;
+        vpRect.offsetMin = Vector2.zero;
+        vpRect.offsetMax = Vector2.zero;
+
+        // Content
+        var content = new GameObject("Content");
+        content.transform.SetParent(viewport.transform, false);
+        var contentRect = content.AddComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0f, 1f);
+        contentRect.anchorMax = new Vector2(1f, 1f);
+        contentRect.pivot     = new Vector2(0.5f, 1f);
+        contentRect.offsetMin = Vector2.zero;
+        contentRect.offsetMax = Vector2.zero;
+        content.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        var vlg = content.AddComponent<VerticalLayoutGroup>();
+        vlg.spacing = 4;
+        vlg.padding = new RectOffset(4, 4, 4, 4);
+        vlg.childForceExpandWidth  = true;
+        vlg.childForceExpandHeight = false;
+
+        scrollRect.viewport  = vpRect;
+        scrollRect.content   = contentRect;
+        scrollRect.horizontal = false;
+
+        return contentRect;
+    }
+
     static void SetField(object target, string fieldName, object value)
     {
         var field = target.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
