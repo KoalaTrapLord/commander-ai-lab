@@ -418,6 +418,13 @@ async def ml_start_training(request: FastAPIRequest):
     }
 
 
+@router.get("/api/ml/train")
+async def ml_training_status_poll():
+    """Return current training status (polled by Unity client)."""
+    with _training_lock:
+        return _training_state.snapshot()
+
+
 @router.get("/api/ml/train/status")
 async def ml_training_status():
     """Get current training pipeline status."""
@@ -668,3 +675,55 @@ async def ml_tournament_results():
         with open(results_path, "r") as f:
             return json.load(f)
     return {"error": "No tournament results found. Run a tournament first."}
+
+
+# ==============================================================
+# Model listing and stats endpoints
+# ==============================================================
+
+@router.get("/api/ml/models")
+async def ml_list_models():
+    """List available policy model checkpoints."""
+    project_root = Path(__file__).resolve().parent.parent
+    ckpt_dir = project_root / "ml" / "models" / "checkpoints"
+    checkpoints = []
+    if ckpt_dir.exists():
+        for f in sorted(ckpt_dir.glob("*.pt")):
+            checkpoints.append({
+                "name": f.name,
+                "path": str(f),
+                "size_kb": round(f.stat().st_size / 1024, 1),
+                "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+            })
+    svc = _get_policy_service()
+    return {
+        "models": checkpoints,
+        "count": len(checkpoints),
+        "active_model": svc.get_status() if svc else None,
+    }
+
+
+@router.get("/api/ml/stats")
+async def ml_stats():
+    """Return aggregate ML training statistics and model performance metrics."""
+    project_root = Path(__file__).resolve().parent.parent
+    ckpt_dir = project_root / "ml" / "models" / "checkpoints"
+    eval_results = None
+    eval_path = ckpt_dir / "eval_results.json"
+    if eval_path.exists():
+        try:
+            with open(eval_path, "r") as f:
+                eval_results = json.load(f)
+        except Exception:
+            pass
+    with _training_lock:
+        training_snapshot = _training_state.snapshot()
+    with _ppo_lock:
+        ppo_snapshot = _ppo_state.snapshot()
+    svc = _get_policy_service()
+    return {
+        "training": training_snapshot,
+        "ppo": ppo_snapshot,
+        "eval_results": eval_results,
+        "policy_loaded": svc._loaded if svc else False,
+    }

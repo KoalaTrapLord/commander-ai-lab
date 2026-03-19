@@ -70,6 +70,13 @@ app.include_router(deckgen_router)
 app.include_router(coach_router)
 app.include_router(ml_router)
 
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint for load balancers and Unity client polling."""
+    return {"status": "ok"}
+
+
 @app.on_event("startup")
 async def _on_startup():
     """Ensure DB and precon index are ready (supports uvicorn --reload)."""
