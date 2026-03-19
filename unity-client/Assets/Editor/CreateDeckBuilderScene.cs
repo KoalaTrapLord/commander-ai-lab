@@ -164,8 +164,13 @@ public static class CreateDeckBuilderScene
         var typeText = CreateTMPText(rightPanel.transform, "TypeBreakdownText", "", 14, FontStyles.Normal, TextAlignmentOptions.TopLeft);
         SetAnchors(typeText.GetComponent<RectTransform>(), new Vector2(0.05f, 0.01f), new Vector2(0.95f, 0.08f));
 
-        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-        Debug.Log("[CreateDeckBuilderScene] DeckBuilder scene created.");
+        // -- Save --
+        if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
+            AssetDatabase.CreateFolder("Assets", "Scenes");
+        string path = "Assets/Scenes/DeckBuilder.unity";
+        EditorSceneManager.SaveScene(scene, path);
+        EditorBuildSettings.scenes = new EditorBuildSettingsScene[] { new EditorBuildSettingsScene(path, true) };
+        Debug.Log("[CreateDeckBuilderScene] DeckBuilder scene created and saved to " + path);
     }
 
     // -- Helpers --

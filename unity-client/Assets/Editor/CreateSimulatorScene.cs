@@ -80,8 +80,13 @@ public static class CreateSimulatorScene
         var progressText = CreateTMPText(progressBg.transform, "ProgressText", "0%", 14, FontStyles.Normal, TextAlignmentOptions.Center);
         SetAnchors(progressText.GetComponent<RectTransform>(), new Vector2(0f, 0f), new Vector2(1f, 1f));
 
-        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-        Debug.Log("[CreateSimulatorScene] Simulator scene created.");
+        // -- Save --
+        if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
+            AssetDatabase.CreateFolder("Assets", "Scenes");
+        string path = "Assets/Scenes/Simulator.unity";
+        EditorSceneManager.SaveScene(scene, path);
+        EditorBuildSettings.scenes = new EditorBuildSettingsScene[] { new EditorBuildSettingsScene(path, true) };
+        Debug.Log("[CreateSimulatorScene] Simulator scene created and saved to " + path);
     }
 
     // -- Helpers --

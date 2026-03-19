@@ -87,8 +87,13 @@ public static class CreateScannerScene
         SetAnchors(addDeckBtn.GetComponent<RectTransform>(), new Vector2(0.52f, 0.03f), new Vector2(0.97f, 0.12f));
         resultPanel.SetActive(false);
 
-        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-        Debug.Log("[CreateScannerScene] Scanner scene created.");
+        // -- Save --
+        if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
+            AssetDatabase.CreateFolder("Assets", "Scenes");
+        string path = "Assets/Scenes/Scanner.unity";
+        EditorSceneManager.SaveScene(scene, path);
+        EditorBuildSettings.scenes = new EditorBuildSettingsScene[] { new EditorBuildSettingsScene(path, true) };
+        Debug.Log("[CreateScannerScene] Scanner scene created and saved to " + path);
     }
 
     // -- Helpers --

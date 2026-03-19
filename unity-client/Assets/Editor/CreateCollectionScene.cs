@@ -200,8 +200,13 @@ public static class CreateCollectionScene
         SetField(ctrl, "errorText",           errorText.GetComponent<TMP_Text>());
         SetField(ctrl, "retryButton",         retryBtn.GetComponent<Button>());
 
-        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-        Debug.Log("[CreateCollectionScene] Collection scene created.");
+        // -- Save --
+        if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
+            AssetDatabase.CreateFolder("Assets", "Scenes");
+        string path = "Assets/Scenes/Collection.unity";
+        EditorSceneManager.SaveScene(scene, path);
+        EditorBuildSettings.scenes = new EditorBuildSettingsScene[] { new EditorBuildSettingsScene(path, true) };
+        Debug.Log("[CreateCollectionScene] Collection scene created and saved to " + path);
     }
 
     // -- Helpers --

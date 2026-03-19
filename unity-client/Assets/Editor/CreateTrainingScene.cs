@@ -165,8 +165,13 @@ public static class CreateTrainingScene
         SetPrivateField(ctrl, "errorPanel",           errorPanel);
         SetPrivateField(ctrl, "errorText",            errorTxt.GetComponent<TextMeshProUGUI>());
 
-        EditorSceneManager.SaveScene(scene, "Assets/Scenes/Training.unity");
-        UnityEngine.Debug.Log("[CreateTrainingScene] Training scene created.");
+        // -- Save --
+        if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
+            AssetDatabase.CreateFolder("Assets", "Scenes");
+        string path = "Assets/Scenes/Training.unity";
+        EditorSceneManager.SaveScene(scene, path);
+        EditorBuildSettings.scenes = new EditorBuildSettingsScene[] { new EditorBuildSettingsScene(path, true) };
+        UnityEngine.Debug.Log("[CreateTrainingScene] Training scene created and saved to " + path);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
