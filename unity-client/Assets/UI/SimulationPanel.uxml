@@ -1,0 +1,121 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements"
+         xsi:noNamespaceSchemaLocation="../UIElementsSchema/UIElements.xsd"
+         editor-extension-mode="False">
+
+  <Style src="CommanderLabShared.uss" />
+  <Style src="SimulationPanel.uss" />
+
+  <ui:VisualElement name="SimRoot" class="lab-root">
+
+    <!-- ── Nav ── -->
+    <ui:VisualElement name="NavBar" class="nav-bar">
+      <ui:Button name="BackButton" text="◀  Menu" class="btn" />
+      <ui:Label text="⚔  4-Player Batch Simulation" class="nav-title" />
+      <ui:Button name="HistoryButton" text="📋 History" class="btn" />
+    </ui:VisualElement>
+
+    <ui:VisualElement name="SimBody" class="sim-body">
+
+      <!-- ── CONFIG PANEL ── -->
+      <ui:VisualElement name="ConfigPanel" class="config-panel panel">
+        <ui:Label text="Simulation Config" class="panel-header" />
+
+        <!-- 4 deck slots -->
+        <ui:Label text="Player Decks" class="label" />
+        <ui:VisualElement class="deck-slots">
+          <ui:VisualElement class="deck-slot">
+            <ui:Label text="P1" class="slot-label" />
+            <ui:DropdownField name="DeckDropdown0" class="dropdown deck-dd"
+                              choices="-- Select Deck --" index="0" />
+          </ui:VisualElement>
+          <ui:VisualElement class="deck-slot">
+            <ui:Label text="P2" class="slot-label" />
+            <ui:DropdownField name="DeckDropdown1" class="dropdown deck-dd"
+                              choices="-- Select Deck --" index="0" />
+          </ui:VisualElement>
+          <ui:VisualElement class="deck-slot">
+            <ui:Label text="P3" class="slot-label" />
+            <ui:DropdownField name="DeckDropdown2" class="dropdown deck-dd"
+                              choices="-- Select Deck --" index="0" />
+          </ui:VisualElement>
+          <ui:VisualElement class="deck-slot">
+            <ui:Label text="P4" class="slot-label" />
+            <ui:DropdownField name="DeckDropdown3" class="dropdown deck-dd"
+                              choices="-- Select Deck --" index="0" />
+          </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement class="divider" />
+
+        <!-- Params row -->
+        <ui:VisualElement class="params-row">
+          <ui:VisualElement class="param-group">
+            <ui:Label text="# Games" class="label" />
+            <ui:TextField name="NumGamesInput" value="100" class="input-field param-input" />
+          </ui:VisualElement>
+          <ui:VisualElement class="param-group">
+            <ui:Label text="Threads" class="label" />
+            <ui:TextField name="ThreadsInput" value="4" class="input-field param-input" />
+          </ui:VisualElement>
+          <ui:VisualElement class="param-group">
+            <ui:Label name="NumPlayersLabel" text="Players: 4" class="label-bold" />
+            <!-- Runtime: Slider bound via NumPlayersSlider -->
+            <ui:SliderInt name="NumPlayersSlider" low-value="2" high-value="4" value="4"
+                          class="player-slider" />
+          </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:Label text="AI Profile" class="label" />
+        <ui:DropdownField name="AiProfileDropdown" class="dropdown"
+                          choices="Default" index="0" />
+
+        <ui:VisualElement class="divider" />
+        <ui:Button name="StartSimButton" text="▶  Run Simulation" class="btn btn-primary start-btn" />
+      </ui:VisualElement>
+
+      <!-- ── STATUS + RESULTS PANEL ── -->
+      <ui:VisualElement name="StatusResultsPanel" class="status-results panel">
+
+        <!-- Status -->
+        <ui:Label text="Status" class="panel-header" />
+        <ui:Label name="StatusText" text="Ready" class="label status-text" />
+
+        <ui:VisualElement class="progress-track" style="margin: 6px 0;">
+          <ui:VisualElement name="ProgressFill" class="progress-fill" style="width:0%;" />
+        </ui:VisualElement>
+
+        <ui:VisualElement class="status-meta-row">
+          <ui:Label name="ProgressText"   text="0%"        class="label" />
+          <ui:Label name="ElapsedText"    text="Elapsed: —" class="label" />
+          <ui:Label name="SimsPerSecText" text="— sims/s"  class="label" />
+        </ui:VisualElement>
+
+        <ui:VisualElement class="divider" />
+
+        <!-- Results -->
+        <ui:Label text="Results" class="panel-header" />
+        <ui:Label name="WinnerText" text="" class="winner-text" />
+
+        <!-- Result rows injected at runtime into ResultsParent -->
+        <ui:ScrollView name="ResultsScrollView" class="scroll-view results-scroll">
+          <ui:VisualElement name="ResultsParent" class="results-list">
+            <!-- Header row -->
+            <ui:VisualElement class="result-row result-header">
+              <ui:Label text="Deck"     class="result-col col-name" />
+              <ui:Label text="Win %"    class="result-col col-wr" />
+              <ui:Label text="Wins"     class="result-col col-w" />
+              <ui:Label text="Losses"   class="result-col col-l" />
+            </ui:VisualElement>
+          </ui:VisualElement>
+        </ui:ScrollView>
+
+        <!-- Error -->
+        <ui:VisualElement name="ErrorPanel" class="error-panel">
+          <ui:Label name="ErrorText" text="" class="error-text" />
+          <ui:Button name="RetryButton" text="Retry" class="btn btn-danger" />
+        </ui:VisualElement>
+
+      </ui:VisualElement>
+    </ui:VisualElement>
+  </ui:VisualElement>
+</ui:UXML>

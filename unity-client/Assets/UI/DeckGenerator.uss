@@ -1,0 +1,131 @@
+/* DeckGenerator.uss */
+
+.gen-scroll { flex-grow: 1; }
+
+.wizard-body {
+    flex-direction: column;
+    padding: 14px 20px;
+    max-width: 860px;
+    align-self: center;
+    width: 100%;
+}
+
+.wizard-step {
+    margin-bottom: 16px;
+}
+
+.step-header {
+    font-size: 15px;
+    color: rgb(160, 130, 255);
+}
+
+.step-row {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+/* Commander results scroll */
+.commander-results {
+    max-height: 200px;
+    margin: 6px 0;
+    background-color: rgb(16, 14, 26);
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: rgb(55, 42, 90);
+}
+
+.commander-result-list { flex-direction: column; padding: 4px; }
+
+/* Commander result row (prefab reference) */
+.commander-row {
+    flex-direction: row;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 5px;
+    margin-bottom: 2px;
+    cursor: auto;
+}
+
+.commander-row:hover {
+    background-color: rgb(45, 35, 75);
+}
+
+.selected-commander-label {
+    color: rgb(180, 240, 180);
+    font-size: 14px;
+    -unity-font-style: bold;
+    padding: 6px 2px;
+    margin-top: 4px;
+    border-top-width: 1px;
+    border-top-color: rgb(50, 40, 80);
+}
+
+/* Two-column form layout */
+.two-col {
+    flex-direction: row;
+    margin: 6px 0;
+}
+
+.form-group {
+    flex-grow: 1;
+    flex-direction: column;
+    margin-right: 12px;
+}
+
+.toggle-group {
+    justify-content: flex-end;
+    padding-bottom: 4px;
+    margin-right: 0;
+}
+
+/* Generate button */
+.generate-btn {
+    font-size: 16px;
+    padding: 12px 32px;
+    align-self: flex-start;
+    margin-bottom: 10px;
+}
+
+/* Progress */
+.progress-panel {
+    margin-top: 6px;
+}
+
+/* Result */
+.result-panel { border-color: rgb(60, 160, 80); }
+
+.result-summary {
+    font-size: 16px;
+    color: rgb(160, 255, 170);
+    margin-bottom: 6px;
+}
+
+.mana-preview {
+    font-size: 12px;
+    color: rgb(140, 200, 255);
+    margin-bottom: 8px;
+}
+
+.result-card-scroll {
+    max-height: 280px;
+    background-color: rgb(16, 14, 26);
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: rgb(55, 42, 90);
+}
+
+.result-card-list { flex-direction: column; padding: 4px; }
+
+.result-card-row {
+    flex-direction: row;
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+
+.result-card-row:hover { background-color: rgb(35, 28, 58); }
+
+.result-actions {
+    flex-direction: row;
+    margin-top: 10px;
+}

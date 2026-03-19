@@ -1,0 +1,159 @@
+/* CollectionTracker.uss */
+
+.search-row {
+    flex-direction: row;
+    align-items: center;
+    padding: 8px 14px;
+    background-color: rgb(17, 15, 28);
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(50, 40, 80);
+}
+
+.search-input   { flex-grow: 1; margin-right: 8px; }
+.sort-dropdown  { width: 160px; margin-right: 8px; }
+
+.body-row {
+    flex-direction: row;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+/* ── Filter Sidebar ── */
+.filter-panel {
+    width: 200px;
+    min-width: 160px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    border-right-width: 1px;
+    border-right-color: rgb(50, 40, 80);
+    border-radius: 0;
+    padding: 14px 10px;
+}
+
+/* ── Grid Area ── */
+.grid-area {
+    flex-grow: 1;
+    flex-direction: column;
+    padding: 8px;
+}
+
+.grid-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.card-scroll { flex-grow: 1; }
+
+.card-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 4px;
+}
+
+/* Individual card tile — sized for art thumbnails */
+.card-tile {
+    width: 120px;
+    height: 168px;
+    margin: 5px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: rgb(70, 55, 110);
+    background-color: rgb(22, 18, 36);
+    overflow: hidden;
+    cursor: auto;
+    transition-duration: 0.15s;
+}
+
+.card-tile:hover {
+    border-color: rgb(150, 110, 255);
+    scale: 1.04;
+}
+
+.card-tile-name {
+    font-size: 10px;
+    color: rgb(200, 190, 220);
+    -unity-text-align: middle-center;
+    padding: 3px;
+    background-color: rgba(10, 8, 20, 0.8);
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+}
+
+.load-more-btn {
+    align-self: center;
+    margin-top: 10px;
+    padding: 8px 30px;
+}
+
+/* ── Detail Overlay ── */
+.detail-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(5, 3, 15, 0.85);
+    align-items: center;
+    justify-content: center;
+    display: none;
+}
+
+.detail-card {
+    width: 680px;
+    max-width: 95%;
+    border-color: rgb(100, 70, 180);
+    border-width: 2px;
+    position: relative;
+}
+
+.detail-body {
+    flex-direction: row;
+    margin-top: 8px;
+}
+
+.detail-art-col {
+    width: 220px;
+    flex-shrink: 0;
+    margin-right: 18px;
+}
+
+.card-art-front {
+    width: 200px;
+    height: 280px;
+    background-color: rgb(30, 25, 50);
+    border-radius: 10px;
+    border-width: 2px;
+    border-color: rgb(80, 60, 130);
+}
+
+.card-art-back {
+    width: 80px;
+    height: 112px;
+    background-color: rgb(20, 16, 35);
+    border-radius: 6px;
+    margin-top: 8px;
+    border-width: 1px;
+    border-color: rgb(60, 45, 90);
+}
+
+.detail-info-col { flex-grow: 1; }
+.detail-name     { font-size: 20px; color: rgb(220, 200, 255); -unity-font-style: bold; margin-bottom: 6px; }
+.detail-mana     { font-size: 14px; margin-bottom: 6px; }
+
+.oracle-text {
+    color: rgb(190, 180, 200);
+    font-size: 12px;
+    white-space: normal;
+    flex-grow: 1;
+}
+
+.detail-close-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 10px;
+    font-size: 16px;
+    background-color: rgb(70, 20, 30);
+    border-color: rgb(160, 50, 60);
+}

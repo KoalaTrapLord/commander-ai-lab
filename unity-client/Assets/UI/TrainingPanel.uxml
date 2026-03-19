@@ -1,0 +1,112 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements"
+         xsi:noNamespaceSchemaLocation="../UIElementsSchema/UIElements.xsd"
+         editor-extension-mode="False">
+
+  <Style src="CommanderLabShared.uss" />
+  <Style src="TrainingPanel.uss" />
+
+  <ui:VisualElement name="TrainingRoot" class="lab-root">
+
+    <!-- ── Nav ── -->
+    <ui:VisualElement name="NavBar" class="nav-bar">
+      <ui:Button name="BackButton" text="◀  Menu" class="btn" />
+      <ui:Label text="🤖  ML Training" class="nav-title" />
+    </ui:VisualElement>
+
+    <ui:VisualElement name="TrainingBody" class="training-body">
+
+      <!-- ── LEFT COLUMN ── -->
+      <ui:VisualElement name="LeftCol" class="train-left">
+
+        <!-- Stats panel -->
+        <ui:VisualElement name="StatsPanel" class="panel stats-panel">
+          <ui:Label text="Model Stats" class="panel-header" />
+          <ui:VisualElement class="stats-grid">
+            <ui:VisualElement class="stat-cell">
+              <ui:Label name="CardCountText"    text="Cards: —"     class="label-bold" />
+            </ui:VisualElement>
+            <ui:VisualElement class="stat-cell">
+              <ui:Label name="SessionCountText" text="Sessions: —"  class="label-bold" />
+            </ui:VisualElement>
+            <ui:VisualElement class="stat-cell">
+              <ui:Label name="ModelVersionText" text="Model v—"     class="label-bold" />
+            </ui:VisualElement>
+            <ui:VisualElement class="stat-cell">
+              <ui:Label name="LastTrainedText"  text="Last: never" class="label-bold" />
+            </ui:VisualElement>
+          </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Controls -->
+        <ui:VisualElement name="ControlsPanel" class="panel controls-panel">
+          <ui:Label text="Controls" class="panel-header" />
+          <ui:Label name="StatusText" text="Ready" class="train-status" />
+          <ui:VisualElement class="control-row">
+            <ui:Button name="StartTrainingButton" text="▶ Start Training" class="btn btn-success" />
+            <ui:Button name="StopTrainingButton"  text="■ Stop"           class="btn btn-danger" />
+            <ui:Button name="ExportModelButton"   text="⬆ Export"         class="btn" />
+          </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Live Charts -->
+        <ui:VisualElement name="ChartsPanel" class="panel charts-panel">
+          <ui:Label text="Live Training Charts" class="panel-header" />
+
+          <ui:Label text="Accuracy" class="label" />
+          <ui:Label name="AccuracyLabel" text="Accuracy: —" class="label-bold" />
+          <!-- Runtime: RedrawChart fills AccuracyChartRect with dot points -->
+          <ui:VisualElement name="AccuracyChartRect" class="train-chart accuracy-chart" />
+
+          <ui:VisualElement class="divider" />
+
+          <ui:Label text="Loss" class="label" />
+          <ui:Label name="LossLabel" text="Loss: —" class="label-bold" />
+          <ui:VisualElement name="LossChartRect" class="train-chart loss-chart" />
+        </ui:VisualElement>
+
+      </ui:VisualElement>
+
+      <!-- ── RIGHT COLUMN ── -->
+      <ui:VisualElement name="RightCol" class="train-right">
+
+        <!-- Feature Importance -->
+        <ui:VisualElement name="FeaturePanel" class="panel feature-panel">
+          <ui:Label text="Feature Importance" class="panel-header" />
+          <!-- Runtime: featureBarPrefab rows injected here -->
+          <ui:ScrollView name="FeatureScroll" class="scroll-view feature-scroll">
+            <ui:VisualElement name="FeatureBarParent" class="feature-bar-list" />
+          </ui:ScrollView>
+        </ui:VisualElement>
+
+        <!-- Model History -->
+        <ui:VisualElement name="HistoryPanel" class="panel history-panel">
+          <ui:Label text="Model Version History" class="panel-header" />
+          <ui:ScrollView name="HistoryScroll" class="scroll-view history-scroll">
+            <ui:VisualElement name="HistoryParent" class="history-list">
+              <!-- Header -->
+              <ui:VisualElement class="history-row history-header">
+                <ui:Label text="Version"  class="h-col h-ver" />
+                <ui:Label text="Accuracy" class="h-col h-acc" />
+                <ui:Label text="Trained"  class="h-col h-date" />
+              </ui:VisualElement>
+            </ui:VisualElement>
+          </ui:ScrollView>
+        </ui:VisualElement>
+
+        <!-- Training Log -->
+        <ui:VisualElement name="LogPanel" class="panel log-panel">
+          <ui:Label text="Training Log" class="panel-header" />
+          <ui:ScrollView name="LogScrollView" class="scroll-view log-scroll">
+            <ui:Label name="LogText" text="" class="log-text" />
+          </ui:ScrollView>
+        </ui:VisualElement>
+
+        <!-- Error -->
+        <ui:VisualElement name="ErrorPanel" class="error-panel">
+          <ui:Label name="ErrorText" text="" class="error-text" />
+        </ui:VisualElement>
+
+      </ui:VisualElement>
+    </ui:VisualElement>
+  </ui:VisualElement>
+</ui:UXML>

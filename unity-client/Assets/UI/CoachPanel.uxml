@@ -1,0 +1,102 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements"
+         xsi:noNamespaceSchemaLocation="../UIElementsSchema/UIElements.xsd"
+         editor-extension-mode="False">
+
+  <Style src="CommanderLabShared.uss" />
+  <Style src="CoachPanel.uss" />
+
+  <ui:VisualElement name="CoachRoot" class="lab-root">
+
+    <!-- ── Nav Bar ── -->
+    <ui:VisualElement name="NavBar" class="nav-bar">
+      <ui:Button name="BackButton" text="◀  Menu" class="btn" />
+      <ui:Label text="🧠  AI Coach" class="nav-title" />
+      <ui:Button name="ToggleViewButton" text="Analytics" class="btn" />
+    </ui:VisualElement>
+
+    <!-- ── Deck Selector Row ── -->
+    <ui:VisualElement name="DeckSelectorRow" class="deck-selector-row">
+      <ui:Label text="Deck:" class="label" />
+      <ui:DropdownField name="DeckDropdown" class="dropdown deck-dropdown"
+                        choices="-- Select Deck --" index="0" />
+      <ui:Button name="RefreshDecksButton" text="⟳" class="btn btn-icon" />
+      <ui:DropdownField name="PreconDropdown" class="dropdown precon-dropdown"
+                        choices="-- Compare to Precon --" index="0" />
+      <ui:Button name="ExportToSimButton" text="▶ Send to Sim" class="btn btn-primary" />
+    </ui:VisualElement>
+
+    <!-- ── Body: Chat + Analytics ── -->
+    <ui:VisualElement name="BodyRow" class="coach-body">
+
+      <!-- Chat Panel (fullscreen on mobile) -->
+      <ui:VisualElement name="ChatFullscreenPanel" class="chat-panel panel">
+        <ui:Label text="Chat" class="panel-header" />
+
+        <!-- Bubble scroll area -->
+        <ui:ScrollView name="ChatScrollView" class="scroll-view chat-scroll">
+          <!-- Runtime: userBubblePrefab / coachBubblePrefab spawned into ChatContent -->
+          <ui:VisualElement name="ChatContent" class="chat-content" />
+        </ui:ScrollView>
+
+        <!-- Typing indicator -->
+        <ui:Label name="TypingIndicator" text="Coach is thinking…" class="typing-indicator" />
+
+        <!-- Input row -->
+        <ui:VisualElement name="ChatInputRow" class="chat-input-row">
+          <ui:TextField name="ChatInput" placeholder-text="Ask the coach…" class="input-field chat-input" />
+          <ui:Button name="SendButton" text="Send" class="btn btn-primary" />
+          <ui:Button name="AskCoachButton" text="✦ Analyze Deck" class="btn" />
+        </ui:VisualElement>
+      </ui:VisualElement>
+
+      <!-- Analytics Panel (swipe panel on mobile) -->
+      <ui:VisualElement name="AnalyticsSwipePanel" class="analytics-panel panel">
+        <ui:Label text="Deck Analytics" class="panel-header" />
+
+        <!-- Stat row -->
+        <ui:VisualElement name="StatRow" class="stat-row">
+          <ui:VisualElement class="stat-chip">
+            <ui:Label name="AvgCmcText"  text="Avg CMC: —" class="label-bold" />
+          </ui:VisualElement>
+          <ui:VisualElement class="stat-chip">
+            <ui:Label name="LandCountText" text="Lands: —" class="label-bold" />
+          </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Mana Curve chart area -->
+        <ui:Label text="Mana Curve" class="label" />
+        <!-- Runtime: RenderManaCurveChart fills this rect -->
+        <ui:VisualElement name="ManaCurveChartRect" class="chart-rect mana-chart" />
+        <ui:Label name="ManaCurveText" text="" class="label chart-sub" />
+
+        <ui:VisualElement class="divider" />
+
+        <!-- Color distribution -->
+        <ui:Label text="Color Distribution" class="label" />
+        <ui:Label name="ColorDistText" text="" class="label" />
+
+        <ui:VisualElement class="divider" />
+
+        <!-- Card types -->
+        <ui:Label text="Card Types" class="label" />
+        <ui:Label name="CardTypeText" text="" class="label" />
+
+        <ui:VisualElement class="divider" />
+
+        <!-- Precon compare panel -->
+        <ui:VisualElement name="PreconPanel" class="precon-panel">
+          <ui:Label text="Precon Comparison" class="panel-header" />
+          <ui:Label name="PreconCompareText" text="" class="label" />
+          <ui:Button name="PreconRefreshButton" text="Refresh Precon DB" class="btn" />
+        </ui:VisualElement>
+
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- ── Error Panel ── -->
+    <ui:VisualElement name="ErrorPanel" class="error-panel">
+      <ui:Label name="ErrorText" text="" class="error-text" />
+    </ui:VisualElement>
+
+  </ui:VisualElement>
+</ui:UXML>

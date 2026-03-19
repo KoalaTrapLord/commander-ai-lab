@@ -1,0 +1,109 @@
+/* SimulationPanel.uss */
+
+.sim-body {
+    flex-direction: row;
+    flex-grow: 1;
+    overflow: hidden;
+    padding: 12px;
+}
+
+/* ── Config Panel ── */
+.config-panel {
+    width: 340px;
+    min-width: 280px;
+    flex-shrink: 0;
+    margin-right: 12px;
+}
+
+.deck-slots {
+    flex-direction: column;
+    margin: 6px 0;
+}
+
+.deck-slot {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.slot-label {
+    width: 24px;
+    color: rgb(150, 130, 200);
+    -unity-font-style: bold;
+    font-size: 13px;
+    margin-right: 8px;
+}
+
+.deck-dd { flex-grow: 1; }
+
+.params-row {
+    flex-direction: row;
+    margin: 8px 0;
+}
+
+.param-group {
+    flex-grow: 1;
+    flex-direction: column;
+    margin-right: 10px;
+}
+
+.param-input { width: 80px; }
+
+.player-slider {
+    margin-top: 4px;
+    width: 100%;
+}
+
+.start-btn {
+    font-size: 15px;
+    padding: 12px 24px;
+    width: 100%;
+    margin-top: 6px;
+}
+
+/* ── Status / Results ── */
+.status-results {
+    flex-grow: 1;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.status-text {
+    font-size: 14px;
+    color: rgb(180, 240, 180);
+    margin: 4px 0;
+}
+
+.status-meta-row {
+    flex-direction: row;
+    justify-content: space-between;
+    margin: 4px 0;
+}
+
+.winner-text {
+    font-size: 18px;
+    color: rgb(255, 215, 100);
+    -unity-font-style: bold;
+    margin: 6px 0;
+}
+
+.results-scroll { flex-grow: 1; min-height: 160px; }
+.results-list   { flex-direction: column; }
+
+/* Result row */
+.result-row {
+    flex-direction: row;
+    padding: 7px 10px;
+    border-radius: 4px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(40, 32, 65);
+}
+
+.result-row:hover     { background-color: rgb(30, 25, 50); }
+.result-header        { background-color: rgb(25, 20, 42); }
+.result-header > Label { color: rgb(140, 120, 200); -unity-font-style: bold; }
+
+.col-name { flex-grow: 1; }
+.col-wr   { width: 70px;  color: rgb(140, 200, 140); -unity-font-style: bold; }
+.col-w    { width: 55px;  color: rgb(140, 200, 255); }
+.col-l    { width: 55px;  color: rgb(255, 140, 140); }

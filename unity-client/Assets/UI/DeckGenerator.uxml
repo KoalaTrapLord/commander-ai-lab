@@ -1,0 +1,115 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements"
+         xsi:noNamespaceSchemaLocation="../UIElementsSchema/UIElements.xsd"
+         editor-extension-mode="False">
+
+  <Style src="CommanderLabShared.uss" />
+  <Style src="DeckGenerator.uss" />
+
+  <ui:VisualElement name="DeckGenRoot" class="lab-root">
+
+    <!-- ── Nav ── -->
+    <ui:VisualElement name="NavBar" class="nav-bar">
+      <ui:Button name="BackButton" text="◀  Menu" class="btn" />
+      <ui:Label text="⚡  Auto Deck Generator" class="nav-title" />
+    </ui:VisualElement>
+
+    <!-- ── Wizard Body ── -->
+    <ui:ScrollView class="scroll-view gen-scroll">
+      <ui:VisualElement name="WizardBody" class="wizard-body">
+
+        <!-- ══ STEP 1: Commander ══ -->
+        <ui:VisualElement name="Step1" class="wizard-step panel">
+          <ui:Label text="Step 1 — Choose Commander" class="panel-header step-header" />
+
+          <ui:VisualElement class="step-row">
+            <ui:TextField name="CommanderSearchInput" placeholder-text="Search legendary creature…"
+                          class="input-field" style="flex-grow:1; margin-right:8px;" />
+            <ui:Button name="CommanderSearchButton" text="🔍 Search" class="btn btn-primary" />
+          </ui:VisualElement>
+
+          <!-- Runtime: commanderResultRowPrefab rows injected here -->
+          <ui:ScrollView name="CommanderResultScroll" class="scroll-view commander-results">
+            <ui:VisualElement name="CommanderResultParent" class="commander-result-list" />
+          </ui:ScrollView>
+
+          <ui:Label name="SelectedCommanderLabel" text="Commander: (none selected)"
+                    class="selected-commander-label" />
+        </ui:VisualElement>
+
+        <!-- ══ STEP 2: Strategy & Budget ══ -->
+        <ui:VisualElement name="Step2" class="wizard-step panel">
+          <ui:Label text="Step 2 — Strategy &amp; Budget" class="panel-header step-header" />
+
+          <ui:VisualElement class="two-col">
+            <ui:VisualElement class="form-group">
+              <ui:Label text="Strategy" class="label" />
+              <ui:DropdownField name="StrategyDropdown" class="dropdown"
+                                choices="Aggro,Control,Combo,Midrange,Stax,Chaos" index="0" />
+            </ui:VisualElement>
+            <ui:VisualElement class="form-group">
+              <ui:Label text="Budget" class="label" />
+              <ui:DropdownField name="BudgetDropdown" class="dropdown"
+                                choices="Pauper,$50,$100,$250,No Limit" index="2" />
+            </ui:VisualElement>
+          </ui:VisualElement>
+
+          <ui:Label text="Synergy Themes (optional)" class="label" />
+          <ui:TextField name="SynergiesInput" placeholder-text="e.g. Tokens, +1/+1 counters, Graveyard…"
+                        class="input-field" />
+
+          <ui:VisualElement class="two-col">
+            <ui:VisualElement class="form-group">
+              <ui:Label text="Precon Base" class="label" />
+              <ui:DropdownField name="PreconBaseDropdown" class="dropdown"
+                                choices="None (from scratch)" index="0" />
+            </ui:VisualElement>
+            <ui:VisualElement class="form-group toggle-group">
+              <ui:Toggle name="OwnedOnlyToggle" label="Owned Cards Only" class="toggle-label" />
+            </ui:VisualElement>
+          </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- ══ STEP 3: Generate ══ -->
+        <ui:VisualElement name="Step3" class="wizard-step panel">
+          <ui:Label text="Step 3 — Generate" class="panel-header step-header" />
+          <ui:Button name="GenerateButton" text="⚡  Generate Deck" class="btn btn-primary generate-btn" />
+
+          <!-- Progress (shown while generating) -->
+          <ui:VisualElement name="ProgressPanel" class="progress-panel">
+            <ui:Label name="ProgressText" text="Generating… 0%" class="label" />
+            <ui:VisualElement class="progress-track">
+              <!-- Runtime: Slider.value drives width via code -->
+              <ui:VisualElement name="ProgressFill" class="progress-fill" />
+            </ui:VisualElement>
+          </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- ══ STEP 4: Result ══ -->
+        <ui:VisualElement name="ResultPanel" class="wizard-step panel result-panel">
+          <ui:Label text="Step 4 — Review &amp; Save" class="panel-header step-header" />
+
+          <ui:Label name="ResultSummaryText" text="" class="label-bold result-summary" />
+          <ui:Label name="ResultManaCurveText" text="" class="label mana-preview" />
+
+          <!-- Card list scroll -->
+          <ui:ScrollView name="ResultCardScroll" class="scroll-view result-card-scroll">
+            <!-- Runtime: resultCardRowPrefab rows injected here -->
+            <ui:VisualElement name="ResultCardListParent" class="result-card-list" />
+          </ui:ScrollView>
+
+          <ui:VisualElement class="result-actions">
+            <ui:Button name="RegenerateButton"      text="↺ Regenerate"        class="btn" />
+            <ui:Button name="SaveToDeckBuilderButton" text="💾 Save to Deck Builder" class="btn btn-success" />
+          </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- ── Error Panel ── -->
+        <ui:VisualElement name="ErrorPanel" class="error-panel">
+          <ui:Label name="ErrorText" text="" class="error-text" />
+          <ui:Button name="RetryButton" text="Retry" class="btn btn-danger" />
+        </ui:VisualElement>
+
+      </ui:VisualElement>
+    </ui:ScrollView>
+  </ui:VisualElement>
+</ui:UXML>

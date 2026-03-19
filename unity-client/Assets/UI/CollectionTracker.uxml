@@ -1,0 +1,117 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements"
+         xmlns:uie="UnityEditor.UIElements"
+         xsi:noNamespaceSchemaLocation="../UIElementsSchema/UIElements.xsd"
+         editor-extension-mode="False">
+
+  <Style src="CommanderLabShared.uss" />
+  <Style src="CollectionTracker.uss" />
+
+  <!-- Root -->
+  <ui:VisualElement name="CollectionRoot" class="lab-root">
+
+    <!-- ── Navigation Bar ── -->
+    <ui:VisualElement name="NavBar" class="nav-bar">
+      <ui:Button name="BackButton" text="◀  Menu" class="btn" />
+      <ui:Label text="📚  Collection Tracker" class="nav-title" />
+      <ui:Button name="FilterToggleButton" text="☰ Filters" class="btn btn-icon" />
+    </ui:VisualElement>
+
+    <!-- ── Search Row ── -->
+    <ui:VisualElement name="SearchRow" class="search-row">
+      <ui:TextField name="SearchInput" placeholder-text="Search cards…" class="input-field search-input" />
+      <ui:DropdownField name="SortDropdown" label="Sort" class="dropdown sort-dropdown"
+                        choices="Name,CMC,Color,Type,Price" index="0" />
+      <ui:Button name="SearchButton" text="🔍 Search" class="btn btn-primary" />
+    </ui:VisualElement>
+
+    <!-- ── Body: sidebar + grid ── -->
+    <ui:VisualElement name="BodyRow" class="body-row">
+
+      <!-- Filter Sidebar -->
+      <ui:VisualElement name="FilterPanel" class="filter-panel panel">
+        <ui:Label text="Filters" class="panel-header" />
+
+        <ui:Label text="Color" class="label" />
+        <ui:DropdownField name="ColorFilterDropdown" class="dropdown"
+                          choices="All,W,U,B,R,G,Colorless,Multicolor" index="0" />
+
+        <ui:Label text="Type" class="label" />
+        <ui:DropdownField name="TypeFilterDropdown" class="dropdown"
+                          choices="All,Creature,Instant,Sorcery,Enchantment,Artifact,Planeswalker,Land" index="0" />
+
+        <ui:Label text="Set" class="label" />
+        <ui:DropdownField name="SetFilterDropdown" class="dropdown"
+                          choices="All" index="0" />
+
+        <ui:Label text="Rarity" class="label" />
+        <ui:DropdownField name="RarityFilterDropdown" class="dropdown"
+                          choices="All,Common,Uncommon,Rare,Mythic" index="0" />
+
+        <ui:Label text="Owned" class="label" />
+        <ui:DropdownField name="OwnedFilterDropdown" class="dropdown"
+                          choices="All,Owned,Missing" index="0" />
+
+        <ui:VisualElement class="divider" />
+        <ui:Button name="ApplyFilterButton" text="Apply" class="btn btn-primary" />
+        <ui:Button name="ClearFilterButton" text="Clear" class="btn" />
+      </ui:VisualElement>
+
+      <!-- Card Grid Area -->
+      <ui:VisualElement name="GridArea" class="grid-area">
+
+        <!-- Page info + loading -->
+        <ui:VisualElement name="GridHeader" class="grid-header">
+          <ui:Label name="PageInfoText" text="Showing 0 of 0 cards" class="label" />
+          <ui:VisualElement name="LoadingSpinner" class="spinner" />
+        </ui:VisualElement>
+
+        <!-- Scrollable card grid -->
+        <ui:ScrollView name="GridScrollView" class="scroll-view card-scroll">
+          <!-- Card tile prefabs injected here at runtime via cardGridParent -->
+          <ui:VisualElement name="CardGridContent" class="card-grid" />
+        </ui:ScrollView>
+
+        <!-- Load More -->
+        <ui:Button name="LoadMoreButton" text="Load More…" class="btn load-more-btn" />
+
+        <!-- Error Panel -->
+        <ui:VisualElement name="ErrorPanel" class="error-panel">
+          <ui:Label name="ErrorText" text="" class="error-text" />
+          <ui:Button name="RetryButton" text="Retry" class="btn btn-danger" />
+        </ui:VisualElement>
+
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- ── Card Detail Panel (overlay) ── -->
+    <ui:VisualElement name="DetailPanel" class="detail-overlay">
+      <ui:VisualElement name="DetailCard" class="detail-card panel">
+
+        <!-- Close -->
+        <ui:Button name="DetailCloseButton" text="✕" class="btn detail-close-btn" />
+
+        <!-- Art + info side by side -->
+        <ui:VisualElement class="detail-body">
+          <ui:VisualElement class="detail-art-col">
+            <ui:VisualElement name="DetailCardFront" class="card-art-front" />
+            <ui:VisualElement name="DetailCardBack"  class="card-art-back" />
+          </ui:VisualElement>
+
+          <ui:VisualElement class="detail-info-col">
+            <ui:Label name="DetailCardName"  text="Card Name"   class="detail-name" />
+            <ui:Label name="DetailManaCost"  text=""            class="badge badge-gold detail-mana" />
+            <ui:Label name="DetailType"      text=""            class="label" />
+            <ui:Label name="DetailRarity"    text=""            class="badge" />
+            <ui:Label name="DetailSet"       text=""            class="label" />
+            <ui:VisualElement class="divider" />
+            <ui:Label name="DetailOracleText" text=""           class="oracle-text" />
+            <ui:VisualElement class="divider" />
+            <ui:Label name="DetailQuantity"  text="Owned: 0"    class="label-bold" />
+            <ui:Button name="DetailAddToDeckButton" text="+ Add to Deck" class="btn btn-primary" />
+          </ui:VisualElement>
+        </ui:VisualElement>
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+  </ui:VisualElement>
+</ui:UXML>
