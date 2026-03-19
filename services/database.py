@@ -110,6 +110,8 @@ def init_collection_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_ce_set_code ON collection_entries(set_code);
         CREATE INDEX IF NOT EXISTS idx_ce_collector_number ON collection_entries(collector_number);
         CREATE INDEX IF NOT EXISTS idx_ce_finish ON collection_entries(finish);
+        CREATE INDEX IF NOT EXISTS idx_ce_quantity ON collection_entries(quantity)
+            WHERE quantity > 0;
         CREATE INDEX IF NOT EXISTS idx_cr_name ON card_records(name);
 
         CREATE TABLE IF NOT EXISTS decks (

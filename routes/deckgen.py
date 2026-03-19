@@ -148,37 +148,48 @@ def _scryfall_to_commander(data: dict) -> dict:
 
 
 def _get_collection_for_colors(color_identity: list) -> list:
-    """
-    Fetch all collection cards compatible with the given color identity.
-    Returns list of dicts with card details.
+    """Fetch collection cards whose color identity is a subset of *color_identity*.
+
+    Uses SQLite's json_each() to push the colour-subset check into SQL so we
+    only transfer the rows we actually need.  The NOT EXISTS sub-query ensures
+    every colour symbol in the card's identity appears in the commander's
+    identity list.  Cards with an empty colour identity (colourless / lands)
+    always pass because the NOT EXISTS has no rows to violate.
+
+    Only the columns consumed downstream are projected (no SELECT *).
     """
     conn = _get_db_conn()
-    rows = conn.execute(
-        "SELECT * FROM collection_entries WHERE quantity > 0"
-    ).fetchall()
+    allowed_json = json.dumps([c.upper() for c in color_identity]) if color_identity else '[]'
+
+    rows = conn.execute("""
+        SELECT scryfall_id, name, type_line, mana_cost, cmc,
+               oracle_text, keywords, quantity, edhrec_rank, color_identity
+        FROM collection_entries
+        WHERE quantity > 0
+          AND scryfall_id != ''
+          AND NOT EXISTS (
+              SELECT 1 FROM json_each(
+                  CASE WHEN collection_entries.color_identity IS NULL
+                            OR collection_entries.color_identity = ''
+                       THEN '[]'
+                       ELSE collection_entries.color_identity
+                  END
+              ) AS jc
+              WHERE jc.value NOT IN (
+                  SELECT value FROM json_each(?)
+              )
+          )
+    """, (allowed_json,)).fetchall()
 
     valid = []
     for row in rows:
-        card = _row_to_dict(row)
-        card_ci = card.get("color_identity", [])
-        if isinstance(card_ci, str):
-            try:
-                card_ci = json.loads(card_ci)
-            except Exception:
-                card_ci = []
-
-        # Color identity check: all card colors must be within commander's identity
-        if color_identity and card_ci:
-            if not all(c in color_identity for c in card_ci):
-                continue
-
-        # Skip if no scryfall_id
-        if not card.get("scryfall_id"):
-            continue
-
-        card["color_identity"] = card_ci
+        card = dict(row)
+        ci = card.get("color_identity", "[]")
+        try:
+            card["color_identity"] = json.loads(ci) if isinstance(ci, str) else ci
+        except Exception:
+            card["color_identity"] = []
         valid.append(card)
-
     return valid
 
 
@@ -637,38 +648,41 @@ async def deck_generator_commander_search(q: str = ""):
 
 
 def _build_collection_summary(color_identity: list[str] | None = None) -> dict:
-    """Build a compact collection summary for the AI, optionally filtered by color identity."""
+    """Build a compact collection summary for the AI, optionally filtered by color identity.
+
+    Uses the same json_each NOT EXISTS pattern as _get_collection_for_colors()
+    so that colour-identity filtering happens in SQL rather than Python.
+    """
     conn = _get_db_conn()
 
-    # Base query: all collection entries with oracle text
-    where = "WHERE quantity > 0"
-    params = []
+    allowed_json = json.dumps([c.upper() for c in color_identity]) if color_identity else '[]'
 
-    # Filter by color identity if provided
-    if color_identity:
-        # Cards must only contain colors in the commander's identity (+ colorless)
-        ci_set = set(c.upper() for c in color_identity)
-        # We'll do a post-filter since color_identity is JSON in the DB
-        pass  # filter in Python after fetch
+    # SQL handles the colour-identity subset check via json_each
+    ci_filter = """
+          AND NOT EXISTS (
+              SELECT 1 FROM json_each(
+                  CASE WHEN collection_entries.color_identity IS NULL
+                            OR collection_entries.color_identity = ''
+                       THEN '[]'
+                       ELSE collection_entries.color_identity
+                  END
+              ) AS jc
+              WHERE jc.value NOT IN (
+                  SELECT value FROM json_each(?)
+              )
+          )
+    """ if color_identity else ""
+
+    params = (allowed_json,) if color_identity else ()
 
     rows = conn.execute(f"""
         SELECT name, type_line, cmc, oracle_text, keywords, tcg_price, quantity,
                color_identity, category, is_game_changer, salt_score
-        FROM collection_entries {where}
+        FROM collection_entries
+        WHERE quantity > 0
+        {ci_filter}
         ORDER BY edhrec_rank ASC, tcg_price DESC
     """, params).fetchall()
-
-    # Color identity filter
-    def card_fits_identity(card_ci_str, ci_set):
-        if not ci_set:
-            return True
-        try:
-            card_ci = json.loads(card_ci_str) if card_ci_str else []
-            if not isinstance(card_ci, list):
-                return True
-            return all(c.upper() in ci_set for c in card_ci if c.upper() not in ('', 'C'))
-        except Exception:
-            return True
 
     # Role detection from type_line, oracle_text, and category
     def detect_role(row):
@@ -711,12 +725,9 @@ def _build_collection_summary(color_identity: list[str] | None = None) -> dict:
         'ramp': [], 'card_draw': [], 'removal': [], 'board_wipes': [],
         'lands': [], 'win_conditions': [], 'creatures': [], 'utility': []
     }
-    filtered_count = 0
+    filtered_count = len(rows)  # SQL already filtered
 
     for r in rows:
-        if color_identity and not card_fits_identity(r['color_identity'], ci_set):
-            continue
-        filtered_count += 1
         role = detect_role(r)
         groups[role].append({
             'name': r['name'],
