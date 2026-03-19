@@ -150,6 +150,7 @@ public static class CreateDeckBuilderScene
         pieHlg.spacing = 6; pieHlg.childForceExpandWidth = true; pieHlg.childForceExpandHeight = false;
         Color[] pieColors = { Color.white, new Color(0.3f,0.6f,1f), new Color(0.1f,0.1f,0.1f), new Color(0.8f,0.2f,0.2f), new Color(0.2f,0.7f,0.2f) };
         string[] pieLabels = { "W", "U", "B", "R", "G" };
+        var pieSliceImages = new Image[pieColors.Length];
         for (int i = 0; i < pieColors.Length; i++)
         {
             var slice = new GameObject("Slice_" + pieLabels[i]);
@@ -157,6 +158,7 @@ public static class CreateDeckBuilderScene
             var sliceImg = slice.AddComponent<Image>();
             sliceImg.color = pieColors[i];
             var sliceText = CreateTMPText(slice.transform, "Label", pieLabels[i], 14, FontStyles.Bold, TextAlignmentOptions.Center);
+            pieSliceImages[i] = sliceImg;
         }
 
         // -- Card type breakdown --
@@ -164,6 +166,175 @@ public static class CreateDeckBuilderScene
         SetAnchors(typeLabel.GetComponent<RectTransform>(), new Vector2(0f, 0.08f), new Vector2(1f, 0.13f));
         var typeText = CreateTMPText(rightPanel.transform, "TypeBreakdownText", "", 14, FontStyles.Normal, TextAlignmentOptions.TopLeft);
         SetAnchors(typeText.GetComponent<RectTransform>(), new Vector2(0.05f, 0.01f), new Vector2(0.95f, 0.08f));
+
+        // ── Error Panel (hidden initially) ────────────────────────────────────
+        var errorPanel = CreatePanel(canvasGo.transform, "ErrorPanel", new Color(0.15f, 0.05f, 0.05f, 0.97f));
+        SetAnchors(errorPanel.GetComponent<RectTransform>(), new Vector2(0.25f, 0.35f), new Vector2(0.75f, 0.65f));
+        errorPanel.SetActive(false);
+        CreateTMPText(errorPanel.transform, "ErrorTitle", "Error", 22, FontStyles.Bold, TextAlignmentOptions.Center);
+        var errorText = CreateTMPText(errorPanel.transform, "ErrorText", "", 16, FontStyles.Normal, TextAlignmentOptions.TopLeft);
+        SetAnchors(errorText.GetComponent<RectTransform>(), new Vector2(0.05f, 0.25f), new Vector2(0.95f, 0.85f));
+        var retryBtn = CreateTMPButton(errorPanel.transform, "RetryButton", "Retry", new Color(0.55f, 0.2f, 0.2f));
+        SetAnchors(retryBtn.GetComponent<RectTransform>(), new Vector2(0.3f, 0.05f), new Vector2(0.7f, 0.22f));
+
+        // ── Prefabs (disabled GameObjects parented to canvas, used as prefabs) ──
+
+        // deckRowPrefab: horizontal layout with TMP_Text for deck name and a Button
+        var deckRowPrefab = new GameObject("DeckRowPrefab");
+        deckRowPrefab.transform.SetParent(canvasGo.transform, false);
+        deckRowPrefab.SetActive(false);
+        deckRowPrefab.AddComponent<Image>().color = new Color(0.15f, 0.15f, 0.22f, 0.9f);
+        var drkHlg = deckRowPrefab.AddComponent<HorizontalLayoutGroup>();
+        drkHlg.padding = new RectOffset(8, 8, 4, 4);
+        drkHlg.spacing = 8;
+        drkHlg.childForceExpandWidth = true;
+        drkHlg.childForceExpandHeight = true;
+        deckRowPrefab.AddComponent<LayoutElement>().minHeight = 40;
+        var drkNameCell = new GameObject("DeckName");
+        drkNameCell.transform.SetParent(deckRowPrefab.transform, false);
+        var drkNameTxt = drkNameCell.AddComponent<TextMeshProUGUI>();
+        drkNameTxt.text = "Deck"; drkNameTxt.fontSize = 16; drkNameTxt.color = Color.white;
+        var drkBtn = new GameObject("SelectButton");
+        drkBtn.transform.SetParent(deckRowPrefab.transform, false);
+        drkBtn.AddComponent<Image>().color = new Color(0.2f, 0.4f, 0.7f);
+        drkBtn.AddComponent<Button>();
+        drkBtn.AddComponent<LayoutElement>().minWidth = 60;
+
+        // deckCardRowPrefab: horizontal layout with TMP_Text for card name, TMP_Text for quantity, and a remove Button
+        var deckCardRowPrefab = new GameObject("DeckCardRowPrefab");
+        deckCardRowPrefab.transform.SetParent(canvasGo.transform, false);
+        deckCardRowPrefab.SetActive(false);
+        deckCardRowPrefab.AddComponent<Image>().color = new Color(0.13f, 0.13f, 0.2f, 0.9f);
+        var dcrHlg = deckCardRowPrefab.AddComponent<HorizontalLayoutGroup>();
+        dcrHlg.padding = new RectOffset(6, 6, 3, 3);
+        dcrHlg.spacing = 8;
+        dcrHlg.childForceExpandWidth = true;
+        dcrHlg.childForceExpandHeight = true;
+        deckCardRowPrefab.AddComponent<LayoutElement>().minHeight = 36;
+        var dcrNameCell = new GameObject("CardName");
+        dcrNameCell.transform.SetParent(deckCardRowPrefab.transform, false);
+        var dcrNameTxt = dcrNameCell.AddComponent<TextMeshProUGUI>();
+        dcrNameTxt.text = "Card"; dcrNameTxt.fontSize = 15; dcrNameTxt.color = Color.white;
+        dcrNameCell.AddComponent<LayoutElement>().flexibleWidth = 1f;
+        var dcrQtyCell = new GameObject("ManaCost");
+        dcrQtyCell.transform.SetParent(deckCardRowPrefab.transform, false);
+        var dcrQtyTxt = dcrQtyCell.AddComponent<TextMeshProUGUI>();
+        dcrQtyTxt.text = "{3}"; dcrQtyTxt.fontSize = 14; dcrQtyTxt.color = new Color(0.8f, 0.8f, 0.5f);
+        dcrQtyCell.AddComponent<LayoutElement>().minWidth = 50;
+        var dcrRemCell = new GameObject("RemoveButton");
+        dcrRemCell.transform.SetParent(deckCardRowPrefab.transform, false);
+        dcrRemCell.AddComponent<Image>().color = new Color(0.6f, 0.15f, 0.15f);
+        dcrRemCell.AddComponent<Button>();
+        dcrRemCell.AddComponent<LayoutElement>().minWidth = 40;
+
+        // commanderResultRowPrefab: horizontal layout with TMP_Text for commander name and a select Button
+        var commanderResultRowPrefab = new GameObject("CommanderResultRowPrefab");
+        commanderResultRowPrefab.transform.SetParent(canvasGo.transform, false);
+        commanderResultRowPrefab.SetActive(false);
+        commanderResultRowPrefab.AddComponent<Image>().color = new Color(0.15f, 0.18f, 0.25f, 0.9f);
+        var crrHlg = commanderResultRowPrefab.AddComponent<HorizontalLayoutGroup>();
+        crrHlg.padding = new RectOffset(8, 8, 4, 4);
+        crrHlg.spacing = 8;
+        crrHlg.childForceExpandWidth = true;
+        crrHlg.childForceExpandHeight = true;
+        commanderResultRowPrefab.AddComponent<LayoutElement>().minHeight = 36;
+        var crrNameCell = new GameObject("CommanderName");
+        crrNameCell.transform.SetParent(commanderResultRowPrefab.transform, false);
+        var crrNameTxt = crrNameCell.AddComponent<TextMeshProUGUI>();
+        crrNameTxt.text = "Commander"; crrNameTxt.fontSize = 15; crrNameTxt.color = Color.white;
+        crrNameCell.AddComponent<LayoutElement>().flexibleWidth = 1f;
+        var crrBtn = new GameObject("SelectButton");
+        crrBtn.transform.SetParent(commanderResultRowPrefab.transform, false);
+        crrBtn.AddComponent<Image>().color = new Color(0.25f, 0.45f, 0.65f);
+        crrBtn.AddComponent<Button>();
+        crrBtn.AddComponent<LayoutElement>().minWidth = 60;
+
+        // cardSearchRowPrefab: horizontal layout with TMP_Text for card name and an Add Button
+        var cardSearchRowPrefab = new GameObject("CardSearchRowPrefab");
+        cardSearchRowPrefab.transform.SetParent(canvasGo.transform, false);
+        cardSearchRowPrefab.SetActive(false);
+        cardSearchRowPrefab.AddComponent<Image>().color = new Color(0.12f, 0.15f, 0.2f, 0.9f);
+        var csrHlg = cardSearchRowPrefab.AddComponent<HorizontalLayoutGroup>();
+        csrHlg.padding = new RectOffset(8, 8, 4, 4);
+        csrHlg.spacing = 8;
+        csrHlg.childForceExpandWidth = true;
+        csrHlg.childForceExpandHeight = true;
+        cardSearchRowPrefab.AddComponent<LayoutElement>().minHeight = 36;
+        var csrNameCell = new GameObject("CardName");
+        csrNameCell.transform.SetParent(cardSearchRowPrefab.transform, false);
+        var csrNameTxt = csrNameCell.AddComponent<TextMeshProUGUI>();
+        csrNameTxt.text = "Card"; csrNameTxt.fontSize = 15; csrNameTxt.color = Color.white;
+        csrNameCell.AddComponent<LayoutElement>().flexibleWidth = 1f;
+        var csrAddBtn = new GameObject("AddButton");
+        csrAddBtn.transform.SetParent(cardSearchRowPrefab.transform, false);
+        csrAddBtn.AddComponent<Image>().color = new Color(0.2f, 0.55f, 0.2f);
+        csrAddBtn.AddComponent<Button>();
+        csrAddBtn.AddComponent<LayoutElement>().minWidth = 50;
+
+        // manaCurveBarPrefab: a simple Image (bar) with a TMP_Text label
+        var manaCurveBarPrefab = new GameObject("ManaCurveBarPrefab");
+        manaCurveBarPrefab.transform.SetParent(canvasGo.transform, false);
+        manaCurveBarPrefab.SetActive(false);
+        manaCurveBarPrefab.AddComponent<Image>().color = new Color(0.3f, 0.5f, 0.9f);
+        var mcbLe = manaCurveBarPrefab.AddComponent<LayoutElement>();
+        mcbLe.minWidth = 20; mcbLe.flexibleWidth = 1f;
+        var mcbLabel = new GameObject("Label");
+        mcbLabel.transform.SetParent(manaCurveBarPrefab.transform, false);
+        var mcbLabelTxt = mcbLabel.AddComponent<TextMeshProUGUI>();
+        mcbLabelTxt.text = "0"; mcbLabelTxt.fontSize = 12; mcbLabelTxt.color = Color.white;
+        mcbLabelTxt.alignment = TextAlignmentOptions.Center;
+        SetAnchors(mcbLabel.GetComponent<RectTransform>(), new Vector2(0f, 0f), new Vector2(1f, 0.25f));
+
+        // ── Wire DeckBuilderController via reflection ──────────────────────────
+        var dbControllerGo = new GameObject("DeckBuilderController");
+        dbControllerGo.transform.SetParent(canvasGo.transform, false);
+        var dbController = dbControllerGo.AddComponent<CommanderAILab.UI.DeckBuilderController>();
+
+        // Navigation
+        SetField(dbController, "backButton",           backBtn.GetComponent<Button>());
+        SetField(dbController, "exportToSimButton",    exportBtn.GetComponent<Button>());
+
+        // Deck List Panel
+        SetField(dbController, "deckListParent",       (Transform)dcrect);
+        SetField(dbController, "deckRowPrefab",        deckRowPrefab);
+        SetField(dbController, "newDeckButton",        newDeckBtn.GetComponent<Button>());
+        SetField(dbController, "deckNameInput",        deckNameInput.GetComponent<TMP_InputField>());
+
+        // Active Deck Panel
+        SetField(dbController, "deckTitleText",        deckTitleTxt.GetComponent<TMP_Text>());
+        SetField(dbController, "cardCountText",        cardCountTxt.GetComponent<TMP_Text>());
+        SetField(dbController, "validationIndicator",  validIndic);
+        SetField(dbController, "validationText",       validTxt.GetComponent<TMP_Text>());
+        SetField(dbController, "deckCardListParent",   (Transform)deckCardContent);
+        SetField(dbController, "deckCardRowPrefab",    deckCardRowPrefab);
+        SetField(dbController, "saveDeckButton",       saveDeckBtn.GetComponent<Button>());
+        SetField(dbController, "deleteDeckButton",     deleteDeckBtn.GetComponent<Button>());
+
+        // Commander Search
+        SetField(dbController, "commanderSearchInput",     cmdInput.GetComponent<TMP_InputField>());
+        SetField(dbController, "commanderSearchButton",    cmdSearchBtn.GetComponent<Button>());
+        SetField(dbController, "colorIdentityDropdown",    colorIdDd.GetComponent<TMP_Dropdown>());
+        SetField(dbController, "commanderResultParent",    (Transform)cmdContent);
+        SetField(dbController, "commanderResultRowPrefab", commanderResultRowPrefab);
+        SetField(dbController, "selectedCommanderText",    selCmdTxt.GetComponent<TMP_Text>());
+
+        // Card Search Panel
+        SetField(dbController, "cardSearchInput",          cardSearchInput.GetComponent<TMP_InputField>());
+        SetField(dbController, "cardSearchButton",         cardSearchBtn.GetComponent<Button>());
+        SetField(dbController, "cardSearchResultParent",   (Transform)cardResultContent);
+        SetField(dbController, "cardSearchRowPrefab",      cardSearchRowPrefab);
+
+        // Mana Curve
+        SetField(dbController, "manaCurveBarParent",   manaCurveParent.transform);
+        SetField(dbController, "manaCurveBarPrefab",   manaCurveBarPrefab);
+
+        // Color Pie
+        SetField(dbController, "colorPieSlices",       pieSliceImages);
+
+        // Error
+        SetField(dbController, "errorPanel",           errorPanel);
+        SetField(dbController, "errorText",            errorText.GetComponent<TMP_Text>());
+        SetField(dbController, "retryButton",          retryBtn.GetComponent<Button>());
 
         // -- Save --
         if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
