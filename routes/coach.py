@@ -261,21 +261,35 @@ def _build_deck_report_from_db(deck_slug: str):
     from coach.models import DeckReport, CardPerformance, DeckStructure
     conn = _get_db_conn()
 
-    # Find the deck by slug match against the deck name
-    rows = conn.execute(
-        "SELECT id, name, commander_name, color_identity FROM decks ORDER BY id"
-    ).fetchall()
+    # --- Input validation ---
+  import re
+  if not deck_slug or len(deck_slug) > 200:
+    return None
+  deck_slug = re.sub(r'[^a-zA-Z0-9 _-]', '', deck_slug)
+  if not deck_slug:
+    return None
 
-    matched_deck = None
-    for r in rows:
-        name = r["name"] or ""
-        slug = name.lower().replace(" ", "-")
-        # Also try a more thorough slugify
-        import re
-        clean_slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
-        if slug == deck_slug.lower() or clean_slug == deck_slug.lower() or name.lower() == deck_slug.lower():
-            matched_deck = r
-            break
+  # Find the deck by parameterized query instead of full-table scan
+  slug_lower = deck_slug.lower()
+  slug_hyphenated = slug_lower.replace(' ', '-')
+  clean_slug = re.sub(r'[^a-z0-9]+', '-', slug_lower).strip('-')
+
+  if slug_lower.isdigit():
+    # Numeric slug — match by ID directly
+    matched_deck = conn.execute(
+      "SELECT id, name, commander_name, color_identity FROM decks WHERE id = ?",
+      (int(slug_lower),)
+    ).fetchone()
+  else:
+    # Try exact name match, hyphenated match, or clean-slug match
+    matched_deck = conn.execute(
+      """SELECT id, name, commander_name, color_identity FROM decks
+         WHERE LOWER(name) = ?
+            OR LOWER(REPLACE(name, ' ', '-')) = ?
+            OR LOWER(REPLACE(name, ' ', '-')) = ?
+         LIMIT 1""",
+      (slug_lower, slug_hyphenated, clean_slug)
+    ).fetchone()
 
     if matched_deck is None:
         return None
