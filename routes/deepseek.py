@@ -209,7 +209,7 @@ def _finish_sim(sim_id, summary, game_results):
             ],
             'summary': summary,
         }
-        results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'results')
+        results_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
         os.makedirs(results_dir, exist_ok=True)
         batch_path = os.path.join(results_dir, f'batch-sim-{sim_id}.json')
         with open(batch_path, 'w') as f:
@@ -219,7 +219,7 @@ def _finish_sim(sim_id, summary, game_results):
         # Auto-generate deck report for training dashboard / coach
         try:
             from commander_ai_lab.lab.reports import generate_single_deck_report
-            reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'deck-reports')
+            reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'deck-reports')
             os.makedirs(reports_dir, exist_ok=True)
             generate_single_deck_report(batch_data, reports_dir)
             logger.info(f'Generated deck report for {deck_name}')
