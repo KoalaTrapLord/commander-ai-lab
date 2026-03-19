@@ -32,7 +32,7 @@ from urllib.request import urlopen, Request
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
+from models.requests import DeckResearchRequest, DeckGenerateAIRequest
 
 import routes.coach as _coach  # for _deck_gen_v3 / _deck_gen_v3_error module-level access
 from routes.shared import (
@@ -654,21 +654,6 @@ async def deck_generator_commander_search(q: str = ""):
 # Perplexity API — AI Deck Research & Generation
 # ══════════════════════════════════════════════════════════════
 
-
-class DeckResearchRequest(BaseModel):
-    deck_id: int  # Deck to research
-    goal: Optional[str] = "Identify weaknesses and suggest upgrades"
-    budget_usd: Optional[float] = None
-    omit_cards: Optional[list[str]] = []
-    use_collection: bool = True
-
-
-class DeckGenerateAIRequest(BaseModel):
-    commander: str
-    budget_usd: Optional[float] = None
-    budget_mode: str = "total"  # "total" or "per_card"
-    omit_cards: Optional[list[str]] = []
-    use_collection: bool = True
 
 
 def _build_collection_summary(color_identity: list[str] | None = None) -> dict:
