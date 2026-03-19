@@ -1,0 +1,111 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+  <Style src="CommanderLabShared.uss" />
+  <Style src="MainMenu.uss" />
+
+  <ui:VisualElement name="Root" class="root">
+
+    <!-- ===== HEADER BAR ===== -->
+    <ui:VisualElement name="HeaderBar" class="header-bar">
+      <ui:Label text="Commander AI Lab" class="app-title" />
+      <ui:Label name="VersionLabel" text="v0.1.0" class="version-label" />
+    </ui:VisualElement>
+
+    <!-- ===== SERVER CONFIG PANEL ===== -->
+    <ui:VisualElement name="ServerConfigPanel" class="server-config-panel">
+      <ui:Label text="Server Connection" class="section-title" />
+      <ui:VisualElement class="server-row">
+        <ui:TextField name="ServerUrlInput" label="API URL" value="http://localhost:8000" class="server-url-input" />
+        <ui:Button name="ConnectButton" text="Connect" class="btn btn-primary" />
+      </ui:VisualElement>
+      <ui:VisualElement class="status-row">
+        <ui:VisualElement name="StatusIndicator" class="status-dot status-disconnected" />
+        <ui:Label name="StatusText" text="Disconnected" class="status-text" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- ===== NAVIGATION GRID ===== -->
+    <ui:VisualElement name="NavGrid" class="nav-grid">
+
+      <ui:Label text="Modules" class="section-title" />
+
+      <ui:VisualElement class="nav-cards-row">
+
+        <!-- Collection Tracker -->
+        <ui:VisualElement name="CollectionCard" class="nav-card">
+          <ui:VisualElement class="nav-card-icon collection-icon" />
+          <ui:Label text="Collection" class="nav-card-title" />
+          <ui:Label text="Track your cards, filter by set, color, and rarity" class="nav-card-desc" />
+          <ui:Button name="CollectionButton" text="Open" class="btn btn-accent" />
+        </ui:VisualElement>
+
+        <!-- Deck Builder -->
+        <ui:VisualElement name="DeckBuilderCard" class="nav-card">
+          <ui:VisualElement class="nav-card-icon deckbuilder-icon" />
+          <ui:Label text="Deck Builder" class="nav-card-title" />
+          <ui:Label text="Build and edit Commander decks with curve analysis" class="nav-card-desc" />
+          <ui:Button name="DeckBuilderButton" text="Open" class="btn btn-accent" />
+        </ui:VisualElement>
+
+        <!-- Auto Deck Generator -->
+        <ui:VisualElement name="DeckGenCard" class="nav-card">
+          <ui:VisualElement class="nav-card-icon deckgen-icon" />
+          <ui:Label text="Auto Deck Gen" class="nav-card-title" />
+          <ui:Label text="AI-powered deck generation from your collection" class="nav-card-desc" />
+          <ui:Button name="DeckGenButton" text="Open" class="btn btn-accent" />
+        </ui:VisualElement>
+
+      </ui:VisualElement>
+
+      <ui:VisualElement class="nav-cards-row">
+
+        <!-- Simulator -->
+        <ui:VisualElement name="SimulatorCard" class="nav-card">
+          <ui:VisualElement class="nav-card-icon simulator-icon" />
+          <ui:Label text="4-Player Sim" class="nav-card-title" />
+          <ui:Label text="Run batch 4-player Commander simulations" class="nav-card-desc" />
+          <ui:Button name="SimulatorButton" text="Open" class="btn btn-accent" />
+        </ui:VisualElement>
+
+        <!-- Coach -->
+        <ui:VisualElement name="CoachCard" class="nav-card">
+          <ui:VisualElement class="nav-card-icon coach-icon" />
+          <ui:Label text="AI Coach" class="nav-card-title" />
+          <ui:Label text="Get AI-driven play advice and deck feedback" class="nav-card-desc" />
+          <ui:Button name="CoachButton" text="Open" class="btn btn-accent" />
+        </ui:VisualElement>
+
+        <!-- Training -->
+        <ui:VisualElement name="TrainingCard" class="nav-card">
+          <ui:VisualElement class="nav-card-icon training-icon" />
+          <ui:Label text="Training" class="nav-card-title" />
+          <ui:Label text="Train RL agents and monitor model performance" class="nav-card-desc" />
+          <ui:Button name="TrainingButton" text="Open" class="btn btn-accent" />
+        </ui:VisualElement>
+
+      </ui:VisualElement>
+
+      <!-- Scanner (bonus row) -->
+      <ui:VisualElement class="nav-cards-row nav-cards-row-single">
+        <ui:VisualElement name="ScannerCard" class="nav-card">
+          <ui:VisualElement class="nav-card-icon scanner-icon" />
+          <ui:Label text="Card Scanner" class="nav-card-title" />
+          <ui:Label text="OCR-based card identification and import" class="nav-card-desc" />
+          <ui:Button name="ScannerButton" text="Open" class="btn btn-accent" />
+        </ui:VisualElement>
+      </ui:VisualElement>
+
+    </ui:VisualElement>
+
+    <!-- ===== ERROR PANEL (hidden by default) ===== -->
+    <ui:VisualElement name="ErrorPanel" class="error-panel hidden">
+      <ui:Label name="ErrorText" text="" class="error-text" />
+      <ui:Button name="RetryButton" text="Retry" class="btn btn-danger" />
+    </ui:VisualElement>
+
+    <!-- ===== FOOTER ===== -->
+    <ui:VisualElement name="Footer" class="footer">
+      <ui:Label text="Commander AI Lab - MTG Commander Toolkit" class="footer-text" />
+    </ui:VisualElement>
+
+  </ui:VisualElement>
+</ui:UXML>
