@@ -181,7 +181,7 @@ def _build_summary(stats: dict, deck_name: str, opponent_name: str,
 def _finish_sim(sim_id, summary, game_results):
     """Mark a sim run as complete."""
     with _sim_lock:
-              _sim_runs[sim_id]['status'] = 'complete'
+        _sim_runs[sim_id]['status'] = 'complete'
         _sim_runs[sim_id]['result'] = {'summary': summary, 'games': game_results}
 
           # --- Persist batch-*.json for coach / training dashboard ---
