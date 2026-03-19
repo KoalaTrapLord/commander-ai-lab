@@ -25,6 +25,9 @@ class CardAlternative(BaseModel):
 
 class DeckCardWithStatus(BaseModel):
     """A deck card enriched with ownership and substitution data."""
+    
+    class Config:
+        extra = "ignore"
     name: str
     count: int = 1
     category: str = ""
