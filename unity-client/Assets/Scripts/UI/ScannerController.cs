@@ -292,8 +292,8 @@ namespace CommanderAILab.UI
             resultSet.text = card.set;
             resultOracleText.text = card.oracleText;
             resultConfidence.text = $"Confidence: {confidence:P0}";
-            if (!string.IsNullOrEmpty(card.imageUrl))
-                ImageCache.Instance.GetSprite(card.imageUrl, s => { if (resultCardImage != null) resultCardImage.sprite = s; });
+            if (!string.IsNullOrEmpty(card.imageUri))
+                ImageCache.Instance.GetSprite(card.imageUri, s => { if (resultCardImage != null) resultCardImage.sprite = s; });
             AddToHistory(card);
         }
 
@@ -320,9 +320,9 @@ namespace CommanderAILab.UI
         {
             if (_scannedCard == null) return;
             var body = JsonConvert.SerializeObject(new { card_id = _scannedCard.id, qty = 1 });
-            StartCoroutine(ApiClient.Instance.PostRaw("/api/collection/add", body,
+            ApiClient.Instance.PostRaw("/api/collection/add", body,
                 _ => cameraStatusText.text = $"Added {_scannedCard.name} to collection",
-                err => ShowError($"Add to collection failed:\n{err}")));
+                err => ShowError($"Add to collection failed:\n{err}"));
         }
 
         private void OnAddToDeck()

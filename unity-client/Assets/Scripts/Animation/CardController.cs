@@ -94,8 +94,8 @@ namespace CommanderAILab.Animation
                 frontFaceImage.sprite = lowResPlaceholder;
 
             // Async load high-res from Scryfall
-            if (!string.IsNullOrEmpty(card.imageUrl))
-                ImageCache.Instance.GetSprite(card.imageUrl, sprite =>
+            if (!string.IsNullOrEmpty(card.imageUri))
+                ImageCache.Instance.GetSprite(card.imageUri, sprite =>
                 {
                     if (frontFaceImage != null) frontFaceImage.sprite = sprite;
                 });

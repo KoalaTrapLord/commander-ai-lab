@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
@@ -77,7 +78,7 @@ namespace CommanderAILab.UI
       public string colorIdentity;
       public int    cardCount;
       public string theme;
-      public string imageUrl;
+      public string imageUri;
     }
 
     [Serializable]
@@ -246,11 +247,11 @@ namespace CommanderAILab.UI
         btn.onClick.AddListener(() => ShowDetail(captured));
 
         // Load commander image async
-        if (!string.IsNullOrEmpty(precon.imageUrl))
+        if (!string.IsNullOrEmpty(precon.imageUri))
         {
           var img = card.GetComponentInChildren<Image>();
           if (img != null)
-            StartCoroutine(LoadImageAsync(precon.imageUrl, img));
+            StartCoroutine(LoadImageAsync(precon.imageUri, img));
         }
       }
 
@@ -287,8 +288,8 @@ namespace CommanderAILab.UI
       detailInstallButton.GetComponentInChildren<TMP_Text>().text =
         installed ? "Installed" : "Install to Forge";
 
-      if (!string.IsNullOrEmpty(precon.imageUrl))
-        StartCoroutine(LoadImageAsync(precon.imageUrl, detailCommanderImage));
+      if (!string.IsNullOrEmpty(precon.imageUri))
+        StartCoroutine(LoadImageAsync(precon.imageUri, detailCommanderImage));
     }
 
     // ========================================================

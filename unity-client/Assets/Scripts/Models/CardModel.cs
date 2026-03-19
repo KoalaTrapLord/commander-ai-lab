@@ -11,6 +11,7 @@ namespace CommanderAILab.Models
     [Serializable]
     public class CardModel
     {
+        [JsonProperty("id")] public string id;
         [JsonProperty("name")] public string name;
         [JsonProperty("oracle_id")] public string oracleId;
         [JsonProperty("scryfall_id")] public string scryfallId;

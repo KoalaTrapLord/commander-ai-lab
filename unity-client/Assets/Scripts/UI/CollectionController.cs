@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
@@ -184,9 +185,9 @@ namespace CommanderAILab.UI
       _sortField    = SortFieldFromDropdown(sortDropdown.value);
 
       string path = BuildQueryPath(page);
-      StartCoroutine(ApiClient.Instance.GetRaw(path,
+      ApiClient.Instance.GetRaw(path,
         json    => OnPageLoaded(json, page),
-        errMsg  => OnLoadError(errMsg)));
+        errMsg  => OnLoadError(errMsg));
     }
 
     private string BuildQueryPath(int page)
@@ -257,9 +258,9 @@ namespace CommanderAILab.UI
 
         // Async image load
         var img = tile.GetComponentInChildren<Image>();
-        if (img != null && !string.IsNullOrEmpty(card.imageUrl))
+        if (img != null && !string.IsNullOrEmpty(card.imageUri))
         {
-          ImageCache.Instance.GetSprite(card.imageUrl, sprite =>
+          ImageCache.Instance.GetSprite(card.imageUri, sprite =>
           {
             if (img != null) img.sprite = sprite;
           });
@@ -297,9 +298,9 @@ namespace CommanderAILab.UI
       detailQuantity.text  = $"Owned: {card.ownedQty}";
 
       // Load card art on front face
-      if (!string.IsNullOrEmpty(card.imageUrl))
+      if (!string.IsNullOrEmpty(card.imageUri))
       {
-        ImageCache.Instance.GetSprite(card.imageUrl, sprite =>
+        ImageCache.Instance.GetSprite(card.imageUri, sprite =>
         {
           if (detailCardFront != null) detailCardFront.sprite = sprite;
         });

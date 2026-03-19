@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
@@ -114,9 +115,9 @@ namespace CommanderAILab.UI
       string q = commanderSearchInput.text.Trim();
       if (string.IsNullOrEmpty(q)) return;
       string path = $"/api/collection?search={UnityWebRequest.EscapeURL(q)}&type=Legendary+Creature&per_page=20";
-      StartCoroutine(ApiClient.Instance.GetRaw(path,
+      ApiClient.Instance.GetRaw(path,
         json => PopulateCommanderResults(json),
-        err  => ShowError($"Commander search failed:\n{err}")));
+        err  => ShowError($"Commander search failed:\n{err}"));
     }
 
     private void PopulateCommanderResults(string json)

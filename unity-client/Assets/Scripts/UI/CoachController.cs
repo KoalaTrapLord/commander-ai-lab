@@ -395,7 +395,7 @@ namespace CommanderAILab.UI
             };
             string body = JsonConvert.SerializeObject(payload);
 
-            StartCoroutine(ApiClient.Instance.PostRaw("/api/coach/chat", body,
+            ApiClient.Instance.PostRaw("/api/coach/chat", body,
                 json =>
                 {
                     _isWaiting = false;
@@ -416,7 +416,7 @@ namespace CommanderAILab.UI
                     sendButton.interactable = true;
                     typingIndicator.gameObject.SetActive(false);
                     ShowError($"Chat failed: {err}");
-                }));
+                });
         }
 
         private void AddUserBubble(string text)
@@ -532,14 +532,14 @@ namespace CommanderAILab.UI
                 preconCompareText.text = "Refreshing precon database...";
 
             string body = JsonConvert.SerializeObject(new { });
-            StartCoroutine(ApiClient.Instance.PostRaw("/api/lab/precons/refresh", body,
+            ApiClient.Instance.PostRaw("/api/lab/precons/refresh", body,
                 json =>
                 {
                     if (preconCompareText != null)
                         preconCompareText.text = "Precon database refreshed!";
                     LoadPrecons();
                 },
-                err => ShowError($"Precon refresh failed: {err}")));
+                err => ShowError($"Precon refresh failed: {err}"));
         }
 
         // ── Export to Simulator ───────────────────────────────────────

@@ -266,9 +266,9 @@ namespace CommanderAILab.UI
       if (!string.IsNullOrEmpty(color))
         path += $"&colors={UnityWebRequest.EscapeURL(color)}";
 
-      StartCoroutine(ApiClient.Instance.GetRaw(path,
+      ApiClient.Instance.GetRaw(path,
         json => PopulateCommanderResults(json),
-        err  => ShowError($"Commander search failed:\n{err}")));
+        err  => ShowError($"Commander search failed:\n{err}"));
     }
 
     private void PopulateCommanderResults(string json)
@@ -300,7 +300,7 @@ namespace CommanderAILab.UI
     {
       _commander = card;
       selectedCommanderText.text = $"Commander: {card.name}";
-      if (_activeDeck != null) _activeDeck.commanderName = card.name;
+      if (_activeDeck != null) _activeDeck.commander = card.name;
       _isDirty = true;
     }
 
@@ -322,17 +322,17 @@ namespace CommanderAILab.UI
       _activeDeck.cards = _deckCards;
       string json = JsonConvert.SerializeObject(_activeDeck);
       string path = $"/api/decks/{_activeDeck.id}";
-      StartCoroutine(ApiClient.Instance.PatchRaw(path, json,
+      ApiClient.Instance.PatchRaw(path, json,
         _ => { _isDirty = false; LoadDecks(); },
-        err => ShowError($"Save failed:\n{err}")));
+        err => ShowError($"Save failed:\n{err}"));
     }
 
     private void OnDeleteDeck()
     {
       if (_activeDeck == null) return;
-      StartCoroutine(ApiClient.Instance.Delete($"/api/decks/{_activeDeck.id}",
+      ApiClient.Instance.Delete($"/api/decks/{_activeDeck.id}",
         _ => { _activeDeck = null; _deckCards.Clear(); LoadDecks(); },
-        err => ShowError($"Delete failed:\n{err}")));
+        err => ShowError($"Delete failed:\n{err}"));
     }
 
     // ── Charts ────────────────────────────────────────────────────────────
