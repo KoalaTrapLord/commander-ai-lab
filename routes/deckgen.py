@@ -29,6 +29,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from urllib.request import urlopen, Request
+import httpx
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -765,11 +766,13 @@ def _build_collection_summary(color_identity: list[str] | None = None) -> dict:
     }
 
 
-def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperature: float = 0.2) -> str:
-    """Call Perplexity API chat/completions endpoint. Returns the assistant message content."""
+async def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperature: float = 0.2) -> str:
+    """Call Perplexity API chat/completions endpoint (non-blocking).
+    Uses httpx.AsyncClient so the uvicorn event loop is never stalled.
+    Returns the assistant message content.
+    """
     if not CFG.pplx_api_key:
         raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var or --pplx-key.')
-
     payload = {
         'model': 'sonar',
         'messages': messages,
@@ -777,28 +780,35 @@ def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperature: fl
         'temperature': temperature,
         'return_related_questions': False,
     }
-
-    req_data = json.dumps(payload).encode('utf-8')
-    req = Request('https://api.perplexity.ai/chat/completions', data=req_data, method='POST')
-    req.add_header('Content-Type', 'application/json')
-    req.add_header('Authorization', f'Bearer {CFG.pplx_api_key}')
-
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {CFG.pplx_api_key}',
+    }
     try:
-        with urlopen(req, timeout=120) as resp:
-            data = json.loads(resp.read())
-        choices = data.get('choices', [])
-        if not choices:
-            raise ValueError('Empty response from Perplexity API')
-        content = choices[0].get('message', {}).get('content', '')
-        usage = data.get('usage', {})
-        log_pplx.debug(f'tokens: prompt={usage.get("prompt_tokens","?")}, '
-              f'completion={usage.get("completion_tokens","?")}, '
-              f'model={data.get("model","?")}')
-        return content
-    except URLError as e:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                'https://api.perplexity.ai/chat/completions',
+                json=payload,
+                headers=headers,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(502, f'Perplexity API returned {e.response.status_code}: {e.response.text[:200]}')
+    except httpx.RequestError as e:
         raise HTTPException(502, f'Perplexity API call failed: {e}')
-    except json.JSONDecodeError as e:
-        raise HTTPException(502, f'Perplexity API returned invalid JSON: {e}')
+
+    choices = data.get('choices', [])
+    if not choices:
+        raise HTTPException(502, 'Empty response from Perplexity API')
+    content = choices[0].get('message', {}).get('content', '')
+    usage = data.get('usage', {})
+    log_pplx.debug(
+        f'tokens: prompt={usage.get("prompt_tokens", "?")}, '
+        f'completion={usage.get("completion_tokens", "?")}, '
+        f'model={data.get("model", "?")}'
+    )
+    return content
 
 
 def _extract_json_from_response(text: str) -> dict:
@@ -1058,7 +1068,7 @@ DECKLIST ({len(card_rows)} cards):
 
 Analyze EVERYTHING: the deck's identity, strategy, archetype, bracket level (1-4 per Commander Rules Committee), ALL synergy packages between cards, ALL win conditions, game plan by phase (early/mid/late), mana base health, every role gap. Suggest specific cuts with severity and specific adds with priority and synergy tags. For adds, prioritize cards from the COLLECTION SUMMARY when available."""
 
-    content = _call_pplx_api([
+    content = await _call_pplx_api([
         {'role': 'system', 'content': system_msg},
         {'role': 'user', 'content': user_msg},
     ], max_tokens=8192)
@@ -1168,7 +1178,7 @@ COLOR IDENTITY: {', '.join(color_identity) if color_identity else 'Unknown'}
 
 Build the deck as JSON. Prioritize collection cards when they fit the strategy."""
 
-    content = _call_pplx_api([
+    content = await _call_pplx_api([
         {'role': 'system', 'content': system_msg},
         {'role': 'user', 'content': user_msg},
     ], max_tokens=8192, temperature=0.3)
