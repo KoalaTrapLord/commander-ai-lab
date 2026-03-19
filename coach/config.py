@@ -13,7 +13,7 @@ from pathlib import Path
 LAB_ROOT = Path(os.environ.get("COMMANDER_LAB_ROOT", Path(__file__).parent.parent))
 
 # ── LM Studio (OpenAI-compatible API) ──────────────────────
-LM_STUDIO_URL = os.environ.get("LM_STUDIO_URL", "http://192.168.0.122:1234/v1")
+LM_STUDIO_URL = os.environ.get("LM_STUDIO_URL", "http://192.168.0.241:1234/v1")
 LM_STUDIO_MODEL = os.environ.get("LM_STUDIO_MODEL", "local-model")
 LM_STUDIO_TIMEOUT = int(os.environ.get("LM_STUDIO_TIMEOUT", "120"))  # seconds
 LM_STUDIO_MAX_RETRIES = 3
