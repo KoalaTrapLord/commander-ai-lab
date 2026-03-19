@@ -22,6 +22,7 @@ PPO training, and tournament endpoints.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
@@ -37,42 +38,60 @@ log_ml = logging.getLogger("commander_ai_lab.ml")
 
 router = APIRouter(tags=["ml"])
 
-# ---- module-level state (moved from lab_api.py) ----
-
+# ── module-level singletons ──────────────────────────────────────────────────
 _policy_service = None
 _policy_service_init_attempted = False
 
-_training_state = {
-    "running": False,
-    "progress": 0,
-    "total_epochs": 0,
-    "current_epoch": 0,
-    "phase": "idle",
-    "message": "",
-    "metrics": None,
-    "result": None,
-    "error": None,
-    "started_at": None,
-}
+# ── Thread-safe state objects ────────────────────────────────────────────────
+@dataclasses.dataclass
+class _TrainingState:
+    running: bool = False
+    progress: int = 0
+    total_epochs: int = 0
+    current_epoch: int = 0
+    phase: str = "idle"
+    message: str = ""
+    metrics: object = None
+    result: object = None
+    error: object = None
+    started_at: object = None
 
-_ppo_state = {
-    "running": False,
-    "iteration": 0,
-    "total_iterations": 0,
-    "phase": "idle",
-    "message": "",
-    "metrics": None,
-    "result": None,
-    "error": None,
-}
+    def snapshot(self) -> dict:
+        return dataclasses.asdict(self)
 
-_tournament_state = {
-    "running": False,
-    "phase": "idle",
-    "message": "",
-    "result": None,
-    "error": None,
-}
+@dataclasses.dataclass
+class _PPOState:
+    running: bool = False
+    iteration: int = 0
+    total_iterations: int = 0
+    phase: str = "idle"
+    message: str = ""
+    metrics: object = None
+    result: object = None
+    error: object = None
+
+    def snapshot(self) -> dict:
+        return dataclasses.asdict(self)
+
+@dataclasses.dataclass
+class _TournamentState:
+    running: bool = False
+    phase: str = "idle"
+    message: str = ""
+    result: object = None
+    error: object = None
+
+    def snapshot(self) -> dict:
+        return dataclasses.asdict(self)
+
+_training_state = _TrainingState()
+_training_lock  = threading.Lock()
+
+_ppo_state  = _PPOState()
+_ppo_lock   = threading.Lock()
+
+_tournament_state = _TournamentState()
+_tournament_lock  = threading.Lock()
 
 # module-level toggle (local copy; the shared one is for batch runs)
 _ml_logging_enabled_local = _ml_logging_enabled
@@ -252,16 +271,17 @@ def _run_training_pipeline(
     batch_size: int, patience: int, rebuild_dataset: bool,
 ):
     """Run the full ML training pipeline in a background thread."""
-    global _training_state, _policy_service, _policy_service_init_attempted
+    global _policy_service, _policy_service_init_attempted
     try:
         import sys
         project_root = str(Path(__file__).resolve().parent.parent)
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
-        _training_state["running"] = True
-        _training_state["started_at"] = datetime.now().isoformat()
-        _training_state["error"] = None
-        _training_state["result"] = None
+        with _training_lock:
+            _training_state.running = True
+            _training_state.started_at = datetime.now().isoformat()
+            _training_state.error = None
+            _training_state.result = None
         data_dir = os.path.join(project_root, "ml", "models")
         ckpt_dir = os.path.join(project_root, "ml", "models", "checkpoints")
         os.makedirs(data_dir, exist_ok=True)
@@ -269,8 +289,9 @@ def _run_training_pipeline(
         # Phase 1: Build Dataset
         train_path = os.path.join(data_dir, "train.npz")
         if rebuild_dataset or not os.path.exists(train_path):
-            _training_state["phase"] = "building"
-            _training_state["message"] = "Loading card embeddings & building dataset..."
+            with _training_lock:
+                _training_state.phase = "building"
+                _training_state.message = "Loading card embeddings & building dataset..."
             log_ml.info("Building dataset (loading embeddings, may auto-download)...")
             from ml.data.dataset_builder import build_dataset, split_dataset, save_dataset
             dataset = build_dataset(results_dir=results_dir)
@@ -281,13 +302,15 @@ def _run_training_pipeline(
             save_dataset(val_ds, os.path.join(data_dir, "val.npz"))
             save_dataset(test_ds, os.path.join(data_dir, "test.npz"))
             total_samples = len(dataset["states"])
-            _training_state["message"] = f"Dataset built: {total_samples} samples"
+            with _training_lock:
+                _training_state.message = f"Dataset built: {total_samples} samples"
             log_ml.info(f"Dataset built: {total_samples} samples")
         # Phase 2: Train
-        _training_state["phase"] = "training"
-        _training_state["total_epochs"] = epochs
-        _training_state["current_epoch"] = 0
-        _training_state["message"] = f"Training policy network ({epochs} epochs)..."
+        with _training_lock:
+            _training_state.phase = "training"
+            _training_state.total_epochs = epochs
+            _training_state.current_epoch = 0
+            _training_state.message = f"Training policy network ({epochs} epochs)..."
         log_ml.info(f"Starting training: {epochs} epochs, lr={lr}, bs={batch_size}")
         import numpy as np
         import torch
@@ -312,11 +335,13 @@ def _run_training_pipeline(
             checkpoint_dir=ckpt_dir,
         )
         summary = trainer.train(train_states, train_labels, val_states, val_labels)
-        _training_state["current_epoch"] = summary.get("epochs_trained", epochs)
-        _training_state["metrics"] = summary
+        with _training_lock:
+            _training_state.current_epoch = summary.get("epochs_trained", epochs)
+            _training_state.metrics = summary
         # Phase 3: Evaluate
-        _training_state["phase"] = "evaluating"
-        _training_state["message"] = "Evaluating on test set..."
+        with _training_lock:
+            _training_state.phase = "evaluating"
+            _training_state.message = "Evaluating on test set..."
         test_path = os.path.join(data_dir, "test.npz")
         eval_results = None
         if os.path.exists(test_path):
@@ -328,15 +353,16 @@ def _run_training_pipeline(
             with open(eval_path, "w") as f:
                 json.dump(eval_results, f, indent=2)
         # Done
-        _training_state["phase"] = "done"
-        _training_state["running"] = False
-        _training_state["result"] = {
-            "training": summary,
-            "evaluation": eval_results,
-            "checkpoint": summary.get("checkpoint_path", ""),
-            "device": device,
-        }
-        _training_state["message"] = f"Training complete! Best val acc: {summary.get('best_val_accuracy', 0):.1%}"
+        with _training_lock:
+            _training_state.phase = "done"
+            _training_state.running = False
+            _training_state.result = {
+                "training": summary,
+                "evaluation": eval_results,
+                "checkpoint": summary.get("checkpoint_path", ""),
+                "device": device,
+            }
+            _training_state.message = f"Training complete! Best val acc: {summary.get('best_val_accuracy', 0):.1%}"
         log_ml.info(f"Complete: {summary.get('best_val_accuracy', 0):.1%} val accuracy")
         # Auto-reload policy server
         if _policy_service and _policy_service._loaded:
@@ -346,10 +372,11 @@ def _run_training_pipeline(
             _policy_service_init_attempted = False
     except Exception as e:
         import traceback
-        _training_state["phase"] = "error"
-        _training_state["running"] = False
-        _training_state["error"] = str(e)
-        _training_state["message"] = f"Training failed: {e}"
+        with _training_lock:
+            _training_state.phase = "error"
+            _training_state.running = False
+            _training_state.error = str(e)
+            _training_state.message = f"Training failed: {e}"
         log_ml.error(f"ERROR: {e}")
         traceback.print_exc()
 
@@ -357,7 +384,7 @@ def _run_training_pipeline(
 @router.post("/api/ml/train")
 async def ml_start_training(request: FastAPIRequest):
     """Trigger ML training pipeline from the web UI."""
-    if _training_state["running"]:
+    if _training_state.running:
         raise HTTPException(409, "Training already in progress")
     body = await request.json() if await request.body() else {}
     epochs = body.get("epochs", 50)
@@ -366,12 +393,16 @@ async def ml_start_training(request: FastAPIRequest):
     patience = body.get("patience", 10)
     rebuild = body.get("rebuildDataset", True)
     results_dir = os.path.join(str(Path(__file__).resolve().parent.parent), "results")
-    _training_state.update({
-        "running": True, "progress": 0, "total_epochs": epochs,
-        "current_epoch": 0, "phase": "starting",
-        "message": "Initializing training pipeline...",
-        "metrics": None, "result": None, "error": None,
-    })
+    with _training_lock:
+        _training_state.running = True
+        _training_state.progress = 0
+        _training_state.total_epochs = epochs
+        _training_state.current_epoch = 0
+        _training_state.phase = "starting"
+        _training_state.message = "Initializing training pipeline..."
+        _training_state.metrics = None
+        _training_state.result = None
+        _training_state.error = None
     thread = threading.Thread(
         target=_run_training_pipeline,
         args=(results_dir, epochs, lr, batch_size, patience, rebuild),
@@ -390,7 +421,8 @@ async def ml_start_training(request: FastAPIRequest):
 @router.get("/api/ml/train/status")
 async def ml_training_status():
     """Get current training pipeline status."""
-    return dict(_training_state)
+    with _training_lock:
+        return _training_state.snapshot()
 
 
 @router.get("/api/ml/data/status")
@@ -461,15 +493,15 @@ def _run_ppo_pipeline(
     load_supervised: str,
 ):
     """Run PPO training in a background thread."""
-    global _ppo_state
     try:
         import sys
         project_root = str(Path(__file__).resolve().parent.parent)
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
-        _ppo_state["running"] = True
-        _ppo_state["error"] = None
-        _ppo_state["result"] = None
+        with _ppo_lock:
+            _ppo_state.running = True
+            _ppo_state.error = None
+            _ppo_state.result = None
         from ml.training.ppo_trainer import PPOTrainer, PPOConfig
         ckpt_dir = os.path.join(project_root, "ml", "models", "checkpoints")
         config = PPOConfig(
@@ -482,30 +514,33 @@ def _run_ppo_pipeline(
         )
         trainer = PPOTrainer(config)
         def progress_cb(iteration, metrics):
-            _ppo_state["iteration"] = iteration
-            _ppo_state["phase"] = "training"
-            _ppo_state["message"] = f"Iteration {iteration}/{iterations} | WR: {metrics.get('win_rate', 0):.0%}"
-            _ppo_state["metrics"] = metrics
+            with _ppo_lock:
+                _ppo_state.iteration = iteration
+                _ppo_state.phase = "training"
+                _ppo_state.message = f"Iteration {iteration}/{iterations} | WR: {metrics.get('win_rate', 0):.0%}"
+                _ppo_state.metrics = metrics
         summary = trainer.train(progress_callback=progress_cb)
-        _ppo_state["phase"] = "done"
-        _ppo_state["running"] = False
-        _ppo_state["result"] = summary
-        _ppo_state["message"] = f"PPO complete! Best win rate: {summary.get('best_win_rate', 0):.0%}"
+        with _ppo_lock:
+            _ppo_state.phase = "done"
+            _ppo_state.running = False
+            _ppo_state.result = summary
+            _ppo_state.message = f"PPO complete! Best win rate: {summary.get('best_win_rate', 0):.0%}"
     except Exception as e:
         import traceback
-        _ppo_state["phase"] = "error"
-        _ppo_state["running"] = False
-        _ppo_state["error"] = str(e)
-        _ppo_state["message"] = f"PPO failed: {e}"
+        with _ppo_lock:
+            _ppo_state.phase = "error"
+            _ppo_state.running = False
+            _ppo_state.error = str(e)
+            _ppo_state.message = f"PPO failed: {e}"
         traceback.print_exc()
 
 
 @router.post("/api/ml/train/ppo")
 async def ml_start_ppo(request: FastAPIRequest):
     """Start PPO training pipeline."""
-    if _ppo_state["running"]:
+    if _ppo_state.running:
         raise HTTPException(409, "PPO training already in progress")
-    if _training_state["running"]:
+    if _training_state.running:
         raise HTTPException(409, "Supervised training in progress -- wait for it to finish")
     body = await request.json() if await request.body() else {}
     iterations = body.get("iterations", 100)
@@ -518,11 +553,15 @@ async def ml_start_ppo(request: FastAPIRequest):
     opponent = body.get("opponent", "heuristic")
     playstyle = body.get("playstyle", "midrange")
     load_sup = body.get("loadSupervised", "")
-    _ppo_state.update({
-        "running": True, "iteration": 0, "total_iterations": iterations,
-        "phase": "starting", "message": "Initializing PPO...",
-        "metrics": None, "result": None, "error": None,
-    })
+    with _ppo_lock:
+        _ppo_state.running = True
+        _ppo_state.iteration = 0
+        _ppo_state.total_iterations = iterations
+        _ppo_state.phase = "starting"
+        _ppo_state.message = "Initializing PPO..."
+        _ppo_state.metrics = None
+        _ppo_state.result = None
+        _ppo_state.error = None
     thread = threading.Thread(
         target=_run_ppo_pipeline,
         args=(iterations, episodes, ppo_epochs, batch_size, lr,
@@ -536,22 +575,23 @@ async def ml_start_ppo(request: FastAPIRequest):
 @router.get("/api/ml/train/ppo/status")
 async def ml_ppo_status():
     """Get PPO training status."""
-    return dict(_ppo_state)
+    with _ppo_lock:
+        return _ppo_state.snapshot()
 
 
 def _run_tournament_pipeline(episodes: int, playstyle: str):
     """Run tournament in a background thread."""
-    global _tournament_state
     try:
         import sys
         project_root = str(Path(__file__).resolve().parent.parent)
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
-        _tournament_state["running"] = True
-        _tournament_state["error"] = None
-        _tournament_state["result"] = None
-        _tournament_state["phase"] = "running"
-        _tournament_state["message"] = "Running tournament..."
+        with _tournament_lock:
+            _tournament_state.running = True
+            _tournament_state.error = None
+            _tournament_state.result = None
+            _tournament_state.phase = "running"
+            _tournament_state.message = "Running tournament..."
         from ml.eval.tournament import (
             run_tournament, HeuristicPolicy, RandomPolicy, LearnedPolicy,
         )
@@ -574,32 +614,35 @@ def _run_tournament_pipeline(episodes: int, playstyle: str):
         output_path = os.path.join(ckpt_dir, "tournament_results.json")
         with open(output_path, "w") as f:
             json.dump(result.to_dict(), f, indent=2)
-        _tournament_state["phase"] = "done"
-        _tournament_state["running"] = False
-        _tournament_state["result"] = result.to_dict()
-        _tournament_state["message"] = f"Tournament complete! {result.total_matches} matches"
+        with _tournament_lock:
+            _tournament_state.phase = "done"
+            _tournament_state.running = False
+            _tournament_state.result = result.to_dict()
+            _tournament_state.message = f"Tournament complete! {result.total_matches} matches"
     except Exception as e:
         import traceback
-        _tournament_state["phase"] = "error"
-        _tournament_state["running"] = False
-        _tournament_state["error"] = str(e)
-        _tournament_state["message"] = f"Tournament failed: {e}"
+        with _tournament_lock:
+            _tournament_state.phase = "error"
+            _tournament_state.running = False
+            _tournament_state.error = str(e)
+            _tournament_state.message = f"Tournament failed: {e}"
         traceback.print_exc()
 
 
 @router.post("/api/ml/tournament")
 async def ml_start_tournament(request: FastAPIRequest):
     """Start a tournament evaluation."""
-    if _tournament_state["running"]:
+    if _tournament_state.running:
         raise HTTPException(409, "Tournament already in progress")
     body = await request.json() if await request.body() else {}
     episodes = body.get("episodes", 50)
     playstyle = body.get("playstyle", "midrange")
-    _tournament_state.update({
-        "running": True, "phase": "starting",
-        "message": "Initializing tournament...",
-        "result": None, "error": None,
-    })
+    with _tournament_lock:
+        _tournament_state.running = True
+        _tournament_state.phase = "starting"
+        _tournament_state.message = "Initializing tournament..."
+        _tournament_state.result = None
+        _tournament_state.error = None
     thread = threading.Thread(
         target=_run_tournament_pipeline,
         args=(episodes, playstyle),
@@ -612,7 +655,8 @@ async def ml_start_tournament(request: FastAPIRequest):
 @router.get("/api/ml/tournament/status")
 async def ml_tournament_status():
     """Get tournament status."""
-    return dict(_tournament_state)
+    with _tournament_lock:
+        return _tournament_state.snapshot()
 
 
 @router.get("/api/ml/tournament/results")
