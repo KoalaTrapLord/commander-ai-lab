@@ -159,7 +159,7 @@ def _resolve_forge_dir() -> str:
             return str(candidate)
         # Also try just one level up from target/
         candidate = jar_path.parent.parent
-                            andidate / "res").is_dir():
+        if candidate.is_dir() and (candidate / "res").is_dir():
             return str(candidate)
         # Fall back to the directory containing the JAR itself
         candidate = jar_path.parent
