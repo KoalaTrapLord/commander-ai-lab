@@ -586,7 +586,6 @@ public class BatchRunner {
         Set<Integer> loserSeats = new HashSet<>();
         Set<Integer> winnerCandidates = new HashSet<>(); // Track all "has won" seats
         int maxVerboseTurn = 0; // Fallback turn count from verbose log
-            }
         for (String line : lines) {
             line = line.trim();
             if (line.startsWith("Game Outcome:") || line.startsWith("Game Result:") || line.startsWith("Match Result:")) {
