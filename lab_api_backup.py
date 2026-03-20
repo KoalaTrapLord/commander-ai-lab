@@ -7363,7 +7363,7 @@ def init_coach_service():
         if llm_status.get("connected"):
             log_coach.info(f"  Coach LLM:    Connected ({llm_status.get('active_model', 'unknown')})")
         else:
-            log_coach.warning(f"  Coach LLM:    Not connected (start LM Studio on 192.168.0.122:1234)")
+            log_coach.warning(f"  Coach LLM:    Not connected (start LM Studio on 192.168.0.240:1234)")
 
         log_coach.info("  Coach:        Service initialized")
 
@@ -8832,7 +8832,7 @@ def main():
     log.info(f"  Perplexity:   {'configured' if CFG.pplx_api_key else 'NOT SET (AI research/gen disabled)'}")
     j17 = get_java17()
     log.info(f"  Java 17:      {j17 if j17 != 'java' else 'NOT FOUND (batch sim may fail on Java 25+)'}")
-    log.info(f"  LM Studio:    http://192.168.0.122:1234")
+    log.info(f"  LM Studio:    http://192.168.0.240:1234")
 
     load_commander_meta()
     download_precon_database()  # Auto-downloads all 163+ Commander precons on first run
