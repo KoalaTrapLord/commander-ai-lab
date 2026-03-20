@@ -92,6 +92,13 @@ public class BatchResult {
         public double winRate;
         public Double avgTurnsToWin;    // null if zero wins
         public double avgMulligans;
+
+                // v5: Aggregate combat stats from per-game PlayerResult data
+        public double avgSpellsCast;
+        public double avgLandsPlayed;
+        public double avgCommanderCasts;
+        public double avgCommanderDamageDealt;
+        public double avgCreaturesDestroyed;
         public double avgFinalLife;
         public WinConditionBreakdown winConditionBreakdown;
     }
