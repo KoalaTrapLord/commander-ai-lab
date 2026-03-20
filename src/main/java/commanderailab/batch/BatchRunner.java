@@ -117,12 +117,12 @@ public class BatchRunner {
     // Format: "Add To Stack: Ai(N)-DeckName cast CardName"
     // Note: Forge uses past tense "cast" not "casts"
     private static final Pattern CAST_PATTERN =
-            Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+cast\\s+(.+?)(?:\\s+targeting.*)?$", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("(?:Add To Stack:\\s*)?Ai\\((\\d+)\\)-[^\\s].*?\\s+cast\\s+(.+?)(?:\\s+targeting.*)?$", Pattern.CASE_INSENSITIVE);
 
     // "Land: Ai(1)-Name played LandName (SET)" or "Ai(1)-Name plays LandName."
     // Forge verbose log uses "played" (past tense) with set info in parens, no trailing period
     private static final Pattern LAND_PLAY_PATTERN =
-            Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+play(?:s|ed)\\s+(.+?)(?:\\s+\\(\\d+\\))?(?:\\.|$)", Pattern.CASE_INSENSITIVE);
+                        Pattern.compile("(?:Land:\\s*)?Ai\\((\\d+)\\)-[^\\s].*?\\s+play(?:s|ed)\\s+(.+?)(?:\\s+\\(\\d+\\))?(?:\\.|$)", Pattern.CASE_INSENSITIVE);
 
     // "Zone Change: CardName (N) was put into Graveyard from Battlefield." — creature/permanent death
     // Also: "is destroyed" / "dies" from older format
@@ -877,6 +877,13 @@ public class BatchRunner {
             PlayerResult pr = result.playerResults.get(seat);
             // If we got no spell data from parsing, it means either quiet mode or no matches
             // Leave at 0 rather than fabricating data
+        }
+
+                // ── Diagnostic: log parsed combat stats ──────────────────────
+        for (int seat = 0; seat < result.playerResults.size(); seat++) {
+            PlayerResult pr = result.playerResults.get(seat);
+            System.out.printf("[PARSE] Game %d Seat %d: spells=%d, lands=%d, cmdrCasts=%d, cmdrDmg=%d, life=%d%n",
+                    gameIndex, seat, pr.spellsCast, pr.landsPlayed, pr.commanderCasts, pr.commanderDamageDealt, pr.finalLife);
         }
 
         // ── Build per-card stats from verbose output (for coach analytics) ──
