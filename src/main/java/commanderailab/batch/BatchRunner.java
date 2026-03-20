@@ -793,6 +793,13 @@ public class BatchRunner {
         }
 
         for (String line : lines) {
+
+            
+                            // Diagnostic: log lines containing combat-related keywords (first 10 only)
+                String lower = line.trim().toLowerCase();
+                if (lower.contains("cast") || lower.contains("play") || lower.contains("damage") || lower.contains("add to stack") || lower.contains("land:")) {
+                    System.out.println("[COMBAT-LINE] " + line.trim());
+                }
             line = line.trim();
             if (line.isEmpty()) continue;
 
@@ -879,6 +886,7 @@ public class BatchRunner {
             // Leave at 0 rather than fabricating data
         }
 
+        System.out.printf("[PARSE-SUMMARY] Game %d: total lines=%d%n", gameIndex, lines.length);
                 // ── Diagnostic: log parsed combat stats ──────────────────────
         for (int seat = 0; seat < result.playerResults.size(); seat++) {
             PlayerResult pr = result.playerResults.get(seat);
