@@ -1,6 +1,6 @@
 """
 Adapter: bridges the new Ollama deck_builder pipeline to the legacy
-DeckGeneratorV3 dict interface expected by lab_api_new.py endpoints.
+DeckGeneratorV3 dict interface expected by lab_api.py endpoints.
 """
 from __future__ import annotations
 
