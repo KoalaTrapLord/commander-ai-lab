@@ -135,6 +135,10 @@ public class BatchRunner {
     private static final Pattern DAMAGE_PATTERN =
             Pattern.compile("deals\\s+(\\d+)\\s+(?:combat\\s+)?damage\\s+to\\s+Ai\\(?(\\d+)\\)?", Pattern.CASE_INSENSITIVE);
 
+
+    // "Damage: CardName deals 3 combat damage to Ai(2)-DeckName." — captures source card for commander damage tracking
+    private static final Pattern PLAYER_DAMAGE_SOURCE_PATTERN =
+            Pattern.compile("(?:Damage:\\s*)?(.+?)\\s+deals\\s+(\\d+)\\s+(?:combat\\s+)?damage\\s+to\\s+Ai\\(?(\\d+)\\)?", Pattern.CASE_INSENSITIVE);
     // "commander damage" — specifically commander damage dealt
     private static final Pattern CMDR_DAMAGE_PATTERN =
             Pattern.compile("Ai\\(?(\\d+)\\)?.*?commander.*?damage.*?(\\d+)", Pattern.CASE_INSENSITIVE);
@@ -582,9 +586,12 @@ public class BatchRunner {
         Set<Integer> loserSeats = new HashSet<>();
         Set<Integer> winnerCandidates = new HashSet<>(); // Track all "has won" seats
         int maxVerboseTurn = 0; // Fallback turn count from verbose log
-
+            }
         for (String line : lines) {
             line = line.trim();
+            if (line.startsWith("Game Outcome:") || line.startsWith("Game Result:") || line.startsWith("Match Result:")) {
+                System.out.println("[OUTCOME-LINE] " + line);
+            }
 
             // Parse turn count: "Game Outcome: Turn 11"
             Matcher turnMatcher = TURN_PATTERN.matcher(line);
@@ -803,6 +810,11 @@ public class BatchRunner {
                 }
             }
         }
+        // Log commander names for diagnostics
+        for (int ci3 = 0; ci3 < decks.size(); ci3++) {
+            System.out.printf("[CMDR-INFO] Seat %d: commander='%s', deckName='%s'%n",
+                    ci3, commanderNames[ci3], decks.get(ci3).deckName);
+        }
 
         for (String line : lines) {
 
@@ -843,13 +855,25 @@ public class BatchRunner {
                 continue;
             }
 
-            // Match damage dealt: "deals N damage to Ai(X)"
-            Matcher dmgMatcher = DAMAGE_PATTERN.matcher(line);
-            while (dmgMatcher.find()) {
-                // Note: this captures damage TO a player, not FROM.
-                // We track it as creature/combat damage events
+            // Match damage dealt to players and track commander damage
+            Matcher playerDmgMatcher = PLAYER_DAMAGE_SOURCE_PATTERN.matcher(line);
+            if (playerDmgMatcher.find()) {
+                String sourceCard = playerDmgMatcher.group(1).trim();
+                int dmgAmount = Integer.parseInt(playerDmgMatcher.group(2));
+                int targetAiNum = Integer.parseInt(playerDmgMatcher.group(3));
+                int targetSeat = targetAiNum - 1;
+                // Check if the source card is any player's commander
+                for (int ci = 0; ci < decks.size(); ci++) {
+                    if (commanderNames[ci] != null && sourceCard.equalsIgnoreCase(commanderNames[ci])) {
+                        if (ci >= 0 && ci < result.playerResults.size()) {
+                            result.playerResults.get(ci).commanderDamageDealt += dmgAmount;
+                            System.out.printf("[CMDR-DMG] %s (seat %d) dealt %d cmdr damage to seat %d%n",
+                                    sourceCard, ci, dmgAmount, targetSeat);
+                        }
+                        break;
+                    }
+                }
             }
-
             // Match creature deaths: "is destroyed" / "dies"
             if (CREATURE_DESTROYED_PATTERN.matcher(line).find()) {
                 // Try to figure out which player's creature died
