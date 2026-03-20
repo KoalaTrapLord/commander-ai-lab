@@ -71,33 +71,33 @@ public class BatchRunner {
 
     // "Game Outcome: Turn 11"
     private static final Pattern TURN_PATTERN =
-            Pattern.compile("Game Outcome:?\\s*Turn\\s+(\\d+)");
+            Pattern.compile("Game Outcome:\\s*Turn\\s+(\\d+)");
 
     // "Game Outcome: Ai(1)-Edgar Markov has won because all opponents have lost"
     private static final Pattern WINNER_PATTERN =
-            Pattern.compile("Game Outcome:?\\s*Ai\\(?(\\d+)\\)?-(.+?)\\s+has won because (.+)");
+            Pattern.compile("Game Outcome:\\s*Ai\\(?(\\d+)\\)?-(.+?)\\s+has won because (.+)");
 
     // "Game Outcome: Ai(2)-Grimgrin has lost because life total reached 0"
     private static final Pattern LOSER_PATTERN =
-            Pattern.compile("Game Outcome:?\\s*Ai\\(?(\\d+)\\)?-(.+?)\\s+has lost because (.+)");
+            Pattern.compile("Game Outcome:\\s*Ai\\(?(\\d+)\\)?-(.+?)\\s+has lost because (.+)");
 
     // "Game Result: Game 1 ended in 9201 ms. Ai(1)-Edgar Markov has won!"
     private static final Pattern GAME_RESULT_PATTERN =
-            Pattern.compile("Game Result:?\\s*Game\\s+(\\d+)\\s+ended in\\s+(\\d+)\\s*ms\\.\\s*(.+?)\\s+has won!");
+            Pattern.compile("Game Result:\\s*Game\\s+(\\d+)\\s+ended in\\s+(\\d+)\\s*ms\\.\\s*(.+?)\\s+has won!");
 
     // "Game Result: Game 1 ended in 9201 ms. It's a draw!"  (timeout/draw case)
     private static final Pattern GAME_DRAW_PATTERN =
-            Pattern.compile("Game Result:?\\s*Game\\s+(\\d+)\\s+ended in\\s+(\\d+)\\s*ms\\..+draw", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Game Result:\\s*Game\\s+(\\d+)\\s+ended in\\s+(\\d+)\\s*ms\\..+draw", Pattern.CASE_INSENSITIVE);
 
     // "Match Result: Ai(1)-Edgar Markov: 1 Ai(2)-Grimgrin: 0 Ai(3)-Xyris: 0"
     private static final Pattern MATCH_RESULT_PATTERN =
-            Pattern.compile("Match Result:?");
+            Pattern.compile("Match Result:");
 
     // ── Life total tracking patterns (Issue #1) ─────────────────────────
     // Forge verbose log format: "Life: Life: Ai(1)-Name 40 > 42" (old life > new life)
     // Also support older format: "Ai(1)-Name's life is now 27."
     private static final Pattern LIFE_CHANGE_PATTERN =
-            Pattern.compile("Life:?\\s*Life:?\\s*Ai\\(?(\\d+)\\)?-.+?\\s+(\\d+)\\s+(-?\\d+)");
+            Pattern.compile("Life:\\s*Life:\\s*Ai\\(?(\\d+)\\)?-.+?\\s+(\\d+)\\s*>\\s*(-?\\d+)");
 
     // Fallback: "Ai(1)-Name's life is now 27." or "Ai(1)-Name's life total is now 27"
     private static final Pattern LIFE_TOTAL_PATTERN =
@@ -117,17 +117,17 @@ public class BatchRunner {
     // Format: "Add To Stack: Ai(N)-DeckName cast CardName"
     // Note: Forge uses past tense "cast" not "casts"
     private static final Pattern CAST_PATTERN =
-            Pattern.compile("(?:Add To Stack:?\\s*)?Ai\\(?(\\d+)\\)?-[^\\s].*?\\s+cast\\s+(.+?)(?:\\s+targeting.*)?$", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("(?:Add To Stack:\\s*)?Ai\\(?(\\d+)\\)?-[^\\s].*?\\s+cast\\s+(.+?)(?:\\s+targeting.*)?$", Pattern.CASE_INSENSITIVE);
 
     // "Land: Ai(1)-Name played LandName (SET)" or "Ai(1)-Name plays LandName."
     // Forge verbose log uses "played" (past tense) with set info in parens, no trailing period
     private static final Pattern LAND_PLAY_PATTERN =
-                        Pattern.compile("(?:Land:?\\s*)?Ai\\(?(\\d+)\\)?-[^\\s].*?\\s+play(?:s|ed)\\s+(.+?)(?:\\s+\\(?\\d+\\)?)?(?:\\.|$)", Pattern.CASE_INSENSITIVE);
+                        Pattern.compile("(?:Land:\\s*)?Ai\\(?(\\d+)\\)?-[^\\s].*?\\s+play(?:s|ed)\\s+(.+?)(?:\\s+\\(\\d+\\))?(?:\\.|$)", Pattern.CASE_INSENSITIVE);
 
     // "Zone Change: CardName (N) was put into Graveyard from Battlefield." — creature/permanent death
     // Also: "is destroyed" / "dies" from older format
     private static final Pattern ZONE_CHANGE_PATTERN =
-            Pattern.compile("Zone Change:?\\s*(.+?)\\s+(?:\\(\\d+\\)\\s+)?was put into .* from Battlefield", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Zone Change:\\s*(.+?)\\s+(?:\\(\\d+\\)\\s+)?was put into .* from Battlefield", Pattern.CASE_INSENSITIVE);
     private static final Pattern CREATURE_DESTROYED_PATTERN =
             Pattern.compile("(is destroyed|dies|is put into .* graveyard from the battlefield)", Pattern.CASE_INSENSITIVE);
 
@@ -150,7 +150,7 @@ public class BatchRunner {
     // Turn boundary: "Turn 5 (Ai(1)-Name)" or "Turn 5 (Ai(2)-Name)"
     // Some Forge versions use: "== Turn X (Ai(N)-Name) =="
     private static final Pattern VERBOSE_TURN_PATTERN =
-            Pattern.compile("(?:Turn:?\\s+)?Turn\\s+(\\d+)\\s+\\(?Ai\\(?(\\d+)\\)?", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Turn\\s+(\\d+)\\s+\\(Ai\\(?(\\d+)\\)?", Pattern.CASE_INSENSITIVE);
 
     // "CardName deals N damage" — damage by a specific card
     private static final Pattern CARD_DAMAGE_PATTERN =
