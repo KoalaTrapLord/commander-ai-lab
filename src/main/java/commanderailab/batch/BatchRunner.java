@@ -117,7 +117,7 @@ public class BatchRunner {
     // Format: "Add To Stack: Ai(N)-DeckName cast CardName"
     // Note: Forge uses past tense "cast" not "casts"
     private static final Pattern CAST_PATTERN =
-            Pattern.compile("(?:Add To Stack:\\s*)?Ai\\(?(\\d+)\\)?-[^\\s].*?\\s+cast\\s+(.+?)(?:\\s+targeting.*)?$", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("(?:Add To Stack:\\s*)?Ai\\(?(\\d+)\\)?-[^\\s].*?\\s+casts?\\s+(.+?)(?:\\s+targeting.*)?$", Pattern.CASE_INSENSITIVE);
 
     // "Land: Ai(1)-Name played LandName (SET)" or "Ai(1)-Name plays LandName."
     // Forge verbose log uses "played" (past tense) with set info in parens, no trailing period
