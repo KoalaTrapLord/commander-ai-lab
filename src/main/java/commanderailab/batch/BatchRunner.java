@@ -791,6 +791,18 @@ public class BatchRunner {
         for (int ci = 0; ci < decks.size(); ci++) {
             commanderNames[ci] = decks.get(ci).commanderName;
         }
+        // Auto-detect commander names from .dck files if not explicitly set
+        for (int ci2 = 0; ci2 < decks.size(); ci2++) {
+            if (commanderNames[ci2] == null || commanderNames[ci2].isEmpty()
+                    || commanderNames[ci2].equals(decks.get(ci2).deckName)
+                    || commanderNames[ci2].equals(decks.get(ci2).deckFile)) {
+                String detected = readCommanderCardName(decks.get(ci2).deckFile);
+                if (detected != null && !detected.isEmpty()) {
+                    commanderNames[ci2] = detected;
+                    System.out.printf("[CMDR] Seat %d: auto-detected commander '%s' from .dck file%n", ci2, detected);
+                }
+            }
+        }
 
         for (String line : lines) {
 
@@ -1281,5 +1293,50 @@ public class BatchRunner {
             result.playerResults.add(pr);
         }
         return result;
+    }
+
+    /**
+     * Read the commander card name from a Forge .dck file.
+     * Looks for the [Commander] section and extracts the card name.
+     * Format: "1 Card Name|SET" under [Commander]
+     */
+    private String readCommanderCardName(String deckFilePath) {
+        try {
+            Path path = Path.of(deckFilePath);
+            if (!Files.exists(path)) {
+                Path withExt = Path.of(deckFilePath + ".dck");
+                if (Files.exists(withExt)) {
+                    path = withExt;
+                } else {
+                    Path resolved = resolveForgeDecksPath(deckFilePath);
+                    if (resolved != null && Files.exists(resolved)) {
+                        path = resolved;
+                    } else {
+                        return null;
+                    }
+                }
+            }
+            List<String> lines = Files.readAllLines(path);
+            boolean inCommanderSection = false;
+            Pattern cardLine = Pattern.compile("^(\\d+)\\s+(.+?)(?:\\|(.+))?$");
+            for (String line : lines) {
+                line = line.trim();
+                if (line.isEmpty() || line.startsWith("//")) continue;
+                if (line.startsWith("[") && line.endsWith("]")) {
+                    inCommanderSection = line.equalsIgnoreCase("[Commander]");
+                    continue;
+                }
+                if (line.startsWith("Name=")) continue;
+                if (inCommanderSection) {
+                    Matcher m = cardLine.matcher(line);
+                    if (m.matches()) {
+                        return m.group(2).trim();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[CMDR] Failed to read commander from .dck: " + deckFilePath + " - " + e.getMessage());
+        }
+        return null;
     }
 }
