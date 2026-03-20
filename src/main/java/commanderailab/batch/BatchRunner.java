@@ -75,11 +75,11 @@ public class BatchRunner {
 
     // "Game Outcome: Ai(1)-Edgar Markov has won because all opponents have lost"
     private static final Pattern WINNER_PATTERN =
-            Pattern.compile("Game Outcome:\\s*Ai\\((\\d+)\\)-(.+?)\\s+has won because (.+)");
+            Pattern.compile("Game Outcome:\\s*Ai\(?(\d+)\)?-(.+?)\\s+has won because (.+)");
 
     // "Game Outcome: Ai(2)-Grimgrin has lost because life total reached 0"
     private static final Pattern LOSER_PATTERN =
-            Pattern.compile("Game Outcome:\\s*Ai\\((\\d+)\\)-(.+?)\\s+has lost because (.+)");
+            Pattern.compile("Game Outcome:\\s*Ai\(?(\d+)\)?-(.+?)\\s+has lost because (.+)");
 
     // "Game Result: Game 1 ended in 9201 ms. Ai(1)-Edgar Markov has won!"
     private static final Pattern GAME_RESULT_PATTERN =
@@ -97,19 +97,19 @@ public class BatchRunner {
     // Forge verbose log format: "Life: Life: Ai(1)-Name 40 > 42" (old life > new life)
     // Also support older format: "Ai(1)-Name's life is now 27."
     private static final Pattern LIFE_CHANGE_PATTERN =
-            Pattern.compile("Life:\\s*Life:\\s*Ai\\((\\d+)\\)-.+?\\s+(\\d+)\\s*>\\s*(-?\\d+)");
+            Pattern.compile("Life:\\s*Life:\\s*Ai\(?(\d+)\)?-.+?\\s+(\\d+)\\s*>\\s*(-?\\d+)");
 
     // Fallback: "Ai(1)-Name's life is now 27." or "Ai(1)-Name's life total is now 27"
     private static final Pattern LIFE_TOTAL_PATTERN =
-            Pattern.compile("Ai\\((\\d+)\\)-.+?'s\\s+life(?:\\s+total)?\\s+is\\s+now\\s+(-?\\d+)", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Ai\(?(\d+)\)?-.+?'s\\s+life(?:\\s+total)?\\s+is\\s+now\\s+(-?\\d+)", Pattern.CASE_INSENSITIVE);
 
     // "Ai(1)-Name loses N life" — life loss event
     private static final Pattern LIFE_LOSS_PATTERN =
-            Pattern.compile("Ai\\((\\d+)\\)-.+?\\s+loses\\s+(\\d+)\\s+life", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Ai\(?(\d+)\)?-.+?\\s+loses\\s+(\\d+)\\s+life", Pattern.CASE_INSENSITIVE);
 
     // "Ai(1)-Name gains N life" — life gain event
     private static final Pattern LIFE_GAIN_PATTERN =
-            Pattern.compile("Ai\\((\\d+)\\)-.+?\\s+gains\\s+(\\d+)\\s+life", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Ai\(?(\d+)\)?-.+?\\s+gains\\s+(\\d+)\\s+life", Pattern.CASE_INSENSITIVE);
 
     // ── Verbose game-log patterns for extracting combat stats ────────────
 
@@ -117,12 +117,12 @@ public class BatchRunner {
     // Format: "Add To Stack: Ai(N)-DeckName cast CardName"
     // Note: Forge uses past tense "cast" not "casts"
     private static final Pattern CAST_PATTERN =
-            Pattern.compile("(?:Add To Stack:\\s*)?Ai\\((\\d+)\\)-[^\\s].*?\\s+cast\\s+(.+?)(?:\\s+targeting.*)?$", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("(?:Add To Stack:\\s*)?Ai\(?(\d+)\)?-[^\\s].*?\\s+cast\\s+(.+?)(?:\\s+targeting.*)?$", Pattern.CASE_INSENSITIVE);
 
     // "Land: Ai(1)-Name played LandName (SET)" or "Ai(1)-Name plays LandName."
     // Forge verbose log uses "played" (past tense) with set info in parens, no trailing period
     private static final Pattern LAND_PLAY_PATTERN =
-                        Pattern.compile("(?:Land:\\s*)?Ai\\((\\d+)\\)-[^\\s].*?\\s+play(?:s|ed)\\s+(.+?)(?:\\s+\\(\\d+\\))?(?:\\.|$)", Pattern.CASE_INSENSITIVE);
+                        Pattern.compile("(?:Land:\\s*)?Ai\(?(\d+)\)?-[^\\s].*?\\s+play(?:s|ed)\\s+(.+?)(?:\\s+\\(\\d+\\))?(?:\\.|$)", Pattern.CASE_INSENSITIVE);
 
     // "Zone Change: CardName (N) was put into Graveyard from Battlefield." — creature/permanent death
     // Also: "is destroyed" / "dies" from older format
@@ -133,11 +133,11 @@ public class BatchRunner {
 
     // "deals N combat damage" or "deals N damage to Ai(X)"
     private static final Pattern DAMAGE_PATTERN =
-            Pattern.compile("deals\\s+(\\d+)\\s+(?:combat\\s+)?damage\\s+to\\s+Ai\\((\\d+)\\)", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("deals\\s+(\\d+)\\s+(?:combat\\s+)?damage\\s+to\\s+Ai\(?(\d+)\)?", Pattern.CASE_INSENSITIVE);
 
     // "commander damage" — specifically commander damage dealt
     private static final Pattern CMDR_DAMAGE_PATTERN =
-            Pattern.compile("Ai\\((\\d+)\\).*?commander.*?damage.*?(\\d+)", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Ai\(?(\d+)\)?.*?commander.*?damage.*?(\\d+)", Pattern.CASE_INSENSITIVE);
 
     // ── Per-card tracking patterns (verbose log) ─────────────────────────
 
@@ -145,12 +145,12 @@ public class BatchRunner {
     // This pattern is kept as a fallback for other Forge output modes.
     // In verbose mode, draws can only be inferred from "Draw step" phase entries.
     private static final Pattern DRAW_PATTERN =
-            Pattern.compile("Ai\\((\\d+)\\)-[^\\s].*?\\s+draws\\s+(.+?)(?:\\.|$)", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Ai\(?(\d+)\)?-[^\\s].*?\\s+draws\\s+(.+?)(?:\\.|$)", Pattern.CASE_INSENSITIVE);
 
     // Turn boundary: "Turn 5 (Ai(1)-Name)" or "Turn 5 (Ai(2)-Name)"
     // Some Forge versions use: "== Turn X (Ai(N)-Name) =="
     private static final Pattern VERBOSE_TURN_PATTERN =
-            Pattern.compile("Turn\\s+(\\d+)\\s+\\(Ai\\((\\d+)\\)", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("Turn\\s+(\\d+)\\s+\\(Ai\(?(\d+)\)?", Pattern.CASE_INSENSITIVE);
 
     // "CardName deals N damage" — damage by a specific card
     private static final Pattern CARD_DAMAGE_PATTERN =
@@ -713,7 +713,7 @@ public class BatchRunner {
 
             // Count mulligans from non-quiet output
             if (line.toLowerCase().contains("mulligan")) {
-                Matcher mullMatcher = Pattern.compile("Ai\\((\\d+)\\)").matcher(line);
+                Matcher mullMatcher = Pattern.compile("Ai\(?(\d+)\)?").matcher(line);
                 if (mullMatcher.find()) {
                     int aiNum = Integer.parseInt(mullMatcher.group(1));
                     int seat = aiNum - 1;
@@ -835,7 +835,7 @@ public class BatchRunner {
             if (CREATURE_DESTROYED_PATTERN.matcher(line).find()) {
                 // Try to figure out which player's creature died
                 // Look for Ai(N) reference before the destruction text
-                Matcher aiRef = Pattern.compile("Ai\\((\\d+)\\)").matcher(line);
+                Matcher aiRef = Pattern.compile("Ai\(?(\d+)\)?").matcher(line);
                 // We attribute destruction to the OPPOSING player (the one who caused it)
                 // But since we can't reliably determine the attacker, count it globally
                 // For each seat, count creatures they destroyed (opponent's creatures that died)
@@ -860,7 +860,7 @@ public class BatchRunner {
                 if (cdmg.find()) {
                     int amount = Integer.parseInt(cdmg.group(1));
                     // Try to find the source player
-                    Matcher srcPlayer = Pattern.compile("Ai\\((\\d+)\\)").matcher(line);
+                    Matcher srcPlayer = Pattern.compile("Ai\(?(\d+)\)?").matcher(line);
                     if (srcPlayer.find()) {
                         int seat = Integer.parseInt(srcPlayer.group(1)) - 1;
                         if (seat >= 0 && seat < decks.size()) {
