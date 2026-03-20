@@ -28,6 +28,11 @@ public class StatsAggregator {
         long[] totalTurnsOnWin = new long[podSize];
         long[] totalMulligans = new long[podSize];
         long[] totalFinalLife = new long[podSize];
+                long[] totalSpellsCast = new long[podSize];
+        long[] totalLandsPlayed = new long[podSize];
+        long[] totalCommanderCasts = new long[podSize];
+        long[] totalCommanderDamageDealt = new long[podSize];
+        long[] totalCreaturesDestroyed = new long[podSize];
         int[] gameCount = new int[podSize];
         WinConditionBreakdown[] breakdowns = new WinConditionBreakdown[podSize];
         for (int i = 0; i < podSize; i++) {
@@ -46,6 +51,11 @@ public class StatsAggregator {
                 gameCount[seat]++;
                 totalMulligans[seat] += pr.mulligans;
                 totalFinalLife[seat] += pr.finalLife;
+                                    totalSpellsCast[seat] += pr.spellsCast;
+                    totalLandsPlayed[seat] += pr.landsPlayed;
+                    totalCommanderCasts[seat] += pr.commanderCasts;
+                    totalCommanderDamageDealt[seat] += pr.commanderDamageDealt;
+                    totalCreaturesDestroyed[seat] += pr.creaturesDestroyed;
 
                 if (pr.isWinner) {
                     wins[seat]++;
@@ -70,6 +80,11 @@ public class StatsAggregator {
             ds.draws = draws[i];
             ds.winRate = completedGames > 0 ? (double) wins[i] / completedGames : 0.0;
             ds.avgTurnsToWin = wins[i] > 0 ? (double) totalTurnsOnWin[i] / wins[i] : null;
+                        ds.avgSpellsCast = gameCount[i] > 0 ? (double) totalSpellsCast[i] / gameCount[i] : 0.0;
+            ds.avgLandsPlayed = gameCount[i] > 0 ? (double) totalLandsPlayed[i] / gameCount[i] : 0.0;
+            ds.avgCommanderCasts = gameCount[i] > 0 ? (double) totalCommanderCasts[i] / gameCount[i] : 0.0;
+            ds.avgCommanderDamageDealt = gameCount[i] > 0 ? (double) totalCommanderDamageDealt[i] / gameCount[i] : 0.0;
+            ds.avgCreaturesDestroyed = gameCount[i] > 0 ? (double) totalCreaturesDestroyed[i] / gameCount[i] : 0.0;
             ds.avgMulligans = gameCount[i] > 0 ? (double) totalMulligans[i] / gameCount[i] : 0.0;
             ds.avgFinalLife = gameCount[i] > 0 ? (double) totalFinalLife[i] / gameCount[i] : 0.0;
             ds.winConditionBreakdown = breakdowns[i];
