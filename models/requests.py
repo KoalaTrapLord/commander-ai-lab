@@ -9,7 +9,7 @@ class StartRequest(BaseModel):
     numGames: int = 100
     threads: int = 4
     seed: Optional[int] = None
-    clock: int = 120
+    clock: int = 300
     deckSources: Optional[list[Optional[dict]]] = None
     useLearnedPolicy: bool = False
     policyStyle: str = "midrange"
