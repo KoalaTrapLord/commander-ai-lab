@@ -58,7 +58,7 @@ class DeepSeekConfig:
 
     Example — LM Studio::
         config = DeepSeekConfig(
-            api_base="http://192.168.0.122:1234",
+            api_base="http://192.168.0.240:1234",
             model="deepseek-r1-distill-qwen-8b",
             max_tokens=2048,  # R1 needs room for <think> blocks
         )
