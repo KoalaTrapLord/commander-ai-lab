@@ -154,17 +154,17 @@ def build_dataset(
 
     # Print game outcome distribution
     unique_outcomes, outcome_counts = np.unique(outcomes, return_counts=True)
-    log.info(f"\n{'Outcome':<25} {'Count':>8}")
-    log.info("─" * 35)
+    logger.info(f"\n{'Outcome':<25} {'Count':>8}")
+    logger.info("─" * 35)
     for o, c in sorted(zip(unique_outcomes, outcome_counts), key=lambda x: -x[1]):
-        log.info(f"  {str(o):<23} {c:>8}")
+        logger.info(f"  {str(o):<23} {c:>8}")
 
     # Print playstyle distribution
     unique_styles, style_counts = np.unique(playstyles, return_counts=True)
-    log.info(f"\n{'Playstyle':<25} {'Count':>8}")
-    log.info("─" * 35)
+    logger.info(f"\n{'Playstyle':<25} {'Count':>8}")
+    logger.info("─" * 35)
     for s, c in sorted(zip(unique_styles, style_counts), key=lambda x: -x[1]):
-        log.info(f"  {str(s):<23} {c:>8}")
+        logger.info(f"  {str(s):<23} {c:>8}")
 
     return {
         "states": states,
@@ -288,7 +288,7 @@ def main():
         max_samples=args.max_samples,
     )
     if not dataset:
-        log.info("\nNo data to save. Run simulations with --ml-log first.")
+        logger.info("\nNo data to save. Run simulations with --ml-log first.")
         sys.exit(1)
 
     if args.no_split:
@@ -300,7 +300,7 @@ def main():
         save_dataset(val, f"{base}-val.npz")
         save_dataset(test, f"{base}-test.npz")
 
-    log.info("\nDataset build complete.")
+    logger.info("\nDataset build complete.")
 
 
 if __name__ == "__main__":
