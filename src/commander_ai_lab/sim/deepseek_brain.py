@@ -784,7 +784,8 @@ class DeepSeekBrain:
                 "source": result.get("source"),
                 "latency_ms": result.get("latency_ms"),
             },
-            "game_result": None,
+            "validation": result.get("validation"),
+          "game_result": None,
         }
         self._decision_log.append(entry)
 
