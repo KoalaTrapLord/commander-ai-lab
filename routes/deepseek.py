@@ -58,7 +58,7 @@ def _get_validator_brain() -> ValidatorBrain | None:
                 api_base=os.environ.get("VALIDATOR_API_BASE", "http://localhost:11434"),
                 model=os.environ.get("VALIDATOR_MODEL", "deepseek-r1:14b"),
                 max_tokens=int(os.environ.get("VALIDATOR_MAX_TOKENS", "2048")),
-                request_timeout=float(os.environ.get("VALIDATOR_TIMEOUT", "60.0")),
+                request_timeout=float(os.environ.get("VALIDATOR_TIMEOUT", "120.0")),
             )
             _validator_brain = ValidatorBrain(cfg)
     return _validator_brain
