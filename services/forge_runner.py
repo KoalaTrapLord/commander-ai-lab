@@ -316,7 +316,7 @@ def _get_deepseek_brain():
                         model=os.environ.get("BRAIN_MODEL", "gpt-oss:20b"),
                         temperature=float(os.environ.get("BRAIN_TEMPERATURE", "0.3")),
                         max_tokens=int(os.environ.get("BRAIN_MAX_TOKENS", "1024")),
-                        request_timeout=float(os.environ.get("BRAIN_TIMEOUT", "30.0")),
+                        request_timeout=float(os.environ.get("BRAIN_TIMEOUT", "120.0")),
                     )
                     cfg.log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'logs', 'decisions')
                     cfg.log_dir = os.path.normpath(cfg.log_dir)
