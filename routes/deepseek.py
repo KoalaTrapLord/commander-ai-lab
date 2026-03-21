@@ -136,6 +136,11 @@ def _run_game_loop(engine, deck_a, deck_b, deck_name, opponent_name,
                             name_b=opponent_name, **kw)
         game_data = result.to_dict()
         game_data['gameNumber'] = i + 1
+              # Phase 8: Surface player_explanation from validation in turn log
+        for turn_entry in game_data.get('log', []):
+            v = turn_entry.get('validation')
+            if isinstance(v, dict) and v.get('player_explanation'):
+                turn_entry['player_explanation'] = v['player_explanation']
         game_results.append(game_data)
 
         if result.winner == 0:
