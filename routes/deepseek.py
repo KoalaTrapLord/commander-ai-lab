@@ -334,7 +334,7 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
         if brain and not brain._connected:
             brain.check_connection()
 
-              validator = _get_validator_brain()  # None if disabled
+        validator = _get_validator_brain()  # None if disabled
         engine = DeepSeekGameEngine(
             brain=brain, ai_player_index=1,
             max_turns=25, record_log=record_logs,
