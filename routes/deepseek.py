@@ -204,7 +204,7 @@ def _build_summary(stats: dict, deck_name: str, opponent_name: str,
     return summary
 
 
-def _finish_sim(sim_id, summary, game_results):
+def _finish_sim(sim_id, summary, game_results, engine=None):
     """Mark a sim run as complete."""
     with _sim_lock:
         _sim_runs[sim_id]['status'] = 'complete'
@@ -255,6 +255,17 @@ def _finish_sim(sim_id, summary, game_results):
             logger.warning(f'Could not generate deck report: {e}')
     except Exception as e:
         logger.error(f'Failed to persist sim results: {e}')
+
+    # --- Flush ML decisions JSONL for training pipeline ---
+    if engine is not None and hasattr(engine, 'flush_ml_decisions'):
+        ml_decisions = engine.flush_ml_decisions()
+        if ml_decisions:
+            ml_path = os.path.join('results', f'ml-decisions-sim-{sim_id[:8]}.jsonl')
+            os.makedirs('results', exist_ok=True)
+            with open(ml_path, 'w', encoding='utf-8') as mf:
+                for dec in ml_decisions:
+                    mf.write(json.dumps(dec) + '\n')
+            logger.info(f'Wrote {len(ml_decisions)} ML decisions to {ml_path}')
         
 def _fail_sim(sim_id, error):
     """Mark a sim run as errored."""
@@ -287,7 +298,7 @@ def _run_sim_thread(sim_id: str, decklist: list, num_games: int,
 
         summary = _build_summary(stats, deck_name, 'Training Deck',
                                  num_games, elapsed)
-        _finish_sim(sim_id, summary, game_results)
+        _finish_sim(sim_id, summary, game_results, engine=engine)
     except Exception as e:
         _fail_sim(sim_id, e)
         traceback.print_exc()
@@ -314,7 +325,7 @@ def _run_sim_thread_v2(sim_id: str, card_data: list[dict], num_games: int,
 
         summary = _build_summary(stats, deck_name, 'Training Deck',
                                  num_games, elapsed)
-        _finish_sim(sim_id, summary, game_results)
+        _finish_sim(sim_id, summary, game_results, engine=engine)
     except Exception as e:
         _fail_sim(sim_id, e)
         traceback.print_exc()
@@ -365,7 +376,7 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
         summary = _build_summary(
             stats, deck_name, 'DeepSeek AI', num_games, elapsed,
             opponentType='deepseek', deepseekStats=ds_stats)
-        _finish_sim(sim_id, summary, game_results)
+        _finish_sim(sim_id, summary, game_results, engine=engine)
     except Exception as e:
         _fail_sim(sim_id, e)
         traceback.print_exc()
@@ -464,7 +475,7 @@ def _run_sim_thread_n_player(sim_id: str, decks_data: list[list[dict]],
             'players': players_summary,
             'elapsedSeconds': round(elapsed, 3),
         }
-        _finish_sim(sim_id, summary, game_results)
+        _finish_sim(sim_id, summary, game_results, engine=engine)
     except Exception as e:
         _fail_sim(sim_id, e)
         traceback.print_exc()
