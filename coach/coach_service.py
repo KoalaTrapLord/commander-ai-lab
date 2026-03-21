@@ -22,7 +22,7 @@ from .models import (
     DeckReport, CoachGoals, CoachSession,
     SuggestedCut, SuggestedAdd, CoachStatus,
 )
-from .llm_client import LMStudioClient
+from .llm_client import LLMClient
 from .embeddings import MTGEmbeddingIndex
 from .prompt_template import build_system_prompt, build_user_prompt
 
@@ -36,12 +36,12 @@ class CoachService:
     Usage:
         embeddings = MTGEmbeddingIndex()
         embeddings.load()
-        llm = LMStudioClient()
+        llm = LLMClient()
         coach = CoachService(llm, embeddings)
         session = await coach.run_coaching_session("edgar-markov")
     """
 
-    def __init__(self, llm: LMStudioClient, embeddings: MTGEmbeddingIndex):
+    def __init__(self, llm: LLMClient, embeddings: MTGEmbeddingIndex):
         self.llm = llm
         self.embeddings = embeddings
         ensure_dirs()
