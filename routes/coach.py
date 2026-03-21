@@ -59,14 +59,14 @@ def init_coach_service():
     """Initialize the coach service with LLM client and embeddings."""
     global _coach_service, _coach_embeddings, _coach_llm, _deck_gen_v3, _deck_gen_v3_error
     try:
-        from coach.llm_client import LMStudioClient
+        from coach.llm_client import LLMClient
         from coach.embeddings import MTGEmbeddingIndex
         from coach.coach_service import CoachService
         from coach.config import ensure_dirs
 
         ensure_dirs()
 
-        _coach_llm = LMStudioClient()
+        _coach_llm = LLMClient()
         _coach_embeddings = MTGEmbeddingIndex()
 
         # Try to load embeddings (non-blocking — download happens on first use)
@@ -87,7 +87,7 @@ def init_coach_service():
         if llm_status.get("connected"):
             log_coach.info(f"  Coach LLM:    Connected ({llm_status.get('active_model', 'unknown')})")
         else:
-            log_coach.warning(f"  Coach LLM:    Not connected (start LM Studio on 192.168.0.240:11434)")
+            log_coach.warning(f"  Coach LLM:    Not connected (start Ollama on 192.168.0.240:11434)")
 
         # Initialize V3 Deck Generator (Ollama-based)
         _deck_gen_v3_error = None
@@ -425,7 +425,7 @@ async def coach_chat(body: CoachChatRequest):
     try:
         import json
         from urllib.request import urlopen, Request as UrlRequest
-        from coach.config import LM_STUDIO_URL, LM_STUDIO_TIMEOUT
+        from coach.config import LLM_URL, LLM_TIMEOUT
 
         model_name = _coach_llm._resolve_model()
         llm_body = {
@@ -451,7 +451,7 @@ async def coach_chat(body: CoachChatRequest):
                     import http.client
                     import urllib.parse
                     parsed = urllib.parse.urlparse(f"{_coach_llm.base_url}/chat/completions")
-                    conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=LM_STUDIO_TIMEOUT)
+                    conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=LLM_TIMEOUT)
                     conn.request("POST", parsed.path, body=json.dumps(llm_body).encode("utf-8"),
                                  headers={"Content-Type": "application/json"})
                     resp = conn.getresponse()
@@ -500,7 +500,7 @@ async def coach_chat(body: CoachChatRequest):
             import asyncio
             loop = asyncio.get_event_loop()
             def _call():
-                with urlopen(req, timeout=LM_STUDIO_TIMEOUT) as resp:
+                with urlopen(req, timeout=LLM_TIMEOUT) as resp:
                     return json.loads(resp.read().decode("utf-8"))
 
             raw = await loop.run_in_executor(None, _call)
