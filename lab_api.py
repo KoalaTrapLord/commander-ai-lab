@@ -45,7 +45,7 @@ from routes.ml import router as ml_router
 log = logging.getLogger("commander_ai_lab.api")
 
 # ── CORS origins (env-configurable) ────────────────────────────
-_DEFAULT_ORIGINS = "http://localhost:5173,http://localhost:8080"
+_DEFAULT_ORIGINS = "http://localhost:5173,http://localhost:8080,http://192.168.0.240:5173,http://192.168.0.240:8080"
 _allowed = os.environ.get("ALLOWED_ORIGINS", _DEFAULT_ORIGINS)
 allowed_origins = [o.strip() for o in _allowed.split(",") if o.strip()]
 
