@@ -87,7 +87,7 @@ def init_coach_service():
         if llm_status.get("connected"):
             log_coach.info(f"  Coach LLM:    Connected ({llm_status.get('active_model', 'unknown')})")
         else:
-            log_coach.warning(f"  Coach LLM:    Not connected (start LM Studio on 192.168.0.240:1234)")
+            log_coach.warning(f"  Coach LLM:    Not connected (start LM Studio on 192.168.0.240:11434)")
 
         # Initialize V3 Deck Generator (Ollama-based)
         _deck_gen_v3_error = None
