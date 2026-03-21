@@ -23,7 +23,7 @@ Usage::
     from commander_ai_lab.sim.deepseek_engine import DeepSeekGameEngine
     from commander_ai_lab.sim.deepseek_brain import DeepSeekBrain, DeepSeekConfig
 
-    brain = DeepSeekBrain(DeepSeekConfig(api_base="http://192.168.0.240:1234"))
+    brain = DeepSeekBrain(DeepSeekConfig(api_base="http://192.168.0.240:11434"))
     brain.check_connection()
     engine = DeepSeekGameEngine(brain=brain, ai_player_index=1)
     result = engine.run(deck_a, deck_b, name_a="My Deck", name_b="DeepSeek AI")
