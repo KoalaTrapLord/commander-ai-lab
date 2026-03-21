@@ -1,7 +1,7 @@
 """
 Commander AI Lab — Coach Configuration
 ═══════════════════════════════════════
-Central config for LM Studio, embeddings, and coach service paths.
+Central config for Ollama, embeddings, and coach service paths.
 All paths are relative to the commander-ai-lab root directory.
 """
 
@@ -12,11 +12,11 @@ from pathlib import Path
 # Resolve relative to wherever the lab is installed
 LAB_ROOT = Path(os.environ.get("COMMANDER_LAB_ROOT", Path(__file__).parent.parent))
 
-# ── LM Studio (OpenAI-compatible API) ──────────────────────
-LM_STUDIO_URL = os.environ.get("LM_STUDIO_URL", "http://192.168.0.240:11434/v1")
-LM_STUDIO_MODEL = os.environ.get("LM_STUDIO_MODEL", "gpt-oss:20b")
-LM_STUDIO_TIMEOUT = int(os.environ.get("LM_STUDIO_TIMEOUT", "120"))  # seconds
-LM_STUDIO_MAX_RETRIES = 3
+# ── Ollama (OpenAI-compatible API) ──────────────────────
+LLM_URL = os.environ.get("LLM_URL", "http://192.168.0.240:11434/v1")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-oss:20b")
+LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "120"))  # seconds
+LLM_MAX_RETRIES = 3
 
 # ── Embeddings ─────────────────────────────────────────────
 EMBEDDINGS_DIR = LAB_ROOT / "data"
@@ -33,7 +33,7 @@ MAX_CANDIDATES_PER_UNDERPERFORMER = 10
 MAX_UNDERPERFORMERS = 8
 UNDERPERFORMER_IMPACT_THRESHOLD = -0.05  # impactScore below this = underperformer
 
-# ── LLM Generation Settings (Coach — LM Studio) ──────────────
+# ── LLM Generation Settings (Coach — Ollama) ──────────────
 DEFAULT_TEMPERATURE = 0.7
 # DeepSeek-R1 uses <think> reasoning tokens before the JSON output,
 # so we need a generous limit to avoid truncation
