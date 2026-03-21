@@ -41,6 +41,7 @@ from routes.deepseek import router as deepseek_router
 from routes.deckgen import router as deckgen_router
 from routes.coach import router as coach_router, init_coach_service
 from routes.ml import router as ml_router
+from routes.play import router as play_router
 
 log = logging.getLogger("commander_ai_lab.api")
 
@@ -69,6 +70,7 @@ app.include_router(deepseek_router)
 app.include_router(deckgen_router)
 app.include_router(coach_router)
 app.include_router(ml_router)
+app.include_router(play_router)
 
 
 @app.get("/api/health")
