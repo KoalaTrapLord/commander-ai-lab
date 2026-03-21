@@ -457,5 +457,5 @@ async def start_batch_deepseek(request: FastAPIRequest, background_tasks: Backgr
 
 
 # Global ML logging toggle (can be enabled via API)
-_ml_logging_enabled = False
+_ml_logging_enabled = True
 
