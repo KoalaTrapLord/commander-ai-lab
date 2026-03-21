@@ -9,7 +9,7 @@ The LLM receives a structured game-state snapshot and returns a JSON
 action describing what to do this turn (play land, cast spell, attack,
 hold/pass, use removal, use board wipe, cast ramp, cast commander).
 
-Default target: GPT-OSS 20B (Q4_K_M) via Ollama at 192.168.0.240:1234
+Default target: GPT-OSS 20B (Q4_K_M) via Ollama at 192.168.0.240:11434
   ollama run gpt-oss:20b
 
 Also supports:
@@ -58,17 +58,17 @@ class DeepSeekConfig:
 
     Example — LM Studio::
         config = DeepSeekConfig(
-            api_base="http://192.168.0.240:1234",
+            api_base="http://192.168.0.240:11434",
             model="deepseek-r1-distill-qwen-8b",
             max_tokens=2048,  # R1 needs room for <think> blocks
         )
 
     Example — Ollama (default)::
-        config = DeepSeekConfig()  # points at 192.168.0.240:1234 / gpt-oss:20b
+        config = DeepSeekConfig()  # points at 192.168.0.240:11434 / gpt-oss:20b
     """
 
     # API endpoint — Ollama OpenAI-compatible base (NO /v1 suffix)
-    api_base: str = "http://192.168.0.240:1234"
+    api_base: str = "http://192.168.0.240:11434"
     # Model name as registered in Ollama
     model: str = "gpt-oss:20b"
 
