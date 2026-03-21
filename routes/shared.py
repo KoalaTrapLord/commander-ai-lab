@@ -201,4 +201,4 @@ from services.forge_runner import (
     _run_deepseek_batch_thread, _get_deepseek_brain,
 )
 
-_ml_logging_enabled = False
+_ml_logging_enabled = True
