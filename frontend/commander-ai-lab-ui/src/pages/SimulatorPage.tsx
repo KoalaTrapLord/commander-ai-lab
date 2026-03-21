@@ -133,7 +133,7 @@ export function SimulatorPage() {
           />
           <input
             type="text"
-            placeholder="Base URL (e.g. http://192.168.0.240:1234)"
+            placeholder="Base URL (e.g. http://192.168.0.240:11434)"
             value={dsUrl}
             onChange={e => setDsUrl(e.target.value)}
             className="w-full px-3 py-2 bg-bg-tertiary border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-blue/50 transition-all"
