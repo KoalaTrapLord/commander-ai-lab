@@ -311,11 +311,13 @@ def _get_deepseek_brain():
                     if src_dir not in sys.path:
                         sys.path.insert(0, src_dir)
                     from commander_ai_lab.sim.deepseek_brain import DeepSeekBrain, DeepSeekConfig
-                    cfg = DeepSeekConfig()
-                    if os.environ.get('DEEPSEEK_API_BASE'):
-                        cfg.api_base = os.environ['DEEPSEEK_API_BASE']
-                    if os.environ.get('DEEPSEEK_MODEL'):
-                        cfg.model = os.environ['DEEPSEEK_MODEL']
+                    cfg = DeepSeekConfig(
+                        api_base=os.environ.get("BRAIN_API_BASE", "http://localhost:11434"),
+                        model=os.environ.get("BRAIN_MODEL", "gpt-oss:20b"),
+                        temperature=float(os.environ.get("BRAIN_TEMPERATURE", "0.3")),
+                        max_tokens=int(os.environ.get("BRAIN_MAX_TOKENS", "1024")),
+                        request_timeout=float(os.environ.get("BRAIN_TIMEOUT", "30.0")),
+                    )
                     cfg.log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'logs', 'decisions')
                     cfg.log_dir = os.path.normpath(cfg.log_dir)
                     _deepseek_brain = DeepSeekBrain(cfg)
