@@ -15,7 +15,7 @@ LAB_ROOT = Path(os.environ.get("COMMANDER_LAB_ROOT", Path(__file__).parent.paren
 # ── Ollama (OpenAI-compatible API) ──────────────────────
 LLM_URL = os.environ.get("LLM_URL", "http://192.168.0.240:11434/v1")
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-oss:20b")
-LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "120"))  # seconds
+LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "360"))  # seconds
 LLM_MAX_RETRIES = 3
 
 # ── Embeddings ─────────────────────────────────────────────
@@ -28,9 +28,9 @@ DECK_REPORTS_DIR = LAB_ROOT / "deck-reports"
 COACH_SESSIONS_DIR = LAB_ROOT / "coach-sessions"
 
 # ── Prompt Limits ──────────────────────────────────────────
-MAX_PROMPT_TOKENS = 4096
-MAX_CANDIDATES_PER_UNDERPERFORMER = 10
-MAX_UNDERPERFORMERS = 8
+MAX_PROMPT_TOKENS = 2048
+MAX_CANDIDATES_PER_UNDERPERFORMER = 5
+MAX_UNDERPERFORMERS = 4
 UNDERPERFORMER_IMPACT_THRESHOLD = -0.05  # impactScore below this = underperformer
 
 # ── LLM Generation Settings (Coach — Ollama) ──────────────
