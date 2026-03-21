@@ -39,6 +39,9 @@ from typing import Optional
 from commander_ai_lab.sim.models import Card, GameResult, Player, PlayerResult, PlayerStats, SimState
 from commander_ai_lab.sim.rules import AI_DEFAULT_WEIGHTS, enrich_card, score_card
 from commander_ai_lab.sim.deepseek_brain import DeepSeekBrain, DeepSeekConfig, build_deck_context
+import os
+from commander_ai_lab.sim.validator_brain import ValidatorBrain, ValidatorConfig
+from commander_ai_lab.sim.deepseek_brain import build_game_state_snapshot
 
 logger = logging.getLogger("deepseek_engine")
 
@@ -51,15 +54,16 @@ class DeepSeekGameEngine:
     Both players use the same core game mechanics (mana, combat, etc.)
     """
 
-    def __init__(
+def __init__(
         self,
         brain: DeepSeekBrain | None = None,
-        ai_player_index: int = 1,      # Which player is the LLM AI (0 or 1)
+        ai_player_index: int = 1,
         max_turns: int = 25,
         starting_life: int = 40,
         weights: Optional[dict] = None,
         record_log: bool = False,
-        ml_log: bool = False,          # Capture ML decision snapshots
+        ml_log: bool = False,
+        validator: ValidatorBrain | None = None,   # NEW
     ):
         self.brain = brain or DeepSeekBrain()
         self.ai_player_index = ai_player_index
@@ -68,7 +72,16 @@ class DeepSeekGameEngine:
         self.weights = weights or AI_DEFAULT_WEIGHTS
         self.record_log = record_log
         self.ml_log = ml_log
-        self.ml_decisions: list[dict] = []  # Collected ML decision snapshots
+        self.ml_decisions: list[dict] = []
+
+        # Validator: use injected instance, or auto-create from env
+        if validator is not None:
+            self._validator = validator
+        elif os.environ.get("VALIDATOR_ENABLED", "false").lower() == "true":
+            cfg = ValidatorConfig.from_env()
+            self._validator = ValidatorBrain(cfg)
+        else:
+            self._validator = None
 
     def run(
         self,
@@ -247,6 +260,24 @@ class DeepSeekGameEngine:
 
         # Ask DeepSeek what to do — with full deck intelligence
         decision = self.brain.choose_action(sim, pi, turn, available_mana, deck_context=deck_context)
+      
+        # -- Optional validator call (DeepSeek-R1-14B) --
+        if self._validator is not None:
+            try:
+                snapshot = build_game_state_snapshot(
+                    sim, pi, turn,
+                    deck_context=self._deck_context,
+                )
+            except Exception:
+                snapshot = {}
+            validation = self._validator.validate(snapshot, decision)
+            if validation:
+                decision["validation"] = validation
+                if validation.get("legality") == "illegal":
+                    logger.warning(
+                        "Validator flagged illegal action on turn %d: %s",
+                        turn, validation.get("legality_issues"),
+                    )
         action = decision.get("action", "hold")
         target_card_name = decision.get("target_card", "")
         reasoning = decision.get("reasoning", "")
