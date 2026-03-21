@@ -34,6 +34,7 @@ from routes.shared import (
     _get_deepseek_brain,
     _ml_logging_enabled,
 )
+from commander_ai_lab.sim.validator_brain import ValidatorBrain, ValidatorConfig
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["deepseek"])
@@ -41,6 +42,26 @@ router = APIRouter(tags=["deepseek"])
 # In-memory store for simulation runs
 _sim_runs = {}  # sim_id -> { status, result, error }
 _sim_lock = _threading.Lock()
+
+# ── Validator singleton ──
+_validator_brain: ValidatorBrain | None = None
+_validator_lock = _threading.Lock()
+
+
+def _get_validator_brain() -> ValidatorBrain | None:
+    global _validator_brain
+    if os.environ.get("VALIDATOR_ENABLED", "false").lower() != "true":
+        return None
+    with _validator_lock:
+        if _validator_brain is None:
+            cfg = ValidatorConfig(
+                api_base=os.environ.get("VALIDATOR_API_BASE", "http://localhost:11434"),
+                model=os.environ.get("VALIDATOR_MODEL", "deepseek-r1:14b"),
+                max_tokens=int(os.environ.get("VALIDATOR_MAX_TOKENS", "2048")),
+                request_timeout=float(os.environ.get("VALIDATOR_TIMEOUT", "60.0")),
+            )
+            _validator_brain = ValidatorBrain(cfg)
+    return _validator_brain
 
 # ══════════════════════════════════════════════════════════════
 # Shared Helpers (extracted to deduplicate sim threads — #42)
@@ -313,9 +334,11 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
         if brain and not brain._connected:
             brain.check_connection()
 
+              validator = _get_validator_brain()  # None if disabled
         engine = DeepSeekGameEngine(
             brain=brain, ai_player_index=1,
-            max_turns=25, record_log=record_logs)
+            max_turns=25, record_log=record_logs,
+            validator=validator)
 
         game_results, stats, elapsed = _run_game_loop(
             engine, deck_a, deck_b, deck_name, 'DeepSeek AI',
@@ -744,3 +767,29 @@ async def deepseek_logs():
         'flushedPath': flushed_path,
         'logFiles': log_files[-20:],
     })
+  
+
+@router.get("/api/validator/status")
+async def validator_status():
+    """Get DeepSeek-R1-14B validator brain status."""
+    v = _get_validator_brain()
+    if v is None:
+        return JSONResponse({"enabled": False,
+                             "reason": "VALIDATOR_ENABLED is not true"})
+    return JSONResponse({"enabled": True, **v.get_stats()})
+
+
+@router.post("/api/validator/configure")
+async def validator_configure(request: FastAPIRequest):
+    """Update validator configuration at runtime."""
+    body = await request.json()
+    v = _get_validator_brain()
+    if v is None:
+        return JSONResponse({"error": "Validator not enabled"}, status_code=400)
+    if "model" in body:
+        v.config.model = body["model"]
+    if "timeout" in body:
+        v.config.request_timeout = float(body["timeout"])
+    if "enabled" in body:
+        v.config.enabled = bool(body["enabled"])
+    return JSONResponse(v.get_stats())
