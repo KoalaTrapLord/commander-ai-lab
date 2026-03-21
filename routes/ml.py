@@ -362,8 +362,8 @@ def _run_training_pipeline(
                 "checkpoint": summary.get("checkpoint_path", ""),
                 "device": device,
             }
-            _training_state.message = f"Training complete! Best val acc: {summary.get('best_val_accuracy', 0):.1%}"
-        log_ml.info(f"Complete: {summary.get('best_val_accuracy', 0):.1%} val accuracy")
+            _training_state.message = f"Training complete! Best val acc: {summary.get('best_val_acc', 0):.1%}"
+        log_ml.info(f"Complete: {summary.get('best_val_acc', 0):.1%} val accuracy")
         # Auto-reload policy server
         if _policy_service and _policy_service._loaded:
             _policy_service.reload(summary.get("checkpoint_path"))
