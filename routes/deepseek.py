@@ -274,7 +274,7 @@ def _run_sim_thread(sim_id: str, decklist: list, num_games: int,
 
         deck_a = build_deck(decklist)
         deck_b = _generate_training_deck()
-        engine = GameEngine(max_turns=25, record_log=record_logs)
+        engine = GameEngine(max_turns=25, record_log=record_logs, ml_log=True, ml_log=True)
 
         game_results, stats, elapsed = _run_game_loop(
             engine, deck_a, deck_b, deck_name, 'Training Deck',
@@ -301,7 +301,7 @@ def _run_sim_thread_v2(sim_id: str, card_data: list[dict], num_games: int,
 
         deck_a = _build_deck_from_card_data(card_data)
         deck_b = _generate_training_deck()
-        engine = GameEngine(max_turns=25, record_log=record_logs)
+        engine = GameEngine(max_turns=25, record_log=record_logs, ml_log=True, ml_log=True)
 
         game_results, stats, elapsed = _run_game_loop(
             engine, deck_a, deck_b, deck_name, 'Training Deck',
@@ -337,7 +337,7 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
         validator = _get_validator_brain()  # None if disabled
         engine = DeepSeekGameEngine(
             brain=brain, ai_player_index=1,
-            max_turns=25, record_log=record_logs,
+            max_turns=25, record_log=record_logs, ml_log=True,
             validator=validator)
 
         game_results, stats, elapsed = _run_game_loop(
@@ -391,9 +391,9 @@ def _run_sim_thread_n_player(sim_id: str, decks_data: list[list[dict]],
                 brain.check_connection()
             engine = DeepSeekGameEngine(
                 brain=brain, ai_player_index=1,
-                max_turns=25, record_log=record_logs)
+                max_turns=25, record_log=record_logs, ml_log=True, ml_log=True)
         else:
-            engine = GameEngine(max_turns=25, record_log=record_logs)
+            engine = GameEngine(max_turns=25, record_log=record_logs, ml_log=True, ml_log=True)
 
         # Per-seat accumulators
         seat_wins = [0] * n_players
