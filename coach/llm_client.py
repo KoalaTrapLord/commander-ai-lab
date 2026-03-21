@@ -1,7 +1,7 @@
 """
-Commander AI Lab — LM Studio Client
+Commander AI Lab — Ollama Client
 ════════════════════════════════════
-Async HTTP client targeting LM Studio's OpenAI-compatible
+Async HTTP client targeting Ollama's OpenAI-compatible
 /v1/chat/completions endpoint. Includes retry logic for
 non-JSON responses and configurable timeout.
 """
@@ -14,8 +14,8 @@ from urllib.request import urlopen, Request
 from urllib.error import URLError
 
 from .config import (
-    LM_STUDIO_URL, LM_STUDIO_MODEL,
-    LM_STUDIO_TIMEOUT, LM_STUDIO_MAX_RETRIES,
+    LLM_URL, LLM_MODEL,
+    LLM_TIMEOUT, LLM_MAX_RETRIES,
     DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS,
 )
 
@@ -34,12 +34,12 @@ class LLMResponse:
         self.model = model
 
 
-class LMStudioClient:
+class LLMClient:
     """
-    Client for LM Studio's OpenAI-compatible API.
+    Client for Ollama's OpenAI-compatible API.
 
     Usage:
-        client = LMStudioClient()
+        client = LLMClient()
         response = await client.chat(system_prompt, user_prompt)
         if response.parsed_json:
             suggestions = response.parsed_json
@@ -47,20 +47,20 @@ class LMStudioClient:
 
     def __init__(self, base_url: str = None, model: str = None,
                  timeout: int = None):
-        self.base_url = (base_url or LM_STUDIO_URL).rstrip("/")
-        self.model = model or LM_STUDIO_MODEL
-        self.timeout = timeout or LM_STUDIO_TIMEOUT
+        self.base_url = (base_url or LLM_URL).rstrip("/")
+        self.model = model or LLM_MODEL
+        self.timeout = timeout or LLM_TIMEOUT
         self._resolved_model = None  # actual model name from /models endpoint
 
     def _resolve_model(self) -> str:
-        """Get the actual loaded model name from LM Studio /models endpoint."""
+        """Get the actual loaded model name from Ollama /models endpoint."""
         if self._resolved_model:
             return self._resolved_model
         try:
             status = self.check_connection()
             if status.get("connected") and status.get("active_model"):
                 self._resolved_model = status["active_model"]
-                logger.info("Resolved LM Studio model: %s", self._resolved_model)
+                logger.info("Resolved Ollama model: %s", self._resolved_model)
                 return self._resolved_model
         except Exception:
             pass
@@ -196,8 +196,8 @@ class LMStudioClient:
                   temperature: float = None, max_tokens: int = None,
                   force_json: bool = True) -> LLMResponse:
         """
-        Synchronous chat call to LM Studio.
-        Retries up to LM_STUDIO_MAX_RETRIES on failure or non-JSON response.
+        Synchronous chat call to Ollama.
+        Retries up to LLM_MAX_RETRIES on failure or non-JSON response.
         """
         temp = temperature if temperature is not None else DEFAULT_TEMPERATURE
         tokens = max_tokens if max_tokens is not None else DEFAULT_MAX_TOKENS
@@ -205,9 +205,9 @@ class LMStudioClient:
                                         temp, tokens, force_json)
 
         last_error = None
-        for attempt in range(1, LM_STUDIO_MAX_RETRIES + 1):
+        for attempt in range(1, LLM_MAX_RETRIES + 1):
             try:
-                logger.info("LLM call attempt %d/%d", attempt, LM_STUDIO_MAX_RETRIES)
+                logger.info("LLM call attempt %d/%d", attempt, LLM_MAX_RETRIES)
                 req = Request(
                     f"{self.base_url}/chat/completions",
                     data=json.dumps(body).encode("utf-8"),
@@ -239,12 +239,12 @@ class LMStudioClient:
                     body = self._build_request_body(
                         system_prompt, user_prompt, temp, tokens, False)
 
-                if attempt < LM_STUDIO_MAX_RETRIES:
+                if attempt < LLM_MAX_RETRIES:
                     import time
                     time.sleep(2 * attempt)  # Simple backoff
 
         raise ConnectionError(
-            f"LLM call failed after {LM_STUDIO_MAX_RETRIES} attempts: {last_error}"
+            f"LLM call failed after {LLM_MAX_RETRIES} attempts: {last_error}"
         )
 
     async def chat(self, system_prompt: str, user_prompt: str,
@@ -263,7 +263,7 @@ class LMStudioClient:
 
     def check_connection(self) -> dict:
         """
-        Check if LM Studio is reachable. Returns status dict.
+        Check if Ollama is reachable. Returns status dict.
         """
         try:
             req = Request(
