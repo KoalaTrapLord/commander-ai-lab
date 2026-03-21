@@ -54,7 +54,7 @@ class DeepSeekGameEngine:
     Both players use the same core game mechanics (mana, combat, etc.)
     """
 
-def __init__(
+    def __init__(
         self,
         brain: DeepSeekBrain | None = None,
         ai_player_index: int = 1,
