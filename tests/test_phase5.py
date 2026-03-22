@@ -15,12 +15,21 @@ import pytest
 # Fixtures
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _reset_session_store():
+    """Reset SessionStore singleton and api module _store before/after each test."""
+    from commander_ai_lab.web.session_store import SessionStore
+    SessionStore._instance = None
+    # Also reset the module-level _store in the API router
+    import commander_ai_lab.web.routers.api as api_mod
+    api_mod._store = SessionStore()
+    yield
+    SessionStore._instance = None
+
+
 @pytest.fixture
 def app():
     """Create a fresh FastAPI app for each test."""
-    # Reset singleton so tests don't share session state
-    from commander_ai_lab.web.session_store import SessionStore
-    SessionStore._instance = None
     from commander_ai_lab.web.app import create_app
     return create_app()
 

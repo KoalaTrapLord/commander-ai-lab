@@ -63,6 +63,40 @@ class MemoryEntry:
     latency_ms: float
 
 
+# ── Canned narration lines (by personality key) ───────────────────────
+
+_CANNED_NARRATIONS: dict[str, dict[str, str]] = {
+    "aggro_timmy": {
+        "play_land": "More mana, more mayhem!",
+        "cast_spell": "Here comes the pain!",
+        "attack": "ATTACK! Take everything!",
+        "pass_priority": "Fine, go… but I'm watching you.",
+        "default": "Let's smash something!",
+    },
+    "control_spike": {
+        "play_land": "Mana secured. Proceeding.",
+        "cast_spell": "Optimal play. As expected.",
+        "attack": "Calculated aggression — acceptable risk.",
+        "pass_priority": "Holding interaction mana. Predictable of you.",
+        "default": "Inevitable victory approaches.",
+    },
+    "combo_johnny": {
+        "play_land": "One step closer to the combo!",
+        "cast_spell": "Assembling the pieces…",
+        "attack": "Buying time until the combo fires.",
+        "pass_priority": "Patience. The combo is coming.",
+        "default": "The pieces are falling into place!",
+    },
+    "political_negotiator": {
+        "play_land": "Just tapping a land. Nothing threatening here.",
+        "cast_spell": "This helps us all, really.",
+        "attack": "I'm afraid I must — for the good of the table.",
+        "pass_priority": "I'll let this resolve. For now.",
+        "default": "Let's all be reasonable about this.",
+    },
+}
+
+
 # ── AIOpponent ─────────────────────────────────────────────────────────
 
 @dataclass
@@ -409,40 +443,9 @@ class AIOpponent:
 
     # ── Canned Narration ───────────────────────────────────────────────
 
-    _CANNED: dict[str, dict[str, str]] = {
-        "aggro_timmy": {
-            "play_land": "More mana, more mayhem!",
-            "cast_spell": "Here comes the pain!",
-            "attack": "ATTACK! Take everything!",
-            "pass_priority": "Fine, go… but I’m watching you.",
-            "default": "Let’s smash something!",
-        },
-        "control_spike": {
-            "play_land": "Mana secured. Proceeding.",
-            "cast_spell": "Optimal play. As expected.",
-            "attack": "Calculated aggression — acceptable risk.",
-            "pass_priority": "Holding interaction mana. Predictable of you.",
-            "default": "Inevitable victory approaches.",
-        },
-        "combo_johnny": {
-            "play_land": "One step closer to the combo!",
-            "cast_spell": "Assembling the pieces…",
-            "attack": "Buying time until the combo fires.",
-            "pass_priority": "Patience. The combo is coming.",
-            "default": "The pieces are falling into place!",
-        },
-        "political_negotiator": {
-            "play_land": "Just tapping a land. Nothing threatening here.",
-            "cast_spell": "This helps us all, really.",
-            "attack": "I’m afraid I must — for the good of the table.",
-            "pass_priority": "I’ll let this resolve. For now.",
-            "default": "Let’s all be reasonable about this.",
-        },
-    }
-
     def _canned_narration(self, move_desc: str) -> str:
         """Return a canned flavor line matching personality and move category."""
-        canned = self._CANNED.get(self.personality.key, {})
+        canned = _CANNED_NARRATIONS.get(self.personality.key, {})
         desc_lower = move_desc.lower()
         for key in ("play_land", "cast_spell", "attack", "pass_priority"):
             if key.replace("_", " ") in desc_lower or key in desc_lower:

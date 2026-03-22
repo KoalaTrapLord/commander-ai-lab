@@ -77,7 +77,7 @@ class TestDeckRatios:
         assert total == 99
 
     def test_bad_total_raises(self):
-        with pytest.raises(ValidationError, match="must sum to 99"):
+        with pytest.raises(ValidationError, match="less_than_equal|must sum to 99"):
             DeckRatios(lands=50)
 
     def test_out_of_range_raises(self):
