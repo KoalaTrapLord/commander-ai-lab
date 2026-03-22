@@ -161,6 +161,32 @@
             </div>
         </section>
 
+        <!-- ELO Rating Chart -->
+        <section class="panel" id="elo-panel">
+            <div class="panel-header elo-panel-header">
+                <h2>ELO Ratings</h2>
+                <button id="btn-run-elo" class="btn btn-sm btn-secondary" onclick="runEloTournament()">
+                    <span class="btn-icon">&#127942;</span> Run Tournament
+                </button>
+            </div>
+            <div id="elo-chart" class="chart-container">
+                <canvas id="elo-canvas"></canvas>
+                <div id="elo-empty" class="empty-state">
+                    <p>No ELO data yet. Run a tournament or enable ELO tracking in distillation settings.</p>
+                </div>
+            </div>
+            <div id="elo-progress" class="train-progress hidden">
+                <div class="progress-header">
+                    <span id="elo-progress-phase" class="phase-badge running">RUNNING</span>
+                    <span id="elo-progress-message">Running ELO tournament...</span>
+                </div>
+                <div class="progress-bar-container progress-track">
+                    <div class="progress-bar progress-fill" id="elo-progress-bar" style="width:50%"></div>
+                </div>
+            </div>
+            <div id="elo-leaderboard" class="mt-4"></div>
+        </section>
+
         <!-- Generation History Table -->
         <section class="panel" id="history-panel">
             <div class="panel-header">
