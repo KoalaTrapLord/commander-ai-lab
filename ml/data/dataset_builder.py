@@ -63,10 +63,10 @@ class DatasetConfig:
     max_samples: Optional[int] = None
 
     # Source weights control sampling ratios between Forge and PPO data.
-    # e.g. {"forge": 1.0, "ppo": 0.5} means keep all Forge data but
-    # randomly sample 50% of PPO data to avoid overwhelming the baseline.
+    # Default: Forge-only (ppo=0.0). Use MIXED_MODE_PRESETS from
+    # ml.config.scope for blended configurations (e.g. 90/10, 80/20).
     source_weights: Dict[str, float] = field(
-        default_factory=lambda: {"forge": 1.0, "ppo": 0.5}
+        default_factory=lambda: {"forge": 1.0, "ppo": 0.0}
     )
 
     # Minimum reward threshold for PPO data — only include decisions
@@ -209,7 +209,7 @@ def build_dataset(
         Dict with keys: states, labels, game_ids, outcomes, playstyles, sources
     """
     if source_weights is None:
-        source_weights = {"forge": 1.0, "ppo": 0.5}
+        source_weights = {"forge": 1.0, "ppo": 0.0}
 
     # Load card embeddings
     card_index = CardEmbeddingIndex(embeddings_dir)
@@ -502,8 +502,8 @@ def main():
         help="Sampling weight for Forge sim data (default: 1.0)",
     )
     parser.add_argument(
-        "--ppo-weight", type=float, default=0.5,
-        help="Sampling weight for PPO self-play data (default: 0.5)",
+        "--ppo-weight", type=float, default=0.0,
+        help="Sampling weight for PPO self-play data (default: 0.0, Forge-only)",
     )
     parser.add_argument(
         "--min-reward", type=float, default=0.0,

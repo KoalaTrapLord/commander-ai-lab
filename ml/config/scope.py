@@ -155,15 +155,25 @@ class StateDimensions:
     2 players = 28 global features
     + turn_number = 1
     Total global = 29
+
+    Zone embedding boundary (architectural decision — Phase 5 follow-up):
+      Zone dims are **always** 768 per zone slot, zero-padded when a zone
+      is empty (no cards).  The fixed 6144-dim zone block is the contract
+      between ForgeEpisodeGenerator (upstream) and the policy network
+      (downstream).  All downstream consumers (PolicyNetwork, PPOTrainer,
+      dataset builder) depend on this shape.  If a future change adds
+      attention pooling or variable-length zone representations, the
+      boundary must be updated here *and* in StateEncoder._encode_zones.
     """
     card_embedding_dim: int = 768       # From mtg-embeddings
-    zone_pool_dim: int = 768            # Mean-pooled per zone
+    zone_pool_dim: int = 768            # Mean-pooled per zone (zero-vec when empty)
 
     # Zones per player: hand, battlefield, graveyard, command_zone
     zones_per_player: int = 4
     num_players: int = 2                # 1v1
 
     # Zone vectors: 4 zones × 2 players × 768 = 6144
+    # This is a fixed-size block; empty zones produce zero vectors.
     total_zone_dim: int = 4 * 2 * 768  # 6144
 
     # Global scalar features
@@ -268,6 +278,10 @@ class DistillationDefaults:
 
     These are consumed by ml.training.distillation_loop.DistillationConfig
     when no explicit override is provided.
+
+    Default weights: Forge-only (forge_weight=1.0, ppo_weight=0.0).
+    The baseline trains exclusively on Forge simulation data.  Use
+    ``MIXED_MODE_PRESETS`` below for blended Forge+PPO configurations.
     """
     max_iterations: int = 10
     convergence_window: int = 3
@@ -281,9 +295,9 @@ class DistillationDefaults:
     ppo_entropy_coeff: float = 0.01
     ppo_eval_episodes: int = 100
 
-    # Dataset mixing
+    # Dataset mixing — Forge-only by default (Phase 5 follow-up decision)
     forge_weight: float = 1.0
-    ppo_weight: float = 0.5
+    ppo_weight: float = 0.0
     min_reward_threshold: float = 0.0
 
     # Quality gate thresholds
@@ -302,3 +316,35 @@ class DistillationDefaults:
 
 
 DISTILLATION_DEFAULTS = DistillationDefaults()
+
+
+# ══════════════════════════════════════════════════════════
+# Mixed-Mode Presets (Phase 5 follow-up)
+# ══════════════════════════════════════════════════════════
+
+# Pre-defined Forge/PPO weight combinations for common scenarios.
+# Select a preset by name when starting a distillation run to
+# override the Forge-only defaults without specifying raw weights.
+#
+# "forge_only"  — baseline: 100% Forge data, ignore PPO
+# "forge_90_10" — light PPO blending: 90% Forge, 10% PPO
+# "forge_80_20" — heavier PPO blending: 80% Forge, 20% PPO
+MIXED_MODE_PRESETS: Dict[str, Dict[str, float]] = {
+    "forge_only": {"forge_weight": 1.0, "ppo_weight": 0.0},
+    "forge_90_10": {"forge_weight": 1.0, "ppo_weight": 0.11},  # ~10% PPO
+    "forge_80_20": {"forge_weight": 1.0, "ppo_weight": 0.25},  # ~20% PPO
+}
+
+
+def get_preset_weights(preset_name: str) -> Dict[str, float]:
+    """Look up a mixed-mode preset by name.
+
+    Returns a dict with ``forge_weight`` and ``ppo_weight`` keys.
+    Raises ``KeyError`` if the preset name is unknown.
+    """
+    if preset_name not in MIXED_MODE_PRESETS:
+        raise KeyError(
+            f"Unknown preset '{preset_name}'. "
+            f"Available: {list(MIXED_MODE_PRESETS.keys())}"
+        )
+    return dict(MIXED_MODE_PRESETS[preset_name])

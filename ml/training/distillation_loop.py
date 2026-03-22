@@ -84,9 +84,9 @@ class DistillationConfig:
     opponent: str = "heuristic"
     playstyle: str = "midrange"
 
-    # --- Dataset building ---
+    # --- Dataset building (Forge-only default; see MIXED_MODE_PRESETS) ---
     forge_weight: float = 1.0
-    ppo_weight: float = 0.5
+    ppo_weight: float = 0.0
     min_reward_threshold: float = 0.0
 
     # --- Quality gate ---
@@ -858,7 +858,7 @@ def main():
 
     # Dataset
     parser.add_argument("--forge-weight", type=float, default=1.0)
-    parser.add_argument("--ppo-weight", type=float, default=0.5)
+    parser.add_argument("--ppo-weight", type=float, default=0.0)
     parser.add_argument("--min-reward", type=float, default=0.0)
 
     # Quality gate
