@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Commander AI Lab — Distillation Loop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="global.css" />
+    <link rel="stylesheet" href="distillation.css" />
+</head>
+<body>
+    <script src="nav.js"></script>
+    <div class="page">
+        <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <h1>Closed-Loop Distillation</h1>
+                <p>Iterative supervised → PPO → quality gate → merge pipeline</p>
+            </div>
+            <button id="btn-refresh" class="btn btn-secondary" onclick="refreshAll()" title="Refresh status">
+                <span class="btn-icon" id="refresh-icon">&#8635;</span> Refresh
+            </button>
+        </div>
+
+        <!-- Status Overview Cards -->
+        <div class="status-grid stat-grid">
+            <div class="status-card stat-card" id="card-status">
+                <div class="card-icon">&#128260;</div>
+                <div class="card-label stat-label">Status</div>
+                <div class="card-value stat-value" id="val-status">Idle</div>
+                <div class="card-sub stat-sub" id="sub-status">not running</div>
+            </div>
+            <div class="status-card stat-card" id="card-generation">
+                <div class="card-icon">&#128200;</div>
+                <div class="card-label stat-label">Generation</div>
+                <div class="card-value stat-value" id="val-generation">--</div>
+                <div class="card-sub stat-sub" id="sub-generation">of --</div>
+            </div>
+            <div class="status-card stat-card" id="card-winrate">
+                <div class="card-icon">&#127942;</div>
+                <div class="card-label stat-label">Best Win Rate</div>
+                <div class="card-value stat-value" id="val-winrate">--</div>
+                <div class="card-sub stat-sub" id="sub-winrate">across all generations</div>
+            </div>
+            <div class="status-card stat-card" id="card-passed">
+                <div class="card-icon">&#9989;</div>
+                <div class="card-label stat-label">Passed</div>
+                <div class="card-value stat-value" id="val-passed">--</div>
+                <div class="card-sub stat-sub" id="sub-passed">quality gate passes</div>
+            </div>
+        </div>
+
+        <!-- Distillation Controls Panel -->
+        <section class="panel" id="control-panel">
+            <div class="panel-header">
+                <h2>Distillation Controls</h2>
+            </div>
+            <div class="train-controls">
+                <div class="param-grid form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="param-iterations">Max Generations</label>
+                        <input type="number" id="param-iterations" class="form-input" value="10" min="1" max="100" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="param-conv-window">Convergence Window</label>
+                        <input type="number" id="param-conv-window" class="form-input" value="3" min="2" max="10" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="param-sup-epochs">Supervised Epochs</label>
+                        <input type="number" id="param-sup-epochs" class="form-input" value="30" min="5" max="200" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="param-sup-lr">Supervised LR</label>
+                        <input type="number" id="param-sup-lr" class="form-input" value="0.001" step="0.0001" min="0.00001" max="0.1" />
+                    </div>
+                </div>
+                <div class="param-grid form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="param-ppo-iters">PPO Iterations</label>
+                        <input type="number" id="param-ppo-iters" class="form-input" value="50" min="10" max="500" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="param-ppo-episodes">PPO Episodes/Iter</label>
+                        <input type="number" id="param-ppo-episodes" class="form-input" value="64" min="8" max="512" step="8" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="param-ppo-lr">PPO Learning Rate</label>
+                        <input type="number" id="param-ppo-lr" class="form-input" value="0.0003" step="0.0001" min="0.00001" max="0.01" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="param-min-wr">Min Win Rate Gate</label>
+                        <input type="number" id="param-min-wr" class="form-input" value="0.30" step="0.05" min="0.1" max="0.9" />
+                    </div>
+                </div>
+                <div class="param-grid form-row distill-bottom-params">
+                    <div class="form-group">
+                        <label class="form-label" for="param-opponent">Opponent</label>
+                        <select id="param-opponent" class="form-select">
+                            <option value="heuristic">Heuristic</option>
+                            <option value="random">Random</option>
+                            <option value="self">Self-Play</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="param-playstyle">Playstyle</label>
+                        <select id="param-playstyle" class="form-select">
+                            <option value="midrange">Midrange</option>
+                            <option value="aggro">Aggro</option>
+                            <option value="control">Control</option>
+                            <option value="combo">Combo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="train-actions distill-actions">
+                    <button id="btn-start" class="btn btn-primary" onclick="startDistillation()">
+                        <span class="btn-icon">&#9654;</span> Start Distillation
+                    </button>
+                    <button id="btn-stop" class="btn btn-danger" onclick="stopDistillation()" disabled>
+                        <span class="btn-icon">&#9632;</span> Stop
+                    </button>
+                </div>
+            </div>
+
+            <!-- Progress Section (hidden when idle) -->
+            <div id="distill-progress" class="train-progress hidden">
+                <div class="progress-header">
+                    <span id="progress-phase" class="phase-badge">IDLE</span>
+                    <span id="progress-message">Waiting...</span>
+                </div>
+                <div class="progress-bar-container progress-track">
+                    <div class="progress-bar progress-fill" id="progress-bar"></div>
+                </div>
+                <div class="progress-detail" id="progress-detail"></div>
+            </div>
+        </section>
+
+        <!-- Win Rate Trend Chart -->
+        <section class="panel" id="chart-panel">
+            <div class="panel-header">
+                <h2>Win Rate Trend</h2>
+            </div>
+            <div id="winrate-chart" class="chart-container">
+                <canvas id="winrate-canvas"></canvas>
+                <div id="winrate-empty" class="empty-state">
+                    <p>No generation data yet. Start a distillation run to see win rate trends.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Data Composition Chart -->
+        <section class="panel" id="composition-panel">
+            <div class="panel-header">
+                <h2>Data Composition</h2>
+            </div>
+            <div id="composition-chart" class="chart-container">
+                <canvas id="composition-canvas"></canvas>
+                <div id="composition-empty" class="empty-state">
+                    <p>No generation data yet.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Generation History Table -->
+        <section class="panel" id="history-panel">
+            <div class="panel-header">
+                <h2>Generation History</h2>
+            </div>
+            <div id="history-table-container">
+                <div class="empty-state" id="history-empty">No generations completed yet.</div>
+            </div>
+        </section>
+    </div>
+
+    <script src="distillation.js"></script>
+</body>
+</html>

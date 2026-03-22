@@ -727,3 +727,221 @@ async def ml_stats():
         "eval_results": eval_results,
         "policy_loaded": svc._loaded if svc else False,
     }
+
+
+# ==============================================================
+# Distillation Loop Endpoints
+# ==============================================================
+
+@dataclasses.dataclass
+class _DistillationState:
+    running: bool = False
+    generation: int = 0
+    max_iterations: int = 0
+    phase: str = "idle"
+    message: str = ""
+    current_step: str = ""
+    generations: list = dataclasses.field(default_factory=list)
+    result: object = None
+    error: object = None
+    started_at: object = None
+
+    def snapshot(self) -> dict:
+        return {
+            "running": self.running,
+            "generation": self.generation,
+            "max_iterations": self.max_iterations,
+            "phase": self.phase,
+            "message": self.message,
+            "current_step": self.current_step,
+            "generations": self.generations,
+            "result": self.result,
+            "error": self.error,
+            "started_at": self.started_at,
+        }
+
+_distillation_state = _DistillationState()
+_distillation_lock  = threading.Lock()
+_distillation_loop  = None  # holds the DistillationLoop instance for stop()
+
+
+def _run_distillation_pipeline(
+    max_iterations: int,
+    convergence_window: int,
+    convergence_threshold: float,
+    supervised_epochs: int,
+    supervised_lr: float,
+    ppo_iterations: int,
+    ppo_episodes_per_iter: int,
+    ppo_lr: float,
+    opponent: str,
+    playstyle: str,
+    min_win_rate: float,
+):
+    """Run the distillation loop in a background thread."""
+    global _distillation_loop
+    try:
+        import sys
+        project_root = str(Path(__file__).resolve().parent.parent)
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+        from ml.training.distillation_loop import DistillationLoop, DistillationConfig
+
+        cfg = DistillationConfig(
+            max_iterations=max_iterations,
+            convergence_window=convergence_window,
+            convergence_threshold=convergence_threshold,
+            supervised_epochs=supervised_epochs,
+            supervised_lr=supervised_lr,
+            ppo_iterations=ppo_iterations,
+            ppo_episodes_per_iter=ppo_episodes_per_iter,
+            ppo_lr=ppo_lr,
+            opponent=opponent,
+            playstyle=playstyle,
+            min_ppo_win_rate=min_win_rate,
+            results_dir=os.path.join(project_root, "data", "results"),
+            models_dir=os.path.join(project_root, "ml", "models"),
+            checkpoint_dir=os.path.join(project_root, "ml", "models", "checkpoints"),
+            history_dir=os.path.join(project_root, "data", "results", "distillation-history"),
+        )
+
+        loop = DistillationLoop(cfg)
+        _distillation_loop = loop
+
+        def progress_callback(gen_num, record):
+            with _distillation_lock:
+                _distillation_state.generation = gen_num
+                _distillation_state.current_step = record.status
+                _distillation_state.message = (
+                    f"Generation {gen_num}: {record.status}"
+                    + (f" — win rate {record.ppo_best_win_rate:.1%}" if record.ppo_best_win_rate > 0 else "")
+                )
+                _distillation_state.generations = [g.to_dict() for g in loop.generations]
+
+        with _distillation_lock:
+            _distillation_state.phase = "running"
+            _distillation_state.message = "Initializing distillation loop..."
+
+        summary = loop.run(progress_callback=progress_callback)
+
+        with _distillation_lock:
+            _distillation_state.phase = "done"
+            _distillation_state.running = False
+            _distillation_state.result = summary
+            _distillation_state.generations = summary.get("generations", [])
+            _distillation_state.message = (
+                f"Distillation complete! {summary['generations_run']} generations, "
+                f"best win rate: {summary['best_win_rate']:.1%}"
+            )
+
+    except Exception as e:
+        import traceback
+        with _distillation_lock:
+            _distillation_state.phase = "error"
+            _distillation_state.running = False
+            _distillation_state.error = str(e)
+            _distillation_state.message = f"Distillation failed: {e}"
+        traceback.print_exc()
+    finally:
+        _distillation_loop = None
+
+
+@router.post("/api/ml/distill/start")
+async def ml_start_distillation(request: FastAPIRequest):
+    """Start the closed-loop distillation pipeline."""
+    if _distillation_state.running:
+        raise HTTPException(409, "Distillation loop already in progress")
+    if _training_state.running:
+        raise HTTPException(409, "Supervised training in progress — wait for it to finish")
+    if _ppo_state.running:
+        raise HTTPException(409, "PPO training in progress — wait for it to finish")
+
+    body = await request.json() if await request.body() else {}
+
+    max_iterations = body.get("maxIterations", 10)
+    convergence_window = body.get("convergenceWindow", 3)
+    convergence_threshold = body.get("convergenceThreshold", 0.01)
+    supervised_epochs = body.get("supervisedEpochs", 30)
+    supervised_lr = body.get("supervisedLr", 1e-3)
+    ppo_iterations = body.get("ppoIterations", 50)
+    ppo_episodes_per_iter = body.get("ppoEpisodesPerIter", 64)
+    ppo_lr = body.get("ppoLr", 3e-4)
+    opponent = body.get("opponent", "heuristic")
+    playstyle = body.get("playstyle", "midrange")
+    min_win_rate = body.get("minWinRate", 0.30)
+
+    with _distillation_lock:
+        _distillation_state.running = True
+        _distillation_state.generation = 0
+        _distillation_state.max_iterations = max_iterations
+        _distillation_state.phase = "starting"
+        _distillation_state.message = "Initializing distillation loop..."
+        _distillation_state.current_step = ""
+        _distillation_state.generations = []
+        _distillation_state.result = None
+        _distillation_state.error = None
+        _distillation_state.started_at = datetime.now().isoformat()
+
+    thread = threading.Thread(
+        target=_run_distillation_pipeline,
+        args=(
+            max_iterations, convergence_window, convergence_threshold,
+            supervised_epochs, supervised_lr,
+            ppo_iterations, ppo_episodes_per_iter, ppo_lr,
+            opponent, playstyle, min_win_rate,
+        ),
+        daemon=True,
+    )
+    thread.start()
+
+    return {"status": "started", "max_iterations": max_iterations}
+
+
+@router.get("/api/ml/distill/status")
+async def ml_distillation_status():
+    """Get distillation loop status."""
+    with _distillation_lock:
+        return _distillation_state.snapshot()
+
+
+@router.post("/api/ml/distill/stop")
+async def ml_stop_distillation():
+    """Signal the distillation loop to stop after the current generation."""
+    if not _distillation_state.running:
+        raise HTTPException(400, "Distillation loop is not running")
+
+    global _distillation_loop
+    if _distillation_loop is not None:
+        _distillation_loop.stop()
+
+    with _distillation_lock:
+        _distillation_state.message = "Stop signal sent — finishing current generation..."
+
+    return {"status": "stopping", "message": "Will stop after current generation completes"}
+
+
+@router.get("/api/ml/distill/history")
+async def ml_distillation_history():
+    """Get distillation generation history from disk."""
+    project_root = Path(__file__).resolve().parent.parent
+    history_path = project_root / "data" / "results" / "distillation-history" / "generations.json"
+    summary_path = project_root / "data" / "results" / "distillation-history" / "summary.json"
+
+    result = {"generations": [], "summary": None}
+
+    if history_path.exists():
+        try:
+            with open(history_path, "r") as f:
+                result["generations"] = json.load(f)
+        except Exception:
+            pass
+
+    if summary_path.exists():
+        try:
+            with open(summary_path, "r") as f:
+                result["summary"] = json.load(f)
+        except Exception:
+            pass
+
+    return result

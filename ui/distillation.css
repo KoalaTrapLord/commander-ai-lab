@@ -1,0 +1,194 @@
+/* ══════════════════════════════════════════════════════════════
+   Commander AI Lab — Distillation Loop Dashboard
+   Page-specific styles only; shared tokens & components in global.css
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Legacy variable aliases (used by distillation.js inline styles) ── */
+:root {
+    --lab-bg:         var(--bg);
+    --lab-surface:    var(--surface-1);
+    --lab-border:     var(--border);
+    --lab-accent:     var(--accent);
+    --lab-accent-dim: var(--accent-dim);
+    --lab-text:       var(--text);
+    --lab-text-dim:   var(--text-secondary);
+    --lab-success:    var(--success);
+    --lab-success-dim:var(--success-dim);
+    --lab-warning:    var(--warning);
+    --lab-warning-dim:var(--warning-dim);
+    --lab-error:      var(--error);
+    --lab-error-dim:  var(--error-dim);
+    --lab-purple:     var(--purple);
+    --lab-purple-dim: var(--purple-dim);
+}
+
+/* ── Status Cards (extend global .stat-card) ───────────────── */
+.status-grid {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.status-card {
+    text-align: center;
+}
+
+.status-card.active {
+    border-color: var(--accent);
+}
+
+.status-card.success {
+    border-color: var(--success);
+}
+
+.status-card.error-state {
+    border-color: var(--error);
+}
+
+.card-icon {
+    font-size: 24px;
+    margin-bottom: var(--sp-2);
+}
+
+/* ── Panel heading with bottom border ──────────────────────── */
+.panel > .panel-header {
+    padding-bottom: var(--sp-3);
+    border-bottom: 1px solid var(--border);
+}
+
+/* ── Training Controls Layout ──────────────────────────────── */
+.train-controls {
+    padding-top: var(--sp-4);
+}
+
+.param-grid {
+    margin-bottom: var(--sp-3);
+}
+
+.distill-bottom-params {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.distill-actions {
+    display: flex;
+    gap: var(--sp-2);
+    margin-top: var(--sp-2);
+}
+
+.btn-icon {
+    font-size: 14px;
+}
+
+/* ── Progress Sections ─────────────────────────────────────── */
+.train-progress {
+    margin-top: var(--sp-5);
+    padding-top: var(--sp-4);
+    border-top: 1px solid var(--border);
+}
+
+.train-progress.hidden {
+    display: none;
+}
+
+/* ── Phase Badges ──────────────────────────────────────────── */
+.phase-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: var(--radius-md);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.phase-badge.running    { background: var(--accent-dim); color: var(--accent); }
+.phase-badge.starting   { background: var(--accent-dim); color: var(--accent); }
+.phase-badge.done       { background: var(--success-dim); color: var(--success); }
+.phase-badge.error      { background: var(--error-dim); color: var(--error); }
+.phase-badge.idle       { background: var(--surface-3); color: var(--text-secondary); }
+
+#progress-message {
+    font-size: 13px;
+    color: var(--text);
+}
+
+/* ── Progress Bar overrides ────────────────────────────────── */
+.progress-bar-container {
+    margin-bottom: var(--sp-2);
+}
+
+.progress-bar {
+    transition: width 0.5s var(--ease);
+}
+
+.progress-bar.done {
+    background: var(--success);
+}
+
+.progress-bar.error {
+    background: var(--error);
+}
+
+/* ── Chart Containers ──────────────────────────────────────── */
+.chart-container {
+    position: relative;
+    min-height: 200px;
+}
+
+.chart-container canvas {
+    width: 100%;
+}
+
+.chart-container .empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--sp-6);
+}
+
+/* ── History Table ─────────────────────────────────────────── */
+.distill-history-table {
+    font-size: 13px;
+}
+
+.distill-history-table .tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    text-transform: capitalize;
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .status-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .param-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .distill-bottom-params {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .status-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .param-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Refresh button spin animation */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
