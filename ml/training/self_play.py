@@ -38,6 +38,7 @@ from ml.config.scope import (
     Playstyle, PLAYSTYLE_TO_IDX, STATE_DIMS, GamePhase, PHASE_TO_IDX,
 )
 from ml.training.reward import compute_intermediate_reward, compute_terminal_reward, RewardConfig
+from ml.training.decision_exporter import DecisionExporter
 
 logger = logging.getLogger("ml.self_play")
 
@@ -384,6 +385,7 @@ def run_self_play_episode(
     playstyle: str = "midrange",
     max_steps: int = 50,
     reward_config: RewardConfig = None,
+    exporter: DecisionExporter = None,
 ) -> List[dict]:
     """Run a single self-play episode and return the trajectory.
 
@@ -395,6 +397,7 @@ def run_self_play_episode(
         playstyle: Playstyle for state encoding
         max_steps: Maximum decision steps per episode
         reward_config: Reward configuration
+        exporter: Optional DecisionExporter to record steps for distillation
 
     Returns:
         List of step dicts: [{state, action, reward, value, log_prob, done}, ...]
@@ -458,6 +461,12 @@ def run_self_play_episode(
                 "log_prob": log_prob_scalar,
                 "done": True,
             })
+            if exporter is not None:
+                exporter.record_step(
+                    game_state_snapshot=prev_snapshot,
+                    action_idx=action_idx,
+                    reward=reward,
+                )
             break
 
         # Opponent's turn
@@ -483,6 +492,12 @@ def run_self_play_episode(
                 "log_prob": log_prob_scalar,
                 "done": True,
             })
+            if exporter is not None:
+                exporter.record_step(
+                    game_state_snapshot=prev_snapshot,
+                    action_idx=action_idx,
+                    reward=reward,
+                )
             break
 
         # Intermediate reward
@@ -499,6 +514,12 @@ def run_self_play_episode(
             "log_prob": log_prob_scalar,
             "done": False,
         })
+        if exporter is not None:
+            exporter.record_step(
+                game_state_snapshot=prev_snapshot,
+                action_idx=action_idx,
+                reward=reward,
+            )
 
         # Advance turn
         state = advance_turn(state)
@@ -513,6 +534,7 @@ def collect_rollouts(
     num_episodes: int = 64,
     playstyle: str = "midrange",
     reward_config: RewardConfig = None,
+    exporter: DecisionExporter = None,
 ) -> dict:
     """Collect multiple self-play episodes into a rollout buffer.
 
@@ -523,6 +545,7 @@ def collect_rollouts(
         num_episodes: Number of episodes to collect
         playstyle: Agent playstyle
         reward_config: Reward configuration
+        exporter: Optional DecisionExporter to record decisions for distillation
 
     Returns:
         Collection statistics dict
@@ -538,12 +561,16 @@ def collect_rollouts(
         # Alternate agent seat for balanced training
         agent_seat = ep % 2
 
+        if exporter is not None:
+            exporter.begin_episode(agent_seat=agent_seat, playstyle=playstyle)
+
         trajectory = run_self_play_episode(
             agent_model=agent_model,
             opponent_policy=opponent_policy,
             agent_seat=agent_seat,
             playstyle=playstyle,
             reward_config=reward_config,
+            exporter=exporter,
         )
 
         for step in trajectory:
@@ -568,6 +595,11 @@ def collect_rollouts(
                 total_losses += 1
             else:
                 total_draws += 1
+
+        if exporter is not None:
+            won = trajectory and trajectory[-1]["done"] and trajectory[-1]["reward"] > 0.5
+            ep_return = sum(s["reward"] for s in trajectory)
+            exporter.end_episode(won=won, episode_return=ep_return)
 
     # Compute GAE after collection
     buffer.compute_returns_and_advantages(last_value=0.0)
