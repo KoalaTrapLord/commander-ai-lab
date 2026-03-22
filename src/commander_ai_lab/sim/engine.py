@@ -438,7 +438,13 @@ class GameEngine:
         if events is not None:
           events.append(f"Cast {card.name} (board wipe) \u2014 destroyed {len(wiped_names)} creatures")
       else:
-        sim.add_to_battlefield(pi, card)
+        # Fix #84/BUG-05: instants and sorceries resolve and go to
+        # graveyard — they are NOT permanents and should never stay
+        # on the battlefield.
+        if card.is_permanent():
+          sim.add_to_battlefield(pi, card)
+        else:
+          self._send_to_graveyard(sim, card, pi)
         if card.is_creature():
           p.stats.creatures_played += 1
           if events is not None:
@@ -515,7 +521,7 @@ class GameEngine:
       c
       for c in sim.get_battlefield(pi)
       if (
-        c.is_creature()
+        c.can_attack_or_block()
         and not c.tapped
         and (c.turn_played < sim.turn or c.has_keyword("haste"))
       )
@@ -526,7 +532,7 @@ class GameEngine:
       c
       for c in sim.get_battlefield(opp_idx)
       if (
-        c.is_creature()
+        c.can_attack_or_block()
         and not c.tapped
       )
     ]

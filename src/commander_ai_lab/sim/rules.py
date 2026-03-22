@@ -167,14 +167,16 @@ def enrich_card(card: Card) -> Card:
                 _apply_oracle_flags(card)
                 return card
 
-        # Default: treat as creature with deterministic CMC based on
-        # card name hash (fixes #32 — no more random.randint jitter
-        # between games for the same card).
+        # Default: unknown cards get deterministic CMC based on card
+        # name hash (fixes #32 — no more random.randint jitter).
+        # Fix #82: do NOT default to "Creature". Unknown cards are
+        # classified as "Unknown" and cannot attack/block until their
+        # real type is confirmed via Scryfall data.
         if not card.type_line or len(card.type_line) < 3:
             name_hash = int(hashlib.md5(name_lower.encode()).hexdigest(), 16)
             estimated_cmc = (name_hash % 5) + 2          # 2-6 inclusive
             estimated_pow = max(1, estimated_cmc - 1)
-            card.type_line = "Creature"
+            card.type_line = "Unknown"
             card.cmc = estimated_cmc
             card.pt = f"{estimated_pow}/{estimated_pow}"
             card.power = str(estimated_pow)

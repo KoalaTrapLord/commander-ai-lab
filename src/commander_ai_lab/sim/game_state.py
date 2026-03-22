@@ -227,15 +227,223 @@ class CommanderGameState:
     def stack_is_empty(self) -> bool:
         return len(self.stack) == 0
 
-    # Bug 9 fix: stub get_legal_moves() and apply_move() so turn_manager
-    # doesn't crash.  These delegate to the rules engine once implemented.
+    # ── Legal Moves & Apply (BUG-02 fix) ─────────────────────
+    # These replace the former pass-only stubs so that the turn manager
+    # can drive real game actions through the CommanderGameState.
+
     def get_legal_moves(self, seat: int) -> list[dict]:
-        """Return legal moves for a seat. Stub — returns pass-only."""
-        return [{"id": 0, "category": "pass_priority", "description": "Pass"}]
+        """Return legal moves for a seat based on mana, phase, and card type.
+
+        Move categories:
+          - pass_priority: always available
+          - play_land: if main phase, land drop not used, and land in hand
+          - cast_spell: if main phase and castable cards in hand
+          - attack: if declare_attackers phase and creatures can attack
+          - instant/activate_ability: if holding-priority phases
+        """
+        moves: list[dict] = []
+        move_id = 0
+
+        if seat >= len(self.commander_players):
+            return [{"id": 0, "category": "pass_priority", "description": "Pass"}]
+
+        cp = self.commander_players[seat]
+        player = cp.base
+        bf = self.sim_state.get_battlefield(seat)
+
+        # Available mana = untapped lands + untapped mana-producing artifacts
+        available_mana = sum(
+            1 for c in bf
+            if not c.tapped and (c.is_land() or (c.is_ramp and not c.is_creature()))
+        )
+
+        # ── Main phase actions ──
+        if self.current_phase in ("main1", "main2"):
+            # Play land (one per turn)
+            if not self.land_drop_used:
+                for i, card in enumerate(player.hand):
+                    if card.is_land():
+                        moves.append({
+                            "id": move_id,
+                            "category": "play_land",
+                            "description": f"Play land: {card.name}",
+                            "card_index": i,
+                            "card_name": card.name,
+                        })
+                        move_id += 1
+                        break  # only one land drop offered
+
+            # Cast spells from hand (sorcery-speed: creatures, sorceries,
+            # artifacts, enchantments, planeswalkers)
+            for i, card in enumerate(player.hand):
+                if card.is_land():
+                    continue
+                cmc = card.cmc or 0
+                if cmc <= available_mana:
+                    moves.append({
+                        "id": move_id,
+                        "category": "cast_spell",
+                        "description": f"Cast {card.name} (CMC {cmc})",
+                        "card_index": i,
+                        "card_name": card.name,
+                    })
+                    move_id += 1
+
+            # Cast commander from command zone
+            for i, cmd in enumerate(cp.commander_zone):
+                tax = player.commander_tax.get(cmd.name, 0)
+                total = (cmd.cmc or 0) + tax
+                if total <= available_mana:
+                    moves.append({
+                        "id": move_id,
+                        "category": "cast_spell",
+                        "description": f"Cast commander {cmd.name} (cost {total}, tax {tax})",
+                        "card_name": cmd.name,
+                        "from_zone": "command",
+                        "cmd_index": i,
+                    })
+                    move_id += 1
+
+        # ── Combat: declare attackers ──
+        if self.current_phase == "declare_attackers":
+            attackable_creatures = [
+                c for c in bf
+                if c.can_attack_or_block()
+                and not c.tapped
+                and (c.turn_played < self.turn or c.has_keyword("haste"))
+            ]
+            if attackable_creatures:
+                moves.append({
+                    "id": move_id,
+                    "category": "attack",
+                    "description": f"Attack with all ({len(attackable_creatures)} creatures)",
+                    "attack_mode": "all",
+                })
+                move_id += 1
+
+        # ── Instant-speed responses ──
+        if self.current_phase in ("upkeep", "begin_combat", "end_combat",
+                                  "end_step", "declare_blockers"):
+            for i, card in enumerate(player.hand):
+                if card.is_instant():
+                    cmc = card.cmc or 0
+                    if cmc <= available_mana:
+                        moves.append({
+                            "id": move_id,
+                            "category": "instant",
+                            "description": f"Cast {card.name} (instant, CMC {cmc})",
+                            "card_index": i,
+                            "card_name": card.name,
+                        })
+                        move_id += 1
+
+        # Always allow passing priority
+        moves.append({
+            "id": move_id,
+            "category": "pass_priority",
+            "description": "Pass",
+        })
+
+        return moves
 
     def apply_move(self, seat: int, move_id: int) -> None:
-        """Apply a chosen move. Stub — no-op until rules engine is wired."""
-        pass
+        """Apply a chosen move to the game state.
+
+        Looks up the move by id in the current legal moves list and
+        executes the corresponding game action.
+        """
+        legal = self.get_legal_moves(seat)
+        move = None
+        for m in legal:
+            if m["id"] == move_id:
+                move = m
+                break
+        if move is None:
+            return  # invalid move id — no-op
+
+        cat = move["category"]
+        if cat == "pass_priority":
+            return
+
+        if seat >= len(self.commander_players):
+            return
+        cp = self.commander_players[seat]
+        player = cp.base
+        bf = self.sim_state.get_battlefield(seat)
+
+        if cat == "play_land":
+            idx = move.get("card_index", -1)
+            if 0 <= idx < len(player.hand):
+                card = player.hand.pop(idx)
+                card.owner_id = seat
+                card.tapped = False
+                card.id = self.sim_state.next_card_id
+                self.sim_state.next_card_id += 1
+                self.sim_state.add_to_battlefield(seat, card)
+                self.land_drop_used = True
+                cp.lands_played_this_turn += 1
+
+        elif cat == "cast_spell":
+            from_zone = move.get("from_zone", "hand")
+            if from_zone == "command":
+                cmd_idx = move.get("cmd_index", 0)
+                if cmd_idx < len(cp.commander_zone):
+                    card = cp.commander_zone.pop(cmd_idx)
+                    tax = player.commander_tax.get(card.name, 0)
+                    total_cost = (card.cmc or 0) + tax
+                    card.owner_id = seat
+                    card.tapped = False
+                    card.id = self.sim_state.next_card_id
+                    self.sim_state.next_card_id += 1
+                    card.turn_played = self.turn
+                    self._tap_mana_sources(seat, total_cost)
+                    self.sim_state.add_to_battlefield(seat, card)
+                    player.commander_tax[card.name] = tax + 2
+            else:
+                idx = move.get("card_index", -1)
+                if 0 <= idx < len(player.hand):
+                    card = player.hand.pop(idx)
+                    card.owner_id = seat
+                    card.tapped = False
+                    card.id = self.sim_state.next_card_id
+                    self.sim_state.next_card_id += 1
+                    card.turn_played = self.turn
+                    self._tap_mana_sources(seat, card.cmc or 0)
+                    if card.is_permanent():
+                        self.sim_state.add_to_battlefield(seat, card)
+                    else:
+                        # Instants/sorceries go to graveyard after resolution
+                        player.graveyard.append(card)
+
+        elif cat == "instant":
+            idx = move.get("card_index", -1)
+            if 0 <= idx < len(player.hand):
+                card = player.hand.pop(idx)
+                card.owner_id = seat
+                card.id = self.sim_state.next_card_id
+                self.sim_state.next_card_id += 1
+                self._tap_mana_sources(seat, card.cmc or 0)
+                # Instants resolve and go to graveyard
+                player.graveyard.append(card)
+
+        elif cat == "attack":
+            # Mark all eligible creatures as attacking (tapped)
+            for c in bf:
+                if (c.can_attack_or_block()
+                        and not c.tapped
+                        and (c.turn_played < self.turn or c.has_keyword("haste"))):
+                    c.tapped = True
+
+    def _tap_mana_sources(self, seat: int, amount: int) -> None:
+        """Tap lands and mana rocks to pay a cost."""
+        bf = self.sim_state.get_battlefield(seat)
+        remaining = amount
+        for c in bf:
+            if remaining <= 0:
+                break
+            if not c.tapped and (c.is_land() or (c.is_ramp and not c.is_creature())):
+                c.tapped = True
+                remaining -= 1
 
     def living_players(self) -> list[CommanderPlayer]:
         return [p for p in self.commander_players if not p.eliminated]

@@ -67,9 +67,16 @@ class TestEnrichCardDeterministic:
         c2 = Card(name="Zzzzz")
         enrich_card(c1)
         enrich_card(c2)
-        # At minimum they are both valid creatures with cmc in [2,6]
+        # At minimum they are both valid Unknown-type cards with cmc in [2,6]
         assert 2 <= c1.cmc <= 6
         assert 2 <= c2.cmc <= 6
+
+    def test_unknown_card_type_is_unknown(self):
+        """Unknown cards should get type_line='Unknown', not 'Creature'."""
+        c = Card(name="Totally Unknown Card XYZ")
+        enrich_card(c)
+        assert c.type_line == "Unknown"
+        assert c.is_creature() is False
 
     def test_unknown_card_cmc_range(self):
         for name in ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"]:

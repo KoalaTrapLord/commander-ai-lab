@@ -90,6 +90,38 @@ class Card:
     def is_creature(self) -> bool:
         return bool(self.type_line and "creature" in self.type_line.lower())
 
+    def is_instant(self) -> bool:
+        """Check if this card is an Instant."""
+        return bool(self.type_line and "instant" in self.type_line.lower())
+
+    def is_sorcery(self) -> bool:
+        """Check if this card is a Sorcery."""
+        return bool(self.type_line and "sorcery" in self.type_line.lower())
+
+    def is_permanent(self) -> bool:
+        """Check if this card is a permanent type (not instant/sorcery).
+
+        Permanents are creatures, artifacts, enchantments, planeswalkers, lands,
+        and battles. Instants and sorceries are non-permanent spells.
+        Cards with unknown type are treated as permanents to avoid being
+        incorrectly discarded.
+        """
+        if not self.type_line:
+            return True  # no type info — keep on battlefield to be safe
+        tl = self.type_line.lower()
+        return "instant" not in tl and "sorcery" not in tl
+
+    def can_attack_or_block(self) -> bool:
+        """Check if this card can participate in combat.
+
+        Per MTG rules, only creatures can attack or block.
+        Cards with unknown/missing type, artifacts, enchantments, etc.
+        are NOT eligible for combat unless their type_line includes 'Creature'.
+        """
+        if not self.type_line:
+            return False
+        return "creature" in self.type_line.lower()
+
     def clone(self) -> "Card":
         """Return a deep copy of this card."""
         return copy.deepcopy(self)

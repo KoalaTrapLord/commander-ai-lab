@@ -168,6 +168,14 @@ def http_client(fresh_app):
 
 
 @pytest.fixture
+def basic_creature():
+    """A simple creature Card for model tests."""
+    from commander_ai_lab.sim.models import Card
+    return Card(name="Grizzly Bears", type_line="Creature — Bear",
+                cmc=2, pt="2/2", power="2", toughness="2")
+
+
+@pytest.fixture
 def event_loop():
     """Provide a fresh event loop for async tests."""
     loop = asyncio.new_event_loop()
