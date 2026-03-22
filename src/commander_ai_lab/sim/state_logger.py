@@ -42,6 +42,8 @@ class StateLogger:
     before writing the new one (FIFO rotation).
     """
 
+    _counter: int = 0  # monotonic counter to guarantee unique filenames
+
     def __init__(self, log_dir: Optional[str | Path] = None) -> None:
         self.log_dir = Path(log_dir) if log_dir else DEFAULT_LOG_DIR
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -73,8 +75,9 @@ class StateLogger:
         """
         self._rotate()
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"snapshot_{timestamp}_t{game_state.turn}_s{seat}.json"
+        StateLogger._counter += 1
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        filename = f"snapshot_{timestamp}_{StateLogger._counter}_t{game_state.turn}_s{seat}.json"
         filepath = self.log_dir / filename
 
         snapshot = {

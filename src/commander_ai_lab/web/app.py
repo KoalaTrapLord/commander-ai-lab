@@ -29,6 +29,7 @@ from fastapi.staticfiles import StaticFiles
 from commander_ai_lab.web.routers.api    import router as api_router
 from commander_ai_lab.web.routers.ws     import router as ws_router
 from commander_ai_lab.web.routers.art    import router as art_router
+from commander_ai_lab.web.routers.lobby  import router as lobby_router, ws_router as lobby_ws_router
 
 # Prefer the React build output; fall back to legacy static dir
 _FRONTEND_DIST = Path(__file__).parents[3] / "frontend" / "dist"
@@ -66,6 +67,8 @@ def create_app(
     app.include_router(api_router,  prefix="/api/v1")
     app.include_router(ws_router)                          # /ws/game/{game_id}
     app.include_router(art_router,  prefix="/api/v1")
+    app.include_router(lobby_router)                       # /api/v1/lobby/...
+    app.include_router(lobby_ws_router)                    # /ws/lobby/{room_id}
 
     # Static files (web client) — prefer React build, fall back to legacy
     sd = static_dir or (_FRONTEND_DIST if _FRONTEND_DIST.exists() else _STATIC_DIR)

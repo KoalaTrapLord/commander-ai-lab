@@ -36,7 +36,7 @@ def _engine(personalities=None):
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +217,7 @@ class TestPoliticsCommsChannel:
                 async def h(msg): received_seats.append(s)
                 return h
             import asyncio
-            h = asyncio.get_event_loop().run_until_complete(make_handler())
+            h = asyncio.run(make_handler())
             channel.register_handler(seat=seat, handler=h)
 
         msg = ThreatBroadcast(speaker=0, audience=-1,

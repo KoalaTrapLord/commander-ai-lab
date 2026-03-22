@@ -26,11 +26,56 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 class StubCard:
     name: str
     type: str          = "creature"
+    type_line: str     = ""
     pt: Optional[str]  = "2/2"
     cmc: int           = 3
     tapped: bool       = False
     is_commander: bool = False
     oracle: str        = ""
+    oracle_text: str   = ""
+    power: str         = ""
+    toughness: str     = ""
+    keywords: list     = field(default_factory=list)
+
+    def get_power(self) -> int:
+        if self.power:
+            try:
+                return int(self.power)
+            except ValueError:
+                return 0
+        if not self.pt:
+            return 0
+        parts = self.pt.split("/")
+        try:
+            return int(parts[0])
+        except (ValueError, IndexError):
+            return 0
+
+    def get_toughness(self) -> int:
+        if self.toughness:
+            try:
+                return int(self.toughness)
+            except ValueError:
+                return 0
+        if not self.pt:
+            return 0
+        parts = self.pt.split("/")
+        try:
+            return int(parts[1])
+        except (ValueError, IndexError):
+            return 0
+
+    def is_land(self) -> bool:
+        return bool(self.type_line and "land" in self.type_line.lower())
+
+    def is_creature(self) -> bool:
+        return bool(self.type_line and "creature" in self.type_line.lower())
+
+    def has_keyword(self, kw: str) -> bool:
+        kw_lower = kw.lower()
+        if self.keywords and any(k.lower() == kw_lower for k in self.keywords):
+            return True
+        return kw_lower in (self.oracle_text or "").lower()
 
     def to_dict(self) -> dict:
         return {
@@ -47,7 +92,7 @@ class StubCard:
 @dataclass
 class StubPlayer:
     name: str
-    seat: int
+    seat: int = 0
     life: int                  = 40
     eliminated: bool           = False
     hand: list                 = field(default_factory=list)
@@ -75,7 +120,28 @@ class StubPlayer:
         }
 
 
+class _StubSimState:
+    """Minimal SimState-compatible stub — delegates to player battlefields."""
+
+    def __init__(self, players: list) -> None:
+        self._players = players
+
+    def get_battlefield(self, seat: int) -> list:
+        if 0 <= seat < len(self._players):
+            return self._players[seat].battlefield
+        return []
+
+    def add_to_battlefield(self, seat: int, card) -> None:
+        if 0 <= seat < len(self._players):
+            self._players[seat].battlefield.append(card)
+
+
 class StubGameState:
+    """
+    Shared test stub that implements the CommanderGameState interface
+    used by ThreatAssessor, TurnManager, and other subsystems.
+    """
+
     def __init__(
         self,
         num_players: int = 4,
@@ -86,10 +152,26 @@ class StubGameState:
         self.turn               = 1
         self.current_phase      = "main1"
         self.active_player_seat = 0
-        self.stack              = []
+        self.priority_seat      = 0
+        self.stack: list        = []
         self.game_over          = False
         self.winner             = None
         self.commander_damage: dict[tuple, int] = {}
+
+        # SimState-compatible sub-object for turn_manager._phase_untap() etc.
+        self.sim_state = _StubSimState(self.players)
+
+    # -- CommanderGameState interface methods --
+
+    def battlefield(self, seat: int) -> list:
+        """Return the battlefield for *seat* (delegates to sim_state)."""
+        return self.sim_state.get_battlefield(seat)
+
+    def stack_is_empty(self) -> bool:
+        return len(self.stack) == 0
+
+    def living_players(self) -> list:
+        return [p for p in self.players if not p.eliminated]
 
     def get_legal_moves(self, seat: int) -> list[dict]:
         return [
@@ -106,6 +188,14 @@ class StubGameState:
         if self.active_player_seat == 0:
             self.turn += 1
 
+    def to_dict(self) -> dict:
+        return {
+            "turn": self.turn,
+            "current_phase": self.current_phase,
+            "active_player_seat": self.active_player_seat,
+            "players": [p.to_dict() for p in self.players],
+        }
+
 
 # ---------------------------------------------------------------------------
 # Pytest fixtures
@@ -119,6 +209,20 @@ def game_state():
 @pytest.fixture
 def game_state_2p():
     return StubGameState(num_players=2, names=["Alice", "Bob"])
+
+
+@pytest.fixture
+def basic_creature():
+    """A simple Card instance for clone and attribute tests."""
+    from commander_ai_lab.sim.models import Card
+    return Card(
+        name="Grizzly Bears",
+        type_line="Creature — Bear",
+        cmc=2,
+        pt="2/2",
+        power="2",
+        toughness="2",
+    )
 
 
 @pytest.fixture
@@ -157,8 +261,12 @@ def fresh_app():
     """FastAPI test app with a clean session store."""
     from commander_ai_lab.web.session_store import SessionStore
     SessionStore._instance = None
+    import commander_ai_lab.web.routers.api as api_mod
+    api_mod._store = SessionStore()
     from commander_ai_lab.web.app import create_app
-    return create_app()
+    app = create_app()
+    yield app
+    SessionStore._instance = None
 
 
 @pytest.fixture

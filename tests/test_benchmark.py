@@ -48,9 +48,19 @@ class _GS:
         self.turn = 1
         self.current_phase = "main1"
         self.active_player_seat = 0
+        self.priority_seat = 0
         self.stack = []
         self.game_over = False
         self.winner = None
+
+    def battlefield(self, seat: int) -> list:
+        return self.players[seat].battlefield
+
+    def stack_is_empty(self) -> bool:
+        return len(self.stack) == 0
+
+    def living_players(self) -> list:
+        return [p for p in self.players if not p.eliminated]
 
     def get_legal_moves(self, seat):
         return [{"id": 1, "category": "pass_priority", "description": "Pass"}]
@@ -60,7 +70,7 @@ class _GS:
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------
@@ -72,14 +82,13 @@ class BenchThreatAssessor:
     MIN_OPS_PER_SEC = 500
 
     def test_assess_threats_throughput(self):
-        from commander_ai_lab.sim.threat_assessor import ThreatAssessor
+        from commander_ai_lab.sim.threat_assessor import assess_threats
         gs = _GS()
-        ta = ThreatAssessor(game_state=gs, num_players=4)
 
         start = time.perf_counter()
         for _ in range(self.ITERATIONS):
             for seat in range(4):
-                ta.assess_threats(viewer_seat=seat)
+                assess_threats(gs, viewer_seat=seat)
         elapsed = time.perf_counter() - start
 
         ops = self.ITERATIONS * 4
@@ -90,13 +99,12 @@ class BenchThreatAssessor:
         )
 
     def test_top_threat_throughput(self):
-        from commander_ai_lab.sim.threat_assessor import ThreatAssessor
+        from commander_ai_lab.sim.threat_assessor import top_threat
         gs = _GS()
-        ta = ThreatAssessor(game_state=gs, num_players=4)
 
         start = time.perf_counter()
         for _ in range(self.ITERATIONS):
-            ta.top_threat(viewer_seat=0)
+            top_threat(gs, viewer_seat=0)
         elapsed = time.perf_counter() - start
 
         ops_per_sec = self.ITERATIONS / elapsed
@@ -236,20 +244,23 @@ class BenchIntegrated:
         Simulate N full turns: threat assessment + politics check + memory record.
         Measures combined per-turn overhead of the AI subsystems.
         """
-        from commander_ai_lab.sim.threat_assessor  import ThreatAssessor
+        from commander_ai_lab.sim.threat_assessor  import assess_threats
         from commander_ai_lab.sim.politics.memory  import TargetingMemory, ActionType
         from commander_ai_lab.sim.politics.comms   import PoliticsCommsChannel
         from commander_ai_lab.sim.politics.engine  import PoliticsEngine
         from commander_ai_lab.sim.politics.deals   import DealType
 
         gs  = _GS()
-        ta  = ThreatAssessor(game_state=gs, num_players=4)
+
+        def _threat_dict(viewer_seat: int) -> dict[int, float]:
+            return {s.seat: s.total for s in assess_threats(gs, viewer_seat=viewer_seat)}
+
         mem = TargetingMemory(4)
         ch  = PoliticsCommsChannel()
         pe  = PoliticsEngine(
             4, mem, ch,
             {0:"timmy",1:"spike",2:"johnny",3:"aggressive"},
-            lambda s: ta.assess_threats(viewer_seat=s),
+            _threat_dict,
         )
 
         async def simulate():
@@ -258,7 +269,7 @@ class BenchIntegrated:
                 active = turn % 4
                 # Assess threats for all seats
                 for seat in range(4):
-                    ta.assess_threats(viewer_seat=seat)
+                    assess_threats(gs, viewer_seat=seat)
                 # Record a simulated attack
                 attacker = active
                 defender = (active + 1) % 4

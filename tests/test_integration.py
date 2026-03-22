@@ -25,7 +25,7 @@ import pytest
 # ---------------------------------------------------------------------------
 
 def run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 @dataclass
@@ -42,15 +42,38 @@ class _Player:
     library: list = field(default_factory=list)
 
 
+class _StubSimState:
+    """Minimal SimState stub — delegates to player battlefields."""
+
+    def __init__(self, players: list) -> None:
+        self._players = players
+
+    def get_battlefield(self, seat: int) -> list:
+        if 0 <= seat < len(self._players):
+            return self._players[seat].battlefield
+        return []
+
+
 class _GS:
     def __init__(self, n=4):
         self.players = [_Player(f"P{i}", i) for i in range(n)]
         self.turn = 1
         self.current_phase = "main1"
         self.active_player_seat = 0
+        self.priority_seat = 0
         self.stack = []
         self.game_over = False
         self.winner = None
+        self.sim_state = _StubSimState(self.players)
+
+    def battlefield(self, seat: int) -> list:
+        return self.players[seat].battlefield
+
+    def stack_is_empty(self) -> bool:
+        return len(self.stack) == 0
+
+    def living_players(self) -> list:
+        return [p for p in self.players if not p.eliminated]
 
     def get_legal_moves(self, seat):
         return [{"id": 1, "category": "pass_priority", "description": "Pass"}]
@@ -70,13 +93,17 @@ class TestThreatPoliticsIntegration:
     """
 
     def _build(self):
-        from commander_ai_lab.sim.threat_assessor import ThreatAssessor
+        from commander_ai_lab.sim.threat_assessor import assess_threats
         from commander_ai_lab.sim.politics.memory  import TargetingMemory
         from commander_ai_lab.sim.politics.comms   import PoliticsCommsChannel
         from commander_ai_lab.sim.politics.engine  import PoliticsEngine
 
         gs  = _GS()
-        ta  = ThreatAssessor(game_state=gs, num_players=4)
+
+        def _threat_dict(viewer_seat: int) -> dict[int, float]:
+            """Wrap assess_threats list into {seat: total} dict for PoliticsEngine."""
+            return {s.seat: s.total for s in assess_threats(gs, viewer_seat=viewer_seat)}
+
         mem = TargetingMemory(num_players=4)
         ch  = PoliticsCommsChannel()
         pe  = PoliticsEngine(
@@ -84,19 +111,26 @@ class TestThreatPoliticsIntegration:
             memory=mem,
             comms=ch,
             personalities={0:"timmy",1:"spike",2:"johnny",3:"aggressive"},
-            threat_fn=lambda s: ta.assess_threats(viewer_seat=s),
+            threat_fn=_threat_dict,
         )
-        return gs, ta, mem, ch, pe
+        return gs, mem, ch, pe
 
     def test_adjusted_threat_no_spite_equals_base(self):
-        gs, ta, mem, ch, pe = self._build()
-        base     = ta.assess_threats(viewer_seat=0).get(1, 0.0)
+        from commander_ai_lab.sim.threat_assessor import assess_threats
+        gs, mem, ch, pe = self._build()
+        scores = assess_threats(gs, viewer_seat=0)
+        # Find the score for seat 1
+        base = 0.0
+        for s in scores:
+            if s.seat == 1:
+                base = s.total
+                break
         adjusted = pe.adjusted_threat_score(viewer=0, target=1, current_turn=1)
         # Without spite or memory events, adjusted ≈ base (may differ by mem term)
         assert abs(adjusted - base) < 0.35
 
     def test_spite_raises_adjusted_score(self):
-        gs, ta, mem, ch, pe = self._build()
+        gs, mem, ch, pe = self._build()
         before = pe.adjusted_threat_score(0, 1, 1)
         pe._add_spite(wronged_seat=0, target_seat=1, current_turn=1, intensity=0.5)
         after  = pe.adjusted_threat_score(0, 1, 1)
@@ -104,7 +138,7 @@ class TestThreatPoliticsIntegration:
 
     def test_memory_aggression_raises_adjusted_score(self):
         from commander_ai_lab.sim.politics.memory import ActionType
-        gs, ta, mem, ch, pe = self._build()
+        gs, mem, ch, pe = self._build()
         before = pe.adjusted_threat_score(0, 2, 1)
         for _ in range(5):
             mem.record(1, 2, 0, ActionType.ATTACKED)
@@ -112,12 +146,14 @@ class TestThreatPoliticsIntegration:
         assert after > before
 
     def test_top_threat_matches_assessor(self):
-        gs, ta, mem, ch, pe = self._build()
+        from commander_ai_lab.sim.threat_assessor import assess_threats
+        gs, mem, ch, pe = self._build()
         # Give seat 3 a huge life lead to inflate threat
         gs.players[3].life = 5   # low life — looks like they need a kill
-        threats = ta.assess_threats(viewer_seat=0)
-        # Just confirm assess_threats returns 3 keys for a 4-player game
-        assert len(threats) == 3
+        threats = assess_threats(gs, viewer_seat=0)
+        # assess_threats returns a ThreatScore per non-eliminated seat excluding none
+        # With 4 players, viewer seat 0 is included → 4 scores
+        assert len(threats) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -279,7 +315,7 @@ class TestTurnManagerIntegration:
             on_thinking=on_thinking,
             config=TurnManagerConfig(ai_decision_delay=0.0, max_turns=2),
         )
-        asyncio.get_event_loop().run_until_complete(tm.run_game())
+        asyncio.run(tm.run_game())
         # Game should have fired at least one event
         assert len(events) >= 1
 
@@ -307,7 +343,7 @@ class TestTurnManagerIntegration:
             on_thinking=on_thinking,
             config=TurnManagerConfig(ai_decision_delay=0.0, max_turns=1),
         )
-        asyncio.get_event_loop().run_until_complete(tm.run_game())
+        asyncio.run(tm.run_game())
         # If phases were emitted, they should start with untap
         if phases_seen:
             assert phases_seen[0] in ("untap", "upkeep", "draw", "main1")
@@ -337,7 +373,7 @@ class TestTurnManagerIntegration:
             on_thinking=on_thinking,
             config=TurnManagerConfig(ai_decision_delay=0.0, max_turns=3),
         )
-        asyncio.get_event_loop().run_until_complete(tm.run_game())
+        asyncio.run(tm.run_game())
         assert game_over_fired[0] is True
 
 

@@ -39,6 +39,34 @@ class _StubPlayer:
     library: list = field(default_factory=list)
     graveyard: list = field(default_factory=list)
     battlefield: list = field(default_factory=list)
+    exile: list = field(default_factory=list)
+    command_zone: list = field(default_factory=list)
+    commander_zone: list = field(default_factory=list)
+    commander_cast_count: int = 0
+    commander_damage_received: dict = field(default_factory=dict)
+
+    def commander_tax(self) -> int:
+        return self.commander_cast_count * 2
+
+    class mana_pool:
+        """Stub mana pool."""
+        W = U = B = R = G = C = 0
+        def total(self) -> int: return 0
+        def to_dict(self) -> dict: return {"W":0,"U":0,"B":0,"R":0,"G":0,"C":0,"total":0}
+
+    mana_pool = mana_pool()
+
+
+class _StubSimState:
+    """Minimal SimState stub — delegates to player battlefields."""
+
+    def __init__(self, players: list) -> None:
+        self._players = players
+
+    def get_battlefield(self, seat: int) -> list:
+        if 0 <= seat < len(self._players):
+            return self._players[seat].battlefield
+        return []
 
 
 class _StubGameState:
@@ -46,11 +74,35 @@ class _StubGameState:
 
     def __init__(self, num_players: int = 4):
         self.players = [_StubPlayer(name=f"P{i}", life=40) for i in range(num_players)]
+        self.commander_players = self.players  # prompt_builder iterates this
         self.turn = 0
         self.current_phase = "main1"
         self.active_player_seat = 0
         self.priority_seat = 0
+        self.land_drop_used = False
         self._move_counter = 0
+        self.stack: list = []
+        self.sim_state = _StubSimState(self.players)
+
+    def active_player(self):
+        if 0 <= self.active_player_seat < len(self.players):
+            return self.players[self.active_player_seat]
+        return None
+
+    def priority_player(self):
+        if 0 <= self.priority_seat < len(self.players):
+            return self.players[self.priority_seat]
+        return None
+
+    def battlefield(self, seat: int) -> list:
+        """Return the battlefield for the given seat."""
+        return self.players[seat].battlefield
+
+    def stack_is_empty(self) -> bool:
+        return len(self.stack) == 0
+
+    def living_players(self) -> list:
+        return [p for p in self.players if not p.eliminated]
 
     def get_legal_moves(self, seat: int) -> list[dict]:
         """Always return one pass move per seat."""
@@ -61,6 +113,14 @@ class _StubGameState:
 
     def apply_move(self, seat: int, move_id: int) -> None:
         self._move_counter += 1
+
+    def to_dict(self) -> dict:
+        return {
+            "turn": self.turn,
+            "current_phase": self.current_phase,
+            "active_player_seat": self.active_player_seat,
+            "players": [{"name": p.name, "life": p.life} for p in self.players],
+        }
 
 
 def _stub_gs(num_players: int = 4) -> _StubGameState:
@@ -100,12 +160,13 @@ def _make_tm(
 class TestThreatAssessor:
     def _gs_with_creatures(self) -> _StubGameState:
         gs = _stub_gs(4)
-        # Give seat 0 a big creature
+        # Give seat 0 a big creature — use Card from sim.models for full API compat
+        from commander_ai_lab.sim.models import Card
         gs.players[0].battlefield = [
-            {"name": "Dragon", "type": "creature", "pt": "6/6", "oracle": ""},
-            {"name": "Forest", "type": "land", "pt": "", "oracle": ""},
+            Card(name="Dragon", type_line="Creature — Dragon", pt="6/6", power="6", toughness="6"),
+            Card(name="Forest", type_line="Basic Land — Forest"),
         ]
-        gs.players[1].hand = [{"name": f"Card{i}"} for i in range(7)]
+        gs.players[1].hand = [Card(name=f"Card{i}") for i in range(7)]
         return gs
 
     def test_returns_score_per_non_eliminated_player(self):
