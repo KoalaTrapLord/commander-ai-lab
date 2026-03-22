@@ -90,10 +90,34 @@ async def start_batch(req: StartRequest, background_tasks: BackgroundTasks):
     output_path = os.path.join(CFG.results_dir, f"batch-{batch_id}.json")
     state.result_path = output_path
 
+      # Auto-export deckbuilder decks to .dck if not already exported
+    resolved_decks = []
+    for deck_name in req.decks:
+      dck_path = os.path.join(CFG.forge_decks_dir, deck_name + ".dck")
+      if os.path.exists(dck_path):
+        resolved_decks.append(deck_name)
+      else:
+        # Check if it's a deckbuilder deck and auto-export
+        try:
+          conn = _get_db_conn()
+          row = conn.execute(
+            "SELECT id FROM decks WHERE name = ? LIMIT 1", (deck_name,)
+          ).fetchone()
+          if row:
+            from routes.deckbuilder import export_deck_to_sim
+                        result = await export_deck_to_sim(row["id"])
+            resolved_decks.append(result["deckName"])
+            log.info(f"Auto-exported deckbuilder deck '{deck_name}' to .dck")
+          else:
+            resolved_decks.append(deck_name)
+        except Exception as e:
+          log.warning(f"Failed to auto-export deck '{deck_name}': {e}")
+          resolved_decks.append(deck_name)
+
     background_tasks.add_task(
         run_batch_subprocess,
         state,
-        req.decks,
+        resolved_decks,
         req.numGames,
         req.threads,
         req.seed,
