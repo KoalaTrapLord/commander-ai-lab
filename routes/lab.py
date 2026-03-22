@@ -45,7 +45,6 @@ from routes.shared import (
     parse_dck_file,
     _get_db_conn,
     _load_deck_cards_by_name,
-    _ml_logging_enabled,
     log,
     log_batch,
 )
@@ -455,7 +454,4 @@ async def start_batch_deepseek(request: FastAPIRequest, background_tasks: Backgr
         'engine': 'deepseek',
     })
 
-
-# Global ML logging toggle (can be enabled via API)
-_ml_logging_enabled = True
 
