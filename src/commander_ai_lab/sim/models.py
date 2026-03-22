@@ -38,6 +38,13 @@ class Card:
     is_board_wipe: bool = False
     is_commander: bool = False
 
+        # Forge enrichment fields (set by forge_card_loader)
+    forge_enriched: bool = False
+    forge_keywords: list[str] = field(default_factory=list)
+    forge_trigger_modes: list[str] = field(default_factory=list)
+    has_replacement_effect: bool = False
+    has_static_ability: bool = False
+
     # Runtime fields (set during game)
     id: int = 0
     owner_id: int = -1
