@@ -18,6 +18,58 @@
     let expandedSessions = {};  // sessionId → bool
     let dbDecks = [];           // [{id, name}] from /api/decks
 
+    // ── Scryfall Card Hover Preview ─────────────────────────
+    const _scryfallImgCache = {};
+    let _previewEl = null;
+
+    function _ensurePreviewEl() {
+        if (_previewEl) return _previewEl;
+        _previewEl = document.createElement('div');
+        _previewEl.id = 'coach-card-preview';
+        _previewEl.style.display = 'none';
+        _previewEl.innerHTML = '<img />';
+        document.body.appendChild(_previewEl);
+        return _previewEl;
+    }
+
+    function _showCardPreview(cardName, evt) {
+        const el = _ensurePreviewEl();
+        const img = el.querySelector('img');
+        if (_scryfallImgCache[cardName]) {
+            img.src = _scryfallImgCache[cardName];
+        } else {
+            img.src = '';
+            fetch('https://api.scryfall.com/cards/named?fuzzy=' + encodeURIComponent(cardName))
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (!data) return;
+                    const url = (data.image_uris && data.image_uris.normal) || (data.card_faces && data.card_faces[0] && data.card_faces[0].image_uris && data.card_faces[0].image_uris.normal) || '';
+                    _scryfallImgCache[cardName] = url;
+                    if (el.style.display !== 'none') img.src = url;
+                }).catch(() => {});
+        }
+        el.style.display = 'block';
+        _positionPreview(evt);
+    }
+
+    function _positionPreview(evt) {
+        if (!_previewEl) return;
+        _previewEl.style.left = Math.max(0, Math.min(evt.clientX + 20, window.innerWidth - 260)) + 'px';
+        _previewEl.style.top = Math.max(0, Math.min(evt.clientY - 150, window.innerHeight - 370)) + 'px';
+    }
+
+    function _hideCardPreview() {
+        if (_previewEl) _previewEl.style.display = 'none';
+    }
+
+    function _attachCardHover(container) {
+        container.querySelectorAll('td[data-card-name]').forEach(td => {
+            td.addEventListener('mouseenter', e => _showCardPreview(td.dataset.cardName, e));
+            td.addEventListener('mousemove', e => _positionPreview(e));
+            td.addEventListener('mouseleave', _hideCardPreview);
+        });
+    }
+
     // ── DOM References ──────────────────────────────────────
     const deckSelect       = document.getElementById('coach-deck-select');
     const powerSlider      = document.getElementById('coach-power-level');
@@ -551,6 +603,7 @@
                     ).join('') +
                 '</div></td>' +
                 '<td>' + formatImpact(cut.currentImpactScore) + '</td>';
+            tr.querySelector('.coach-card-name').parentElement.dataset.cardName = cut.cardName;
             cutsBody.appendChild(tr);
         }
 
@@ -572,6 +625,7 @@
                         '<span class="coach-synergy-chip">' + escHtml(s) + '</span>'
                     ).join('') +
                 '</div></td>';
+            tr.querySelector('.coach-card-name').parentElement.dataset.cardName = add.cardName;
             addsBody.appendChild(tr);
         }
 
@@ -600,6 +654,9 @@
         // Raw text
         rawText.textContent = session.rawTextExplanation || session.summary || '(empty)';
 
+
+        _attachCardHover(cutsBody);
+        _attachCardHover(addsBody);
         updateApplyCount();
     }
 
