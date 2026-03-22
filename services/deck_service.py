@@ -178,8 +178,9 @@ def _load_deck_cards_by_name(deck_name: str) -> list:
     """Load cards from a deck by name, returning list of card dicts."""
     conn = _get_db_conn()
     deck_row = conn.execute("SELECT id FROM decks WHERE name = ?", (deck_name,)).fetchone()
-    if deck_row:
-            deck_id = deck_row[0]
+    if not deck_row:
+        return []
+    deck_id = deck_row[0]
     rows = conn.execute("""
         SELECT dc.card_name, dc.quantity, dc.is_commander, dc.role_tag, dc.scryfall_id,
                COALESCE(ce.type_line, cr.type_line, '') as type_line,
