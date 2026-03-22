@@ -783,7 +783,8 @@ async def export_deck_to_sim(deck_id: int):
     # Build .dck content
     lines = ["[metadata]"]
     deck_name = deck.get("name", f"Deck {deck_id}")
-    lines.append(f"Name={deck_name}")
+        lines.append(f"Name={deck_name}")
+    lines.append("Deck Type=Commander")
     lines.append("")
 
     commanders = [r for r in card_rows if r["is_commander"]]
