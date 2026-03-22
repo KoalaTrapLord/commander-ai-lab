@@ -236,7 +236,7 @@
     display: flex;
     flex-direction: column;
     /* Constrain height so table scrolls independently of page */
-    max-height: calc(100vh - 80px);
+    max-height: calc(100vh - var(--nav-height) - 80px);
     overflow: hidden;
 }
 
@@ -245,7 +245,7 @@
 .coll-filters {
     width: 240px;
     flex-shrink: 0;
-    max-height: calc(100vh - 80px);
+    max-height: calc(100vh - var(--nav-height) - 80px);
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
