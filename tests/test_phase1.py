@@ -92,9 +92,9 @@ class TestCommanderPlayer:
 
     def test_commander_damage_death(self):
         cp = CommanderPlayer(base=Player(name="Test"))
-        cp.commander_damage_received = {0: 20, 1: 5}
+        cp.base.commander_damage_received = {0: 20, 1: 5}
         assert not cp.is_dead_to_commander_damage()
-        cp.commander_damage_received[0] = 21
+        cp.base.commander_damage_received[0] = 21
         assert cp.is_dead_to_commander_damage()
 
     def test_to_dict_json_serializable(self):
