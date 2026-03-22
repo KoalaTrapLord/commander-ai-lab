@@ -343,6 +343,53 @@ class GameEngine:
     sim.add_to_battlefield(pi, land_card)
     p.stats.lands_played += 1
 
+  # ──────────────────────────────────────────────────────────
+  # Centralized Damage
+  # ──────────────────────────────────────────────────────────
+
+  @staticmethod
+  def _apply_damage(
+    sim: SimState,
+    amount: int,
+    target_seat: int,
+    source_seat: int,
+    *,
+    source_is_commander: bool = False,
+    is_combat: bool = False,
+  ) -> int:
+    """Apply damage to a player through a single centralized path.
+
+    Handles:
+    - Life total reduction
+    - Commander damage tracking (when source_is_commander=True)
+    - Per-player damage stats
+    - Elimination by life<=0 or commander damage>=21
+
+    Returns the amount of damage actually applied (always ``amount``
+    unless the target is already eliminated, in which case 0).
+    """
+    if amount <= 0:
+      return 0
+    target = sim.players[target_seat]
+    if target.eliminated:
+      return 0
+
+    target.life -= amount
+    target.stats.damage_received += amount
+    sim.players[source_seat].stats.damage_dealt += amount
+
+    if source_is_commander:
+      prev = target.commander_damage_received.get(source_seat, 0)
+      target.commander_damage_received[source_seat] = prev + amount
+
+    # Elimination checks: life<=0 OR 21+ commander damage from one source
+    if target.life <= 0:
+      target.eliminated = True
+    elif any(v >= 21 for v in target.commander_damage_received.values()):
+      target.eliminated = True
+
+    return amount
+
   @staticmethod
   def _send_to_graveyard(sim: SimState, card, owner_idx: int) -> None:
     """Route card to command zone if it's a commander, else graveyard."""
@@ -556,9 +603,13 @@ class GameEngine:
     if events is not None and attackers:
       atk_names = [f"{a.name} ({a.pt})" for a in attackers]
       events.append(f"Attacks {opp.name} with: {', '.join(atk_names)}")
-    total_damage = 0
+    # Accumulate per-attacker player-damage buckets so we can route
+    # commander vs non-commander damage through _apply_damage separately.
+    commander_damage = 0   # damage dealt by commander creatures
+    normal_damage = 0      # damage dealt by non-commander creatures
     used_blockers: set[int] = set()
     combat_details: list[str] = []
+    lifelink_total = 0     # lifelink healing for the attacker
     for atk in attackers:
       a_pow = atk.get_power()
       a_tou = atk.get_toughness()
@@ -607,34 +658,52 @@ class GameEngine:
           trample_over = 0
           if atk.has_keyword("trample") and a_pow > blocker.get_toughness():
             trample_over = a_pow - blocker.get_toughness()
-            total_damage += trample_over
-          if atk.has_keyword("double strike"):
-            if a_pow >= blocker.get_toughness() or atk.has_keyword("deathtouch"):
-              total_damage += a_pow
+            if atk.is_commander:
+              commander_damage += trample_over
             else:
-              total_damage += trample_over
+              normal_damage += trample_over
+          if atk.has_keyword("double strike"):
+            ds_dmg = a_pow if (a_pow >= blocker.get_toughness() or atk.has_keyword("deathtouch")) else trample_over
+            if atk.is_commander:
+              commander_damage += ds_dmg
+            else:
+              normal_damage += ds_dmg
           if atk.has_keyword("lifelink"):
             damage_dealt = min(a_pow, blocker.get_toughness()) + trample_over
             if atk.has_keyword("double strike"):
               damage_dealt *= 2
-            p.life += damage_dealt
+            lifelink_total += damage_dealt
       if not blocked:
         if atk.has_keyword("double strike"):
-          total_damage += a_pow * 2
-          if atk.has_keyword("lifelink"):
-            p.life += a_pow * 2
+          atk_dmg = a_pow * 2
         else:
-          total_damage += a_pow
-          if atk.has_keyword("lifelink"):
-            p.life += a_pow
-    opp.life -= total_damage
-    p.stats.damage_dealt += total_damage
-    opp.stats.damage_received += total_damage
+          atk_dmg = a_pow
+        if atk.is_commander:
+          commander_damage += atk_dmg
+        else:
+          normal_damage += atk_dmg
+        if atk.has_keyword("lifelink"):
+          lifelink_total += atk_dmg
+
+    # Route all player damage through the centralized path.
+    # Commander damage is applied first (tracks 21-damage rule).
+    total_damage = 0
+    if commander_damage > 0:
+      total_damage += self._apply_damage(
+        sim, commander_damage, opp_idx, pi,
+        source_is_commander=True, is_combat=True,
+      )
+    if normal_damage > 0:
+      total_damage += self._apply_damage(
+        sim, normal_damage, opp_idx, pi,
+        source_is_commander=False, is_combat=True,
+      )
+    # Apply lifelink healing
+    if lifelink_total > 0:
+      p.life += lifelink_total
     if events is not None and total_damage > 0:
       events.append(f"Dealt {total_damage} combat damage to {opp.name} (now {opp.life} life)")
       events.extend(combat_details)
-    if opp.life <= 0:
-      opp.eliminated = True
 
   def _build_result(
     self,

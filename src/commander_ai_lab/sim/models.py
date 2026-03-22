@@ -152,6 +152,11 @@ class Player:
     #                           p.commander_tax[name] = tax + 2
     commander_tax: dict = field(default_factory=dict)
 
+    # Commander damage received from each opponent seat.
+    # Keyed by opponent seat index; value is cumulative damage.
+    # A player is eliminated when any single value reaches 21.
+    commander_damage_received: dict[int, int] = field(default_factory=dict)
+
     stats: PlayerStats = field(default_factory=PlayerStats)
 
 
