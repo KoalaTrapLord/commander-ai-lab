@@ -657,7 +657,7 @@ async def coach_generate_reports():
     """Rebuild all deck reports from batch result JSONs in results/."""
     try:
         from coach.report_generator import generate_deck_reports
-        lab_root = Path(__file__).parent
+        lab_root = Path(__file__).parent.parent
         results_dir = str(lab_root / CFG.results_dir)
         reports_dir = str(lab_root / "deck-reports")
         updated = generate_deck_reports(results_dir, reports_dir)
