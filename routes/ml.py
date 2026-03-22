@@ -189,8 +189,93 @@ async def ml_get_decisions(filename: str, limit: int = 100, offset: int = 0):
 
 
 # ==============================================================
+# Online Learning Store (SQLite WAL — Phase 5 follow-up)
+# ==============================================================
+
+_online_store = None
+_online_store_init_attempted = False
+
+def _get_online_store():
+    """Lazy-init the online learning store singleton."""
+    global _online_store, _online_store_init_attempted
+    if _online_store is None and not _online_store_init_attempted:
+        _online_store_init_attempted = True
+        try:
+            from ml.serving.online_learning_store import OnlineLearningStore
+            _online_store = OnlineLearningStore()
+            _online_store.init_db()
+            log_ml.info("Online learning store initialized")
+        except Exception as e:
+            log_ml.error("Online learning store init failed: %s", e)
+    return _online_store
+
+
+# ==============================================================
 # ML Policy Inference Endpoints
 # ==============================================================
+
+@router.post("/api/policy/decide")
+async def policy_decide(request: FastAPIRequest):
+    """Predict a macro-action and log the decision for online learning.
+
+    Combines prediction with automatic data collection: every decision
+    is appended to the SQLite WAL-backed online learning store so
+    future training runs can incorporate live gameplay data.
+    """
+    svc = _get_policy_service()
+    if svc is None or not svc._loaded:
+        detail = "Policy model not loaded. "
+        if svc:
+            detail += svc._load_error or "Train a model first."
+        else:
+            detail += "PyTorch may not be installed."
+        raise HTTPException(status_code=503, detail=detail)
+
+    body = await request.json()
+    playstyle = body.pop("archetype", "midrange")
+    temperature = body.pop("temperature", 1.0)
+    greedy = body.pop("greedy", False)
+    collect = body.pop("collect", True)  # opt-out flag
+
+    result = svc.predict(
+        decision_snapshot=body,
+        playstyle=playstyle,
+        temperature=temperature,
+        greedy=greedy,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+
+    # Record to online learning store (fire-and-forget — don't block response)
+    if collect:
+        store = _get_online_store()
+        if store is not None:
+            try:
+                store.record_decision(
+                    snapshot=body,
+                    action_idx=result["action_index"],
+                    confidence=result["confidence"],
+                    playstyle=playstyle,
+                    temperature=temperature,
+                    greedy=greedy,
+                )
+            except Exception as e:
+                log_ml.warning("Online learning record failed: %s", e)
+
+    return result
+
+
+@router.get("/api/policy/decide/stats")
+async def policy_decide_stats():
+    """Return counts of collected online learning decisions."""
+    store = _get_online_store()
+    if store is None:
+        return {"total": 0, "unexported": 0, "error": "Store not initialized"}
+    return {
+        "total": store.count(),
+        "unexported": store.count(only_unexported=True),
+    }
+
 
 @router.post("/api/ml/predict")
 async def ml_predict(request: FastAPIRequest):
@@ -777,6 +862,8 @@ def _run_distillation_pipeline(
     opponent: str,
     playstyle: str,
     min_win_rate: float,
+    forge_weight: float = 1.0,
+    ppo_weight: float = 0.0,
 ):
     """Run the distillation loop in a background thread."""
     global _distillation_loop
@@ -800,6 +887,8 @@ def _run_distillation_pipeline(
             opponent=opponent,
             playstyle=playstyle,
             min_ppo_win_rate=min_win_rate,
+            forge_weight=forge_weight,
+            ppo_weight=ppo_weight,
             results_dir=os.path.join(project_root, "results"),
             models_dir=os.path.join(project_root, "ml", "models"),
             checkpoint_dir=os.path.join(project_root, "ml", "models", "checkpoints"),
@@ -847,9 +936,21 @@ def _run_distillation_pipeline(
         _distillation_loop = None
 
 
+@router.get("/api/ml/distill/presets")
+async def ml_distill_presets():
+    """List available mixed-mode weight presets for distillation."""
+    from ml.config.scope import MIXED_MODE_PRESETS
+    return {"presets": MIXED_MODE_PRESETS}
+
+
 @router.post("/api/ml/distill/start")
 async def ml_start_distillation(request: FastAPIRequest):
-    """Start the closed-loop distillation pipeline."""
+    """Start the closed-loop distillation pipeline.
+
+    Accepts an optional ``preset`` field (e.g. ``"forge_90_10"``)
+    which overrides ``forgeWeight`` / ``ppoWeight`` with a named
+    configuration from ``MIXED_MODE_PRESETS``.
+    """
     if _distillation_state.running:
         raise HTTPException(409, "Distillation loop already in progress")
     if _training_state.running:
@@ -871,6 +972,22 @@ async def ml_start_distillation(request: FastAPIRequest):
     playstyle = body.get("playstyle", "midrange")
     min_win_rate = body.get("minWinRate", 0.30)
 
+    # Resolve weights: preset > explicit params > defaults (Forge-only)
+    forge_weight = 1.0
+    ppo_weight = 0.0
+    preset_name = body.get("preset")
+    if preset_name:
+        from ml.config.scope import get_preset_weights
+        try:
+            pw = get_preset_weights(preset_name)
+            forge_weight = pw["forge_weight"]
+            ppo_weight = pw["ppo_weight"]
+        except KeyError as e:
+            raise HTTPException(400, str(e))
+    else:
+        forge_weight = body.get("forgeWeight", 1.0)
+        ppo_weight = body.get("ppoWeight", 0.0)
+
     with _distillation_lock:
         _distillation_state.running = True
         _distillation_state.generation = 0
@@ -890,12 +1007,19 @@ async def ml_start_distillation(request: FastAPIRequest):
             supervised_epochs, supervised_lr,
             ppo_iterations, ppo_episodes_per_iter, ppo_lr,
             opponent, playstyle, min_win_rate,
+            forge_weight, ppo_weight,
         ),
         daemon=True,
     )
     thread.start()
 
-    return {"status": "started", "max_iterations": max_iterations}
+    return {
+        "status": "started",
+        "max_iterations": max_iterations,
+        "forge_weight": forge_weight,
+        "ppo_weight": ppo_weight,
+        "preset": preset_name,
+    }
 
 
 @router.get("/api/ml/distill/status")

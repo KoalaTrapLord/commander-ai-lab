@@ -276,6 +276,13 @@ class StateEncoder:
         """
         Encode zone contents as mean-pooled card embeddings.
         Shape: (4 zones × 2 players × 768) = (6144,)
+
+        Zone embedding boundary: each zone slot is exactly ``zone_pool_dim``
+        (768) floats.  Empty zones produce a zero vector of that size.  This
+        fixed-size contract is relied upon by every downstream consumer
+        (PolicyNetwork, PPOTrainer, dataset builder).  See
+        ``StateDimensions`` in ``ml/config/scope.py`` for the canonical
+        definition.
         """
         zone_keys = ["hand", "battlefield", "graveyard", "command_zone"]
         vectors = []
@@ -283,6 +290,8 @@ class StateEncoder:
         for p in players[:2]:
             for zone_key in zone_keys:
                 cards = p.get(zone_key, [])
+                # mean_pool_zone returns a zero vector when cards is empty,
+                # preserving the fixed 768-dim slot size.
                 pooled = self.card_index.mean_pool_zone(cards)
                 vectors.append(pooled)
 
