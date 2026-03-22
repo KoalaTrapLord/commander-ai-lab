@@ -256,3 +256,49 @@ class TrainingConfig:
     log_every: int = 100               # Log every N batches
 
 TRAINING_CONFIG = TrainingConfig()
+
+
+# ══════════════════════════════════════════════════════════
+# Distillation Loop Defaults (Phase 4)
+# ══════════════════════════════════════════════════════════
+
+@dataclass
+class DistillationDefaults:
+    """Default hyperparameters for the closed-loop distillation pipeline.
+
+    These are consumed by ml.training.distillation_loop.DistillationConfig
+    when no explicit override is provided.
+    """
+    max_iterations: int = 10
+    convergence_window: int = 3
+    convergence_threshold: float = 0.01
+
+    # PPO self-play per generation
+    ppo_iterations: int = 50
+    ppo_episodes_per_iter: int = 64
+    ppo_lr: float = 3e-4
+    ppo_clip_epsilon: float = 0.2
+    ppo_entropy_coeff: float = 0.01
+    ppo_eval_episodes: int = 100
+
+    # Dataset mixing
+    forge_weight: float = 1.0
+    ppo_weight: float = 0.5
+    min_reward_threshold: float = 0.0
+
+    # Quality gate thresholds
+    min_forge_accuracy: float = 0.35
+    max_accuracy_drop: float = 0.03
+    min_ppo_win_rate: float = 0.30
+
+    # Retry behaviour on gate failure
+    max_retries_per_generation: int = 2
+    retry_lr_factor: float = 0.5
+    retry_entropy_boost: float = 0.005
+
+    # Output paths
+    results_dir: str = "data/results"
+    history_dir: str = "data/results/distillation-history"
+
+
+DISTILLATION_DEFAULTS = DistillationDefaults()
