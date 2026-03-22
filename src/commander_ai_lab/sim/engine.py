@@ -127,6 +127,7 @@ class GameEngine:
         # ── Untap (correct MTG order: untap is first) ──
         for c in sim.get_battlefield(pi):
           c.tapped = False
+          c.damage_marked = 0  # clear damage each turn (MTG rule 514.2)
 
         # ── Draw ──
         if p.library:
@@ -590,12 +591,15 @@ class GameEngine:
           blocked = True
           if events is not None:
             combat_details.append(f"{atk.name} blocked by {blocker.name}")
-          if a_pow >= blocker.get_toughness() or atk.has_keyword("deathtouch"):
+          # Accumulate damage on creatures (not binary kill)
+          blocker.damage_marked += a_pow
+          if blocker.damage_marked >= blocker.get_toughness() or atk.has_keyword("deathtouch"):
             sim.remove_from_battlefield(blocker.id)
             self._send_to_graveyard(sim, blocker, opp_idx)
             if events is not None:
               combat_details.append(f"  {blocker.name} dies")
-          if b_pow >= a_tou or blocker.has_keyword("deathtouch"):
+          atk.damage_marked += b_pow
+          if atk.damage_marked >= a_tou or blocker.has_keyword("deathtouch"):
             sim.remove_from_battlefield(atk.id)
             self._send_to_graveyard(sim, atk, pi)
             if events is not None:

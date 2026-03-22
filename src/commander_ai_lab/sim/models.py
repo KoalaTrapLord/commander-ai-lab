@@ -43,6 +43,7 @@ class Card:
     owner_id: int = -1
     tapped: bool = False
     turn_played: int = -1
+    damage_marked: int = 0  # track damage marked on creature (cleared each cleanup step)
 
     def get_power(self) -> int:
         """Extract numeric power from pt string."""
