@@ -75,17 +75,18 @@ BUILTIN_COMMANDERS: dict = {
 
 def load_commander_meta() -> None:
     """Load commander meta mapping from file or fall back to builtins."""
-    global COMMANDER_META
     meta_path = Path(__file__).parent.parent / "commander-meta.json"
     if meta_path.exists():
         try:
             with open(meta_path, "r", encoding="utf-8") as f:
-                COMMANDER_META = json.load(f)
+                COMMANDER_META.clear()
+                COMMANDER_META.update(json.load(f))
             log.info(f" Meta: Loaded {len(COMMANDER_META)} commanders from {meta_path}")
             return
         except Exception as e:
             log.warning(f" WARNING: Failed to load commander-meta.json: {e}")
-    COMMANDER_META = BUILTIN_COMMANDERS
+    COMMANDER_META.clear()
+    COMMANDER_META.update(BUILTIN_COMMANDERS)
     log.info(f" Meta:    {len(COMMANDER_META)} built-in commanders")
 
 
