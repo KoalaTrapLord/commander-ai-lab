@@ -187,6 +187,21 @@
     }
 }
 
+/* ── ELO Panel ─────────────────────────────────────────── */
+.elo-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.elo-table {
+    margin-top: var(--sp-3);
+}
+
+.elo-table td {
+    vertical-align: middle;
+}
+
 /* Refresh button spin animation */
 @keyframes spin {
     from { transform: rotate(0deg); }

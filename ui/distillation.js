@@ -30,6 +30,7 @@ async function refreshAll() {
     try {
         await refreshStatus();
         await loadHistory();
+        await loadEloHistory();
     } finally {
         btn.disabled = false;
         icon.style.animation = '';
@@ -628,6 +629,286 @@ function renderHistoryTable(generations) {
 }
 
 // ═══════════════════════════════════════════
+// ELO Tournament
+// ═══════════════════════════════════════════
+
+let eloPollingInterval = null;
+let eloHistoryData = null;
+
+async function runEloTournament() {
+    const btn = document.getElementById('btn-run-elo');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-icon">&#8987;</span> Running...';
+
+    try {
+        const res = await fetch(`${API_BASE}/api/ml/elo/tournament`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ episodes: 50, playstyle: 'midrange' }),
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+
+        document.getElementById('elo-progress').classList.remove('hidden');
+        startEloPolling();
+
+    } catch (err) {
+        alert('Failed to start ELO tournament: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = '<span class="btn-icon">&#127942;</span> Run Tournament';
+    }
+}
+
+function startEloPolling() {
+    if (eloPollingInterval) clearInterval(eloPollingInterval);
+    eloPollingInterval = setInterval(pollEloStatus, 3000);
+}
+
+async function pollEloStatus() {
+    try {
+        const res = await fetch(`${API_BASE}/api/ml/elo/tournament/status`);
+        const data = await res.json();
+
+        const phase = data.phase || 'idle';
+        const phaseEl = document.getElementById('elo-progress-phase');
+        phaseEl.textContent = phase.toUpperCase();
+        phaseEl.className = 'phase-badge ' + phase;
+        document.getElementById('elo-progress-message').textContent = data.message || '';
+
+        const bar = document.getElementById('elo-progress-bar');
+        if (phase === 'done') {
+            bar.style.width = '100%';
+            bar.className = 'progress-bar progress-fill done';
+        } else if (phase === 'error') {
+            bar.style.width = '100%';
+            bar.className = 'progress-bar progress-fill error';
+        }
+
+        if (!data.running && phase !== 'idle') {
+            clearInterval(eloPollingInterval);
+            eloPollingInterval = null;
+
+            const btn = document.getElementById('btn-run-elo');
+            btn.disabled = false;
+            btn.innerHTML = '<span class="btn-icon">&#127942;</span> Run Tournament';
+
+            if (phase === 'done' && data.result) {
+                renderEloLeaderboard(data.result.ratings);
+            }
+
+            // Hide progress after a moment, reload history
+            setTimeout(() => {
+                document.getElementById('elo-progress').classList.add('hidden');
+                loadEloHistory();
+            }, 2000);
+        }
+    } catch (err) {
+        console.error('ELO poll error:', err);
+    }
+}
+
+async function loadEloHistory() {
+    try {
+        const res = await fetch(`${API_BASE}/api/ml/elo/history`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.entries && data.entries.length > 0) {
+            eloHistoryData = data.entries;
+            renderEloChart(data.entries);
+
+            // Render leaderboard from latest entry
+            const latest = data.entries[data.entries.length - 1];
+            if (latest.ratings) {
+                renderEloLeaderboard(latest.ratings);
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load ELO history:', err);
+    }
+}
+
+function renderEloChart(entries) {
+    const canvas = document.getElementById('elo-canvas');
+    const empty = document.getElementById('elo-empty');
+
+    if (!entries || entries.length === 0) {
+        canvas.style.display = 'none';
+        empty.style.display = '';
+        return;
+    }
+
+    canvas.style.display = 'block';
+    empty.style.display = 'none';
+
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const w = rect.width;
+    const h = 280;
+
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    const pad = { top: 30, right: 30, bottom: 40, left: 55 };
+    const cw = w - pad.left - pad.right;
+    const ch = h - pad.top - pad.bottom;
+
+    // Collect all model names across entries
+    const allModels = new Set();
+    entries.forEach(e => Object.keys(e.ratings).forEach(k => allModels.add(k)));
+    const modelNames = Array.from(allModels).sort();
+
+    // Color palette for models
+    const colors = {
+        'heuristic': '#fbbf24',
+        'random': '#8b90a0',
+        'supervised': '#5b9ef0',
+        'ppo': '#a78bfa',
+    };
+    const genColors = ['#4ade80', '#f472b6', '#22d3ee', '#fb923c', '#e879f9', '#34d399', '#f87171', '#60a5fa'];
+    let genColorIdx = 0;
+    modelNames.forEach(name => {
+        if (!colors[name]) {
+            colors[name] = genColors[genColorIdx % genColors.length];
+            genColorIdx++;
+        }
+    });
+
+    // Find ELO range
+    let minElo = Infinity, maxElo = -Infinity;
+    entries.forEach(e => {
+        Object.values(e.ratings).forEach(v => {
+            minElo = Math.min(minElo, v);
+            maxElo = Math.max(maxElo, v);
+        });
+    });
+    const eloPad = 50;
+    minElo = Math.floor((minElo - eloPad) / 50) * 50;
+    maxElo = Math.ceil((maxElo + eloPad) / 50) * 50;
+    const eloRange = maxElo - minElo || 100;
+
+    // Grid lines
+    ctx.strokeStyle = '#222533';
+    ctx.lineWidth = 1;
+    const ySteps = 5;
+    for (let i = 0; i <= ySteps; i++) {
+        const y = pad.top + (ch / ySteps) * i;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(pad.left + cw, y);
+        ctx.stroke();
+
+        const val = maxElo - (eloRange * i / ySteps);
+        ctx.fillStyle = '#8b90a0';
+        ctx.font = '11px Inter, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.round(val).toString(), pad.left - 8, y + 4);
+    }
+
+    // X axis labels
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#8b90a0';
+    for (let i = 0; i < entries.length; i++) {
+        const x = pad.left + (cw / Math.max(1, entries.length - 1)) * i;
+        ctx.fillText('G' + entries[i].generation, x, h - 8);
+    }
+
+    // Draw lines for each model
+    modelNames.forEach(name => {
+        const points = [];
+        for (let i = 0; i < entries.length; i++) {
+            if (entries[i].ratings[name] !== undefined) {
+                const x = entries.length === 1
+                    ? pad.left + cw / 2
+                    : pad.left + (cw / (entries.length - 1)) * i;
+                const y = pad.top + ch - ((entries[i].ratings[name] - minElo) / eloRange) * ch;
+                points.push({ x, y });
+            }
+        }
+
+        if (points.length === 0) return;
+
+        ctx.strokeStyle = colors[name] || '#5b9ef0';
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        if (points.length === 1) {
+            ctx.fillStyle = colors[name] || '#5b9ef0';
+            ctx.beginPath();
+            ctx.arc(points[0].x, points[0].y, 4, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            ctx.beginPath();
+            points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+            ctx.stroke();
+
+            // Points
+            points.forEach(p => {
+                ctx.fillStyle = colors[name] || '#5b9ef0';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+    });
+
+    // Legend
+    ctx.font = '11px Inter, sans-serif';
+    let legendX = pad.left + 10;
+    const legendY = pad.top + 12;
+    modelNames.forEach(name => {
+        ctx.fillStyle = colors[name] || '#5b9ef0';
+        ctx.fillRect(legendX, legendY - 5, 10, 10);
+        ctx.fillStyle = '#8b90a0';
+        ctx.textAlign = 'left';
+        const label = name.length > 10 ? name.substring(0, 10) : name;
+        ctx.fillText(label, legendX + 14, legendY + 4);
+        legendX += ctx.measureText(label).width + 28;
+    });
+}
+
+function renderEloLeaderboard(ratings) {
+    const container = document.getElementById('elo-leaderboard');
+    if (!ratings || Object.keys(ratings).length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const sorted = Object.entries(ratings).sort((a, b) => b[1] - a[1]);
+
+    let html = '<table class="data-table elo-table">';
+    html += '<thead><tr><th>Rank</th><th>Policy</th><th>ELO Rating</th><th></th></tr></thead><tbody>';
+
+    sorted.forEach(([name, elo], i) => {
+        const medal = i === 0 ? '&#129351;' : i === 1 ? '&#129352;' : i === 2 ? '&#129353;' : (i + 1);
+        const barPct = Math.max(0, Math.min(100, ((elo - 1000) / 400) * 100));
+        const barColor = elo >= 1250 ? 'var(--success)' : elo >= 1150 ? 'var(--accent)' : elo >= 1050 ? 'var(--warning)' : 'var(--error)';
+
+        html += `<tr>
+            <td style="text-align:center;">${medal}</td>
+            <td style="color:var(--accent);font-weight:600;">${name}</td>
+            <td style="font-weight:700;font-variant-numeric:tabular-nums;">${elo.toFixed(1)}</td>
+            <td style="width:30%;">
+                <div class="acc-bar-bg" style="height:6px;background:var(--surface-3);border-radius:3px;overflow:hidden;">
+                    <div style="width:${barPct}%;height:100%;background:${barColor};border-radius:3px;"></div>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
 // Window Resize Handler (redraw charts)
 // ═══════════════════════════════════════════
 
@@ -638,6 +919,9 @@ window.addEventListener('resize', () => {
         if (generationsData.length > 0) {
             renderWinRateChart(generationsData);
             renderCompositionChart(generationsData);
+        }
+        if (eloHistoryData && eloHistoryData.length > 0) {
+            renderEloChart(eloHistoryData);
         }
     }, 200);
 });

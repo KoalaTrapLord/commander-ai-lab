@@ -945,3 +945,132 @@ async def ml_distillation_history():
             pass
 
     return result
+
+
+# ==============================================================
+# ELO Tournament Endpoints
+# ==============================================================
+
+@dataclasses.dataclass
+class _EloTournamentState:
+    running: bool = False
+    phase: str = "idle"
+    message: str = ""
+    result: object = None
+    error: object = None
+
+    def snapshot(self) -> dict:
+        return {
+            "running": self.running,
+            "phase": self.phase,
+            "message": self.message,
+            "result": self.result,
+            "error": self.error,
+        }
+
+_elo_tournament_state = _EloTournamentState()
+_elo_tournament_lock  = threading.Lock()
+
+
+def _run_elo_tournament_pipeline(episodes: int, playstyle: str):
+    """Run ELO tournament in a background thread."""
+    try:
+        import sys
+        project_root = str(Path(__file__).resolve().parent.parent)
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+        with _elo_tournament_lock:
+            _elo_tournament_state.running = True
+            _elo_tournament_state.phase = "running"
+            _elo_tournament_state.message = "Running ELO tournament..."
+            _elo_tournament_state.error = None
+            _elo_tournament_state.result = None
+
+        from ml.eval.elo_tracker import (
+            run_generation_tournament, EloHistory,
+        )
+
+        ckpt_dir = os.path.join(project_root, "ml", "models", "checkpoints")
+        result = run_generation_tournament(
+            checkpoint_dir=ckpt_dir,
+            episodes_per_matchup=episodes,
+            playstyle=playstyle,
+        )
+
+        # Save to ELO history
+        history_path = os.path.join(project_root, "data", "elo_history.json")
+        history = EloHistory(path=history_path)
+        gen_models = [k for k in result.ratings if k.startswith("gen-")]
+        gen_num = 0
+        if gen_models:
+            try:
+                gen_num = max(int(g.split("-")[1]) for g in gen_models)
+            except (ValueError, IndexError):
+                pass
+        history.append(gen_num, result.ratings)
+
+        with _elo_tournament_lock:
+            _elo_tournament_state.phase = "done"
+            _elo_tournament_state.running = False
+            _elo_tournament_state.result = result.to_dict()
+            _elo_tournament_state.message = (
+                f"ELO tournament complete! {result.match_count} matches in {result.total_time_s:.1f}s"
+            )
+
+    except Exception as e:
+        import traceback
+        with _elo_tournament_lock:
+            _elo_tournament_state.phase = "error"
+            _elo_tournament_state.running = False
+            _elo_tournament_state.error = str(e)
+            _elo_tournament_state.message = f"ELO tournament failed: {e}"
+        traceback.print_exc()
+
+
+@router.post("/api/ml/elo/tournament")
+async def ml_start_elo_tournament(request: FastAPIRequest):
+    """Start an ELO-rated tournament across all generation checkpoints."""
+    if _elo_tournament_state.running:
+        raise HTTPException(409, "ELO tournament already in progress")
+
+    body = await request.json() if await request.body() else {}
+    episodes = body.get("episodes", 50)
+    playstyle = body.get("playstyle", "midrange")
+
+    with _elo_tournament_lock:
+        _elo_tournament_state.running = True
+        _elo_tournament_state.phase = "starting"
+        _elo_tournament_state.message = "Initializing ELO tournament..."
+        _elo_tournament_state.result = None
+        _elo_tournament_state.error = None
+
+    thread = threading.Thread(
+        target=_run_elo_tournament_pipeline,
+        args=(episodes, playstyle),
+        daemon=True,
+    )
+    thread.start()
+
+    return {"status": "started", "episodes": episodes}
+
+
+@router.get("/api/ml/elo/tournament/status")
+async def ml_elo_tournament_status():
+    """Get ELO tournament status."""
+    with _elo_tournament_lock:
+        return _elo_tournament_state.snapshot()
+
+
+@router.get("/api/ml/elo/history")
+async def ml_elo_history():
+    """Get ELO rating history."""
+    project_root = Path(__file__).resolve().parent.parent
+    history_path = project_root / "data" / "elo_history.json"
+    if history_path.exists():
+        try:
+            with open(history_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"entries": []}

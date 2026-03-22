@@ -99,6 +99,11 @@ class DistillationConfig:
     retry_lr_factor: float = 0.5       # Halve PPO LR on retry
     retry_entropy_boost: float = 0.005  # Increase entropy coeff on retry
 
+    # --- ELO convergence (Phase 6) ---
+    elo_convergence_enabled: bool = False   # Off by default
+    elo_convergence_threshold: float = 20.0 # Stop if ELO gain < this
+    elo_tournament_episodes: int = 30       # Games per matchup for ELO mini-tournament
+
 
 # ═══════════════════════════════════════════════════════════
 # Generation metadata
@@ -137,6 +142,7 @@ class GenerationRecord:
 
     retries: int = 0
     error: str = ""
+    elo_rating: float = 0.0
 
     def to_dict(self) -> dict:
         return {k: v for k, v in self.__dict__.items()}
@@ -393,6 +399,15 @@ class DistillationLoop:
                     "in next generation's dataset build."
                 )
                 record.status = "passed"
+
+                # ─── ELO mini-tournament (Phase 6) ────────────────
+                if cfg.elo_convergence_enabled and gen_num > 1:
+                    elo = self._run_elo_mini_tournament(
+                        gen_checkpoint_dir, gen_num
+                    )
+                    if elo is not None:
+                        record.elo_rating = elo
+                        logger.info("  ELO rating: %.1f", elo)
             else:
                 record.status = "failed"
 
@@ -612,12 +627,73 @@ class DistillationLoop:
         )
 
     # ------------------------------------------------------------------
+    # ELO mini-tournament (Phase 6)
+    # ------------------------------------------------------------------
+
+    def _run_elo_mini_tournament(
+        self, gen_checkpoint_dir: str, gen_num: int
+    ) -> Optional[float]:
+        """
+        Run a small ELO tournament between current gen, previous gen,
+        and heuristic baseline. Returns the current gen's ELO rating.
+        """
+        cfg = self.config
+        try:
+            from ml.eval.elo_tracker import (
+                run_elo_tournament, EloHistory, HeuristicPolicy, LearnedPolicy,
+            )
+
+            policies = {"heuristic": HeuristicPolicy()}
+
+            # Current generation checkpoint
+            curr_path = os.path.join(gen_checkpoint_dir, "best_policy.pt")
+            curr_name = f"gen-{gen_num:03d}"
+            if os.path.exists(curr_path):
+                policies[curr_name] = LearnedPolicy(curr_path)
+            else:
+                logger.warning("  ELO: current gen checkpoint not found: %s", curr_path)
+                return None
+
+            # Previous generation checkpoint
+            if gen_num > 1:
+                prev_tag = f"gen-{gen_num - 1:03d}"
+                prev_dir = os.path.join(cfg.checkpoint_dir, prev_tag)
+                prev_path = os.path.join(prev_dir, "best_policy.pt")
+                if os.path.exists(prev_path):
+                    policies[prev_tag] = LearnedPolicy(prev_path)
+
+            logger.info(
+                "  [ELO] Running mini-tournament: %s (%d episodes/matchup)",
+                list(policies.keys()), cfg.elo_tournament_episodes,
+            )
+
+            result = run_elo_tournament(
+                policies=policies,
+                episodes_per_matchup=cfg.elo_tournament_episodes,
+                playstyle=cfg.playstyle,
+            )
+
+            # Save to ELO history
+            history_path = os.path.join(
+                os.path.dirname(cfg.history_dir), "elo_history.json"
+            ) if cfg.history_dir else "data/elo_history.json"
+            history = EloHistory(path=history_path)
+            history.append(gen_num, result.ratings)
+
+            return result.ratings.get(curr_name, 0.0)
+
+        except Exception as e:
+            logger.warning("  ELO mini-tournament failed: %s", e)
+            return None
+
+    # ------------------------------------------------------------------
     # Convergence detection
     # ------------------------------------------------------------------
 
     def _check_convergence(self) -> bool:
         """
         Check if win rate has plateaued over recent generations.
+        Also checks ELO delta when elo_convergence_enabled is True.
 
         Returns True if the loop should stop.
         """
@@ -642,7 +718,22 @@ class DistillationLoop:
             cfg.convergence_threshold,
         )
 
-        return improvement < cfg.convergence_threshold
+        win_rate_converged = improvement < cfg.convergence_threshold
+
+        # ELO convergence check (Phase 6)
+        if cfg.elo_convergence_enabled and len(passed) >= 2:
+            elo_ratings = [g.elo_rating for g in passed[-2:] if g.elo_rating > 0]
+            if len(elo_ratings) >= 2:
+                elo_delta = elo_ratings[-1] - elo_ratings[-2]
+                logger.info(
+                    "  ELO convergence check: delta = %.1f (threshold = %.1f)",
+                    elo_delta, cfg.elo_convergence_threshold,
+                )
+                if elo_delta < cfg.elo_convergence_threshold:
+                    logger.info("  ELO delta below threshold — converged.")
+                    return True
+
+        return win_rate_converged
 
     # ------------------------------------------------------------------
     # Device detection
