@@ -309,7 +309,7 @@ const AiLab = (() => {
                     </div>
                     <div class="lab-meta-search-row">
                         <input type="text" id="lab-meta-search" placeholder="Search commanders..."
-                               oninput="AiLab.filterMetaCommanders(this.value)" autocomplete="off" />
+                               oninput="clearTimeout(window._metaDebounce); window._metaDebounce = setTimeout(() => AiLab.filterMetaCommanders(this.value), 250)" autocomplete="off" />
                     </div>
                     <div class="lab-meta-list" id="lab-meta-list">Loading...</div>
                     <div class="lab-import-status" id="lab-meta-import-status"></div>
@@ -621,13 +621,31 @@ const AiLab = (() => {
         }
     }
 
-    function showMetaPicker() {
+    async function showMetaPicker() {
         const modal = document.getElementById('lab-meta-modal');
-        if (modal) {
-            modal.classList.add('active');
-            renderMetaList(metaCommanders);
-            document.getElementById('lab-meta-search')?.focus();
+        if (!modal) return;
+        modal.classList.add('active');
+
+        if (!backendAvailable) {
+            const listEl = document.getElementById('lab-meta-list');
+            if (listEl) {
+                listEl.innerHTML = '<div class="lab-meta-empty">' +
+                    '<p>⚠️ Backend not connected.</p>' +
+                    '<p>Commander Meta requires a running backend to browse and fetch EDHREC average decks.</p>' +
+                    '</div>';
+            }
+            return;
         }
+
+        // Lazy-load: if we haven't fetched commanders yet, do it now
+        if (metaCommanders.length === 0) {
+            const listEl = document.getElementById('lab-meta-list');
+            if (listEl) listEl.innerHTML = '<div class="lab-meta-empty">Loading commanders...</div>';
+            await loadMetaCommanders();
+        }
+
+        renderMetaList(metaCommanders);
+        document.getElementById('lab-meta-search')?.focus();
     }
 
     function closeMetaPicker() {
@@ -637,11 +655,27 @@ const AiLab = (() => {
         if (statusEl) statusEl.innerHTML = '';
     }
 
-    function filterMetaCommanders(query) {
+    async function filterMetaCommanders(query) {
         if (!query) {
             renderMetaList(metaCommanders);
             return;
         }
+
+        // When backend is available, use the live search endpoint
+        if (backendAvailable) {
+            try {
+                const res = await fetch(`${API_BASE}/api/lab/meta/search?q=${encodeURIComponent(query)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    renderMetaList(data.results || []);
+                    return;
+                }
+            } catch (err) {
+                console.warn('[AI Lab] Meta search failed, falling back to local filter:', err);
+            }
+        }
+
+        // Fallback: local filter
         const q = query.toLowerCase();
         const filtered = metaCommanders.filter(c => c.name.toLowerCase().includes(q));
         renderMetaList(filtered);
