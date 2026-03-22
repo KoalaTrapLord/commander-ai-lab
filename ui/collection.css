@@ -2823,3 +2823,21 @@
 @keyframes coll-spin {
     to { transform: rotate(360deg); }
 }
+
+/* -- 16. Card Image Hover Preview -------------------------------- */
+#coll-card-preview {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1100;
+    display: none;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+    overflow: hidden;
+}
+
+#coll-card-preview-img {
+    display: block;
+    width: 220px;
+    height: auto;
+    border-radius: 12px;
+}
