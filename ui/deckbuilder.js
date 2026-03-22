@@ -98,7 +98,7 @@ const ToastManager = {
 const CardPreview = {
     el: null,
     img: null,
-    visible: false,
+    visible: false,   _hoverTimer: null,   HOVER_DELAY: 450,
 
     init() {
         this.el = qs('#deck-card-preview');
@@ -126,14 +126,14 @@ const CardPreview = {
     },
 
     hide() {
-        if (this.el) this.el.style.display = 'none';
+        clearTimeout(this._hoverTimer); if (this.el) this.el.style.display = 'none';
         this.visible = false;
     },
 
     attach(nameEl, scryfallId) {
         if (!scryfallId) return;
-        nameEl.addEventListener('mouseenter', (e) => this.show(scryfallId, e.clientX, e.clientY));
-        nameEl.addEventListener('mousemove',  (e) => this.show(scryfallId, e.clientX, e.clientY));
+        let lastE = null; nameEl.addEventListener('mouseenter', (e) => { lastE = e; clearTimeout(this._hoverTimer); this._hoverTimer = setTimeout(() => { if (lastE) this.show(scryfallId, lastE.clientX, lastE.clientY); }, this.HOVER_DELAY); });
+        nameEl.addEventListener('mousemove', (e) => { lastE = e; if (this.visible) this.show(scryfallId, e.clientX, e.clientY); });
         nameEl.addEventListener('mouseleave', () => this.hide());
     }
 };
