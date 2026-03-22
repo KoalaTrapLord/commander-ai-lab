@@ -483,6 +483,52 @@ class GameEngine:
           )
         available_mana = self._count_untapped_lands(sim, pi)
 
+  # ──────────────────────────────────────────────────────────
+  # Centralized damage routing
+  # ──────────────────────────────────────────────────────────
+
+  @staticmethod
+  def _apply_damage(
+    sim: SimState,
+    source_card: Card | None,
+    source_seat: int,
+    target_player: Player,
+    amount: int,
+  ) -> None:
+    """Route damage through a single path that handles commander tracking.
+
+    Parameters
+    ----------
+    sim : SimState
+        The current game state.
+    source_card : Card | None
+        The card that is the source of the damage (used for commander
+        identification).  May be ``None`` for non-card damage sources.
+    source_seat : int
+        Seat index of the player who controls the damage source.
+    target_player : Player
+        The player receiving the damage.
+    amount : int
+        Amount of damage to deal.  Zero or negative is a no-op.
+    """
+    if amount <= 0:
+      return
+
+    target_player.life -= amount
+    target_player.stats.damage_received += amount
+
+    # Track commander damage (MTG rule 903.10a)
+    if source_card is not None and source_card.is_commander:
+      target_player.commander_damage_received[source_seat] = (
+        target_player.commander_damage_received.get(source_seat, 0) + amount
+      )
+
+    # Check lethal: life <= 0 or commander damage >= 21
+    if target_player.life <= 0:
+      target_player.eliminated = True
+    elif any(v >= 21 for v in target_player.commander_damage_received.values()):
+      target_player.eliminated = True
+
   @staticmethod
   def _select_attack_target(sim: SimState, pi: int) -> int:
     """Select the best opponent to attack.
@@ -572,6 +618,7 @@ class GameEngine:
         )
       ]
       blocked = False
+      atk_player_damage = 0  # damage this attacker deals to the opponent player
       if valid_blockers and (not atk.has_keyword("menace") or len(valid_blockers) >= 2):
         if atk.has_keyword("menace") and len(valid_blockers) >= 2:
           valid_blockers.sort(key=lambda b: -b.get_toughness())
@@ -607,12 +654,12 @@ class GameEngine:
           trample_over = 0
           if atk.has_keyword("trample") and a_pow > blocker.get_toughness():
             trample_over = a_pow - blocker.get_toughness()
-            total_damage += trample_over
+            atk_player_damage += trample_over
           if atk.has_keyword("double strike"):
             if a_pow >= blocker.get_toughness() or atk.has_keyword("deathtouch"):
-              total_damage += a_pow
+              atk_player_damage += a_pow
             else:
-              total_damage += trample_over
+              atk_player_damage += trample_over
           if atk.has_keyword("lifelink"):
             damage_dealt = min(a_pow, blocker.get_toughness()) + trample_over
             if atk.has_keyword("double strike"):
@@ -620,21 +667,21 @@ class GameEngine:
             p.life += damage_dealt
       if not blocked:
         if atk.has_keyword("double strike"):
-          total_damage += a_pow * 2
+          atk_player_damage += a_pow * 2
           if atk.has_keyword("lifelink"):
             p.life += a_pow * 2
         else:
-          total_damage += a_pow
+          atk_player_damage += a_pow
           if atk.has_keyword("lifelink"):
             p.life += a_pow
-    opp.life -= total_damage
-    p.stats.damage_dealt += total_damage
-    opp.stats.damage_received += total_damage
+      # Route this attacker's damage through the centralized damage path
+      if atk_player_damage > 0:
+        self._apply_damage(sim, atk, pi, opp, atk_player_damage)
+        p.stats.damage_dealt += atk_player_damage
+        total_damage += atk_player_damage
     if events is not None and total_damage > 0:
       events.append(f"Dealt {total_damage} combat damage to {opp.name} (now {opp.life} life)")
       events.extend(combat_details)
-    if opp.life <= 0:
-      opp.eliminated = True
 
   def _build_result(
     self,

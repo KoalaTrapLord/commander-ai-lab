@@ -152,6 +152,11 @@ class Player:
     #                           p.commander_tax[name] = tax + 2
     commander_tax: dict = field(default_factory=dict)
 
+    # Commander damage received from each opponent seat.
+    # Keyed by opponent seat index; value = cumulative commander damage.
+    # A player loses when any single value reaches 21+ (MTG rule 903.10a).
+    commander_damage_received: dict[int, int] = field(default_factory=dict)
+
     stats: PlayerStats = field(default_factory=PlayerStats)
 
 

@@ -95,10 +95,16 @@ class CommanderPlayer:
     # Whether this player has drawn their card this turn
     drawn_this_turn: bool = False
 
-    # Commander damage received from each opponent (keyed by seat index)
-    commander_damage_received: dict[int, int] = field(default_factory=dict)
-
     # ── Convenience pass-throughs to base Player ─────────────
+
+    @property
+    def commander_damage_received(self) -> dict[int, int]:
+        """Delegate to base Player's commander_damage_received."""
+        return self.base.commander_damage_received
+
+    @commander_damage_received.setter
+    def commander_damage_received(self, value: dict[int, int]) -> None:
+        self.base.commander_damage_received = value
 
     @property
     def name(self) -> str:
