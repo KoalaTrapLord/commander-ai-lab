@@ -800,10 +800,10 @@ def _run_distillation_pipeline(
             opponent=opponent,
             playstyle=playstyle,
             min_ppo_win_rate=min_win_rate,
-            results_dir=os.path.join(project_root, "data", "results"),
+            results_dir=os.path.join(project_root, "results"),
             models_dir=os.path.join(project_root, "ml", "models"),
             checkpoint_dir=os.path.join(project_root, "ml", "models", "checkpoints"),
-            history_dir=os.path.join(project_root, "data", "results", "distillation-history"),
+            history_dir=os.path.join(project_root, "results", "distillation-history"),
         )
 
         loop = DistillationLoop(cfg)
@@ -925,8 +925,8 @@ async def ml_stop_distillation():
 async def ml_distillation_history():
     """Get distillation generation history from disk."""
     project_root = Path(__file__).resolve().parent.parent
-    history_path = project_root / "data" / "results" / "distillation-history" / "generations.json"
-    summary_path = project_root / "data" / "results" / "distillation-history" / "summary.json"
+    history_path = project_root / "results" / "distillation-history" / "generations.json"
+    summary_path = project_root / "results" / "distillation-history" / "summary.json"
 
     result = {"generations": [], "summary": None}
 

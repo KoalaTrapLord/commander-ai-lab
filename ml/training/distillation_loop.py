@@ -62,10 +62,10 @@ class DistillationConfig:
     convergence_threshold: float = 0.01  # Min win-rate improvement to not plateau
 
     # --- Paths ---
-    results_dir: str = "data/results"
+    results_dir: str = "results"
     models_dir: str = "ml/models"
     checkpoint_dir: str = "ml/models/checkpoints"
-    history_dir: str = "data/results/distillation-history"
+    history_dir: str = "results/distillation-history"
 
     # --- Supervised training ---
     supervised_epochs: int = 30
