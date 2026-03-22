@@ -17,8 +17,61 @@ const Collection = (() => {
     // ── Configuration ──────────────────────────────────────
     const API_BASE = window.location.origin;
     const LS_PREFS_KEY = 'coll_preferences';
-    const DEBOUNCE_MS = 300;      // ── Card Preview (hover tooltip with delay) ────────────     const CollCardPreview = {         el: null, img: null, visible: false, _hoverTimer: null, HOVER_DELAY: 225,         init() { this.el = document.getElementById('coll-card-preview'); this.img = document.getElementById('coll-card-preview-img'); },         show(scryfallId, mx, my) {             if (!scryfallId || !this.el) return;             this.img.src = `https://api.scryfall.com/cards/${scryfallId}?format=image&version=normal`;             this.img.onerror = () => this.hide();             const vw = window.innerWidth, vh = window.innerHeight, w = 220;             let x = mx + 16, y = my - 20;             if (x + w > vw - 10) x = mx - w - 16;             if (y + 310 > vh - 10) y = vh - 320;             if (y < 10) y = 10;             this.el.style.left = `${x}px`; this.el.style.top = `${y}px`;             this.el.style.display = 'block'; this.visible = true;         },         hide() { clearTimeout(this._hoverTimer); if (this.el) this.el.style.display = 'none'; this.visible = false; },         attachAll() {             if (!this.el) this.init();             document.querySelectorAll('.coll-row[data-scryfall-id]').forEach(row => {                 const sfid = row.dataset.scryfallId;                 const nameEl = row.querySelector('.coll-td-name');                 if (!sfid || !nameEl || nameEl._previewBound) return;                 nameEl._previewBound = true;                 let lastE = null;                 nameEl.addEventListener('mouseenter', (e) => { lastE = e; clearTimeout(this._hoverTimer); this._hoverTimer = setTimeout(() => { if (lastE) this.show(sfid, lastE.clientX, lastE.clientY); }, this.HOVER_DELAY); });                 nameEl.addEventListener('mousemove', (e) => { lastE = e; if (this.visible) this.show(sfid, e.clientX, e.clientY); });                 nameEl.addEventListener('mouseleave', () => this.hide());             });         },     };
+    const DEBOUNCE_MS = 300;
 
+    // ── Card Preview (hover tooltip with delay) ────────────
+    const CollCardPreview = {
+        el: null,
+        img: null,
+        visible: false,
+        _hoverTimer: null,
+        HOVER_DELAY: 225,
+        init() {
+            this.el = document.getElementById('coll-card-preview');
+            this.img = document.getElementById('coll-card-preview-img');
+        },
+        show(imgUrl, mx, my) {
+            if (!imgUrl || !this.el) return;
+            this.img.src = imgUrl;
+            this.img.onerror = () => this.hide();
+            const vw = window.innerWidth, vh = window.innerHeight, w = 220;
+            let x = mx + 16, y = my - 20;
+            if (x + w > vw - 10) x = mx - w - 16;
+            if (y + 310 > vh - 10) y = vh - 320;
+            if (y < 10) y = 10;
+            this.el.style.left = `${x}px`;
+            this.el.style.top = `${y}px`;
+            this.el.style.display = 'block';
+            this.visible = true;
+        },
+        hide() {
+            clearTimeout(this._hoverTimer);
+            if (this.el) this.el.style.display = 'none';
+            this.visible = false;
+        },
+        attachAll() {
+            if (!this.el) this.init();
+            document.querySelectorAll('.coll-row[data-img-url]').forEach(row => {
+                const imgUrl = row.dataset.imgUrl;
+                const nameEl = row.querySelector('.coll-td-name');
+                if (!imgUrl || !nameEl || nameEl._previewBound) return;
+                nameEl._previewBound = true;
+                let lastE = null;
+                nameEl.addEventListener('mouseenter', (e) => {
+                    lastE = e;
+                    clearTimeout(this._hoverTimer);
+                    this._hoverTimer = setTimeout(() => {
+                        if (lastE) this.show(imgUrl, lastE.clientX, lastE.clientY);
+                    }, this.HOVER_DELAY);
+                });
+                nameEl.addEventListener('mousemove', (e) => {
+                    lastE = e;
+                    if (this.visible) this.show(imgUrl, e.clientX, e.clientY);
+                });
+                nameEl.addEventListener('mouseleave', () => this.hide());
+            });
+        },
+    };
     const COLOR_MAP = {
         W: { label: 'W', bg: '#f9faf4', color: '#3d3929' },
         U: { label: 'U', bg: '#0e67ab', color: '#fff' },
@@ -850,7 +903,7 @@ const Collection = (() => {
             const setName = escapeHtml(card.setName || card.set_name || '');
             const edhrecRank = (card.edhrecRank || card.edhrec_rank) ? `#${card.edhrecRank || card.edhrec_rank}` : '—';
 
-            return `<tr class="coll-row" onclick="Collection.openDrawer(${card.id})" data-id="${card.id}" data-scryfall-id="${card.scryfallId || card.scryfall_id || ''}">
+            return `<tr class="coll-row" onclick="Collection.openDrawer(${card.id})" data-id="${card.id}" data-img-url="${card.imageUrl || ''}">
                 <td class="coll-td coll-td-quantity">${escapeHtml(card.quantity ?? 1)}</td>
                 <td class="coll-td coll-td-name">
                     <span class="coll-card-name">${escapeHtml(card.name)}</span>
