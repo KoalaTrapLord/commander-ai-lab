@@ -633,7 +633,7 @@ async def coach_cards_like(card: str, colors: str = None, top_n: int = 10):
 
         # Get image URL and price
         ce = conn.execute(
-            "SELECT image_url, tcg_price FROM collection_entries WHERE LOWER(name) = LOWER(?) LIMIT 1",
+            "SELECT scryfall_id, tcg_price FROM collection_entries WHERE LOWER(name) = LOWER(?) LIMIT 1",
             (m.name,)
         ).fetchone()
 
@@ -645,7 +645,7 @@ async def coach_cards_like(card: str, colors: str = None, top_n: int = 10):
             "mana_cost": m.mana_cost,
             "text": m.text[:200] if m.text else "",
             "owned_qty": owned_qty,
-            "image_url": ce["image_url"] if ce else None,
+            "image_url": f"https://api.scryfall.com/cards/{ce['scryfall_id']}?format=image&version=normal" if ce and ce["scryfall_id"] else None,
             "tcg_price": ce["tcg_price"] if ce else None,
         })
 
