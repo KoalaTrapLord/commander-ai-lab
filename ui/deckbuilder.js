@@ -98,7 +98,7 @@ const ToastManager = {
 const CardPreview = {
     el: null,
     img: null,
-    visible: false,   _hoverTimer: null,   HOVER_DELAY: 450,
+    visible: false,   _hoverTimer: null,   HOVER_DELAY: 225,
 
     init() {
         this.el = qs('#deck-card-preview');
