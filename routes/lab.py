@@ -105,7 +105,7 @@ async def start_batch(req: StartRequest, background_tasks: BackgroundTasks):
           ).fetchone()
           if row:
             from routes.deckbuilder import export_deck_to_sim
-                result = await export_deck_to_sim(row["id"])
+            result = await export_deck_to_sim(row["id"])
             resolved_decks.append(result["deckName"])
             log.info(f"Auto-exported deckbuilder deck '{deck_name}' to .dck")
           else:
