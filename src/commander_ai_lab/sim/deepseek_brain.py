@@ -543,9 +543,8 @@ class DeepSeekBrain:
                 if models:
                     model_id = models[0].get("id", self.config.model)
                     if model_id:
-                        self.config.model = model_id
+                        logger.info("Available model: %s (keeping configured: %s)", model_id, self.config.model)
                         logger.info("Auto-detected model: %s", model_id)
-                logger.info("LLM brain connected to %s", self.config.api_base)
                 return True
         except Exception as e:
             logger.warning("LLM brain connection failed: %s", e)
