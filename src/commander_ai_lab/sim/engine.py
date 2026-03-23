@@ -354,6 +354,57 @@ class GameEngine:
     else:
       owner.graveyard.append(card)
 
+  # ──────────────────────────────────────────────────────────
+  # Centralized Damage
+  # ──────────────────────────────────────────────────────────
+
+  @staticmethod
+  def deal_damage(
+    sim: SimState,
+    amount: int,
+    target_seat: int,
+    source_card: Card | None = None,
+    source_seat: int | None = None,
+    is_combat: bool = False,
+    events: list | None = None,
+    label: str = "",
+  ) -> int:
+    """Apply *amount* damage to a player through the centralized path.
+
+    Handles life reduction, stat tracking, commander damage tracking
+    (both per-seat aggregate and per-card breakdown from PR #89),
+    and elimination checks.  Returns the actual damage dealt.
+    """
+    if amount <= 0:
+      return 0
+    target = sim.players[target_seat]
+    if target.eliminated:
+      return 0
+
+    target.life -= amount
+    target.stats.damage_received += amount
+    if source_seat is not None:
+      sim.players[source_seat].stats.damage_dealt += amount
+
+    # Commander damage tracking — dual-dict model (PR #89):
+    #   commander_damage_received[seat] = aggregate per-seat total
+    #   commander_damage_by_card[(seat, card_name)] = per-card breakdown
+    if source_card and source_card.is_commander and source_seat is not None:
+      target.commander_damage_received[source_seat] = (
+        target.commander_damage_received.get(source_seat, 0) + amount
+      )
+      key = (source_seat, source_card.name)
+      target.commander_damage_by_card[key] = (
+        target.commander_damage_by_card.get(key, 0) + amount
+      )
+
+    if events is not None and label:
+      events.append(f"{label} ({target.name} now at {target.life} life)")
+
+    if target.life <= 0 or target.is_dead_to_commander_damage():
+      target.eliminated = True
+    return amount
+
   def _count_untapped_lands(self, sim: SimState, pi: int) -> int:
     """Count untapped lands for a player."""
     return sum(
@@ -437,6 +488,20 @@ class GameEngine:
         p.graveyard.append(card)
         if events is not None:
           events.append(f"Cast {card.name} (board wipe) \u2014 destroyed {len(wiped_names)} creatures")
+      elif card.is_direct_damage and card.direct_damage_amount > 0:
+        # Direct-damage spell (burn): route through centralized deal_damage()
+        target_seat = self._select_attack_target(sim, pi)
+        if target_seat != -1:
+          target_name = sim.players[target_seat].name
+          self.deal_damage(
+            sim, card.direct_damage_amount, target_seat,
+            source_card=card, source_seat=pi,
+            events=events,
+            label=f"{card.name} deals {card.direct_damage_amount} damage to {target_name}",
+          )
+        elif events is not None:
+          events.append(f"Cast {card.name} (burn, no targets)")
+        p.graveyard.append(card)
       else:
         sim.add_to_battlefield(pi, card)
         if card.is_creature():
@@ -557,16 +622,14 @@ class GameEngine:
       atk_names = [f"{a.name} ({a.pt})" for a in attackers]
       events.append(f"Attacks {opp.name} with: {', '.join(atk_names)}")
     total_damage = 0
-    # Per-commander-card damage dealt to the opponent this combat.
-    # Key = attacker card name; only populated for is_commander cards.
-    cmd_damage_by_card: dict[str, int] = {}
     used_blockers: set[int] = set()
     combat_details: list[str] = []
+    # Per-attacker damage to route through deal_damage() individually
+    attacker_damage: list[tuple[Card, int]] = []
     for atk in attackers:
       a_pow = atk.get_power()
       a_tou = atk.get_toughness()
       has_flying = atk.has_keyword("flying")
-      is_commander_atk = atk.is_commander
       valid_blockers = [
         b
         for b in opp_blockers
@@ -611,18 +674,12 @@ class GameEngine:
           trample_over = 0
           if atk.has_keyword("trample") and a_pow > blocker.get_toughness():
             trample_over = a_pow - blocker.get_toughness()
+            attacker_damage.append((atk, trample_over))
             total_damage += trample_over
-            if is_commander_atk:
-              cmd_damage_by_card[atk.name] = cmd_damage_by_card.get(atk.name, 0) + trample_over
           if atk.has_keyword("double strike"):
-            if a_pow >= blocker.get_toughness() or atk.has_keyword("deathtouch"):
-              total_damage += a_pow
-              if is_commander_atk:
-                cmd_damage_by_card[atk.name] = cmd_damage_by_card.get(atk.name, 0) + a_pow
-            else:
-              total_damage += trample_over
-              if is_commander_atk:
-                cmd_damage_by_card[atk.name] = cmd_damage_by_card.get(atk.name, 0) + trample_over
+            ds_dmg = a_pow if (a_pow >= blocker.get_toughness() or atk.has_keyword("deathtouch")) else trample_over
+            attacker_damage.append((atk, ds_dmg))
+            total_damage += ds_dmg
           if atk.has_keyword("lifelink"):
             damage_dealt = min(a_pow, blocker.get_toughness()) + trample_over
             if atk.has_keyword("double strike"):
@@ -630,41 +687,35 @@ class GameEngine:
             p.life += damage_dealt
       if not blocked:
         if atk.has_keyword("double strike"):
-          total_damage += a_pow * 2
-          if is_commander_atk:
-            cmd_damage_by_card[atk.name] = cmd_damage_by_card.get(atk.name, 0) + a_pow * 2
+          atk_dmg = a_pow * 2
           if atk.has_keyword("lifelink"):
             p.life += a_pow * 2
         else:
-          total_damage += a_pow
-          if is_commander_atk:
-            cmd_damage_by_card[atk.name] = cmd_damage_by_card.get(atk.name, 0) + a_pow
+          atk_dmg = a_pow
           if atk.has_keyword("lifelink"):
             p.life += a_pow
-    # Apply damage to opponent
-    opp.life -= total_damage
-    p.stats.damage_dealt += total_damage
-    opp.stats.damage_received += total_damage
-    # Track commander damage — both per-seat aggregate and per-card breakdown
-    total_cmd_damage = sum(cmd_damage_by_card.values())
-    if total_cmd_damage > 0:
-      opp.commander_damage_received[pi] = (
-        opp.commander_damage_received.get(pi, 0) + total_cmd_damage
-      )
-      for cmd_name, dmg in cmd_damage_by_card.items():
-        key = (pi, cmd_name)
-        opp.commander_damage_by_card[key] = (
-          opp.commander_damage_by_card.get(key, 0) + dmg
+        attacker_damage.append((atk, atk_dmg))
+        total_damage += atk_dmg
+    # Route each attacker's damage through deal_damage() for
+    # centralized life/stats/commander tracking
+    for atk_card, dmg in attacker_damage:
+      if dmg > 0:
+        self.deal_damage(
+          sim, dmg, opp_idx,
+          source_card=atk_card, source_seat=pi,
+          is_combat=True,
         )
     if events is not None and total_damage > 0:
+      # Compute commander damage annotation from the per-card dict
+      total_cmd_damage = sum(
+        dmg for (atk_card, dmg) in attacker_damage
+        if atk_card.is_commander and dmg > 0
+      )
       cmd_note = f" ({total_cmd_damage} cmdr)" if total_cmd_damage > 0 else ""
       events.append(
         f"Dealt {total_damage} combat damage{cmd_note} to {opp.name} (now {opp.life} life)"
       )
       events.extend(combat_details)
-    # Check elimination: life <= 0 or commander damage >= 21
-    if opp.life <= 0 or opp.is_dead_to_commander_damage():
-      opp.eliminated = True
 
   def _build_result(
     self,

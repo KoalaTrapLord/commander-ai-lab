@@ -37,6 +37,8 @@ class Card:
     is_removal: bool = False
     is_board_wipe: bool = False
     is_commander: bool = False
+    is_direct_damage: bool = False
+    direct_damage_amount: int = 0
 
     # Runtime fields (set during game)
     id: int = 0

@@ -208,6 +208,10 @@ def _apply_oracle_flags(card: Card) -> None:
         ]):
             card.is_removal = True
 
+    # Direct-damage spells (burn): "deals N damage to target/any target"
+    if not card.is_direct_damage:
+        _detect_direct_damage(card, oracle)
+
     # Bug 17 fix: evaluate ramp independently — cards can be both removal and ramp
     # (e.g. Nature's Claim, Beast Within, Abrupt Decay)
     if not card.is_ramp:
@@ -222,6 +226,64 @@ def _apply_oracle_flags(card: Card) -> None:
             "{t}: add" in oracle and "land" not in type_line
         ):
             card.is_ramp = True
+
+
+# ── Direct-damage (burn spell) detection ──────────────────────
+
+# Regex: "deals N damage to target|any target" (not "each creature" — that's a wipe)
+_DIRECT_DAMAGE_RE = re.compile(
+    r"deals?\s+(\d+)\s+damage\s+to\s+(?:target|any\s+target)",
+    re.IGNORECASE,
+)
+
+# Well-known burn spells with fixed damage amounts for reliable detection
+_KNOWN_BURN: dict[str, int] = {
+    "lightning bolt": 3,
+    "shock": 2,
+    "lightning strike": 3,
+    "lava spike": 3,
+    "rift bolt": 3,
+    "searing blaze": 3,
+    "chain lightning": 3,
+    "flame rift": 4,
+    "exquisite firecraft": 4,
+    "lightning helix": 3,
+    "warleader's helix": 4,
+    "boros charm": 4,
+    "searing spear": 3,
+    "incinerate": 3,
+    "magma jet": 2,
+    "searing blood": 2,
+    "firebolt": 2,
+    "galvanic blast": 2,
+    "skullcrack": 3,
+    "flames of the firebrand": 3,
+    "stoke the flames": 4,
+}
+
+
+def _detect_direct_damage(card: Card, oracle: str) -> None:
+    """Detect direct-damage (burn) spells and set card flags."""
+    # Check known-burn table first (most reliable)
+    name_lower = (card.name or "").lower().strip()
+    if name_lower in _KNOWN_BURN:
+        card.is_direct_damage = True
+        card.direct_damage_amount = _KNOWN_BURN[name_lower]
+        return
+
+    # Fall back to regex detection from oracle text
+    if not oracle:
+        return
+    # Skip board wipes and each-creature effects
+    if card.is_board_wipe:
+        return
+    if "each creature" in oracle or "all creature" in oracle:
+        return
+
+    m = _DIRECT_DAMAGE_RE.search(oracle)
+    if m:
+        card.is_direct_damage = True
+        card.direct_damage_amount = int(m.group(1))
 
 
 # ── Multi-opponent scaling factors ────────────────────────────
