@@ -15,7 +15,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Optional
 
-from commander_ai_lab.sim.models import Card, Player, SimState
+from commander_ai_lab.sim.models import Card, Phase, Player, SimState
 
 
 # ── Mana Pool ────────────────────────────────────────────────
@@ -196,7 +196,7 @@ class CommanderGameState:
     # Phase tracking
     # Phases: untap, upkeep, draw, main1, combat_begin, combat_declare_attackers,
     #         combat_declare_blockers, combat_damage, combat_end, main2, end, cleanup
-    current_phase: str = "main1"
+    current_phase: str | Phase = Phase.MAIN1
 
     # Turn number (mirrors sim_state.turn)
     turn: int = 0
