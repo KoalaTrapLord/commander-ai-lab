@@ -55,7 +55,7 @@ FORGE_REPLACEMENT = textwrap.dedent("""\
 
 class TestParseForgeFile:
     def _parse(self, txt: str, tmp_path: Path):
-        from services.forge_card_loader import _parse_forge_file
+        from commander_ai_lab.sim.forge_card_loader import _parse_forge_file
         fpath = tmp_path / "card.txt"
         fpath.write_text(txt, encoding="utf-8")
         return _parse_forge_file(fpath)
@@ -89,7 +89,7 @@ class TestParseForgeFile:
         assert d.has_replacement_effect is True
 
     def test_empty_file_returns_none(self, tmp_path):
-        from services.forge_card_loader import _parse_forge_file
+        from commander_ai_lab.sim.forge_card_loader import _parse_forge_file
         fpath = tmp_path / "empty.txt"
         fpath.write_text("", encoding="utf-8")
         assert _parse_forge_file(fpath) is None
@@ -99,7 +99,7 @@ class TestParseForgeFile:
 
 class TestEnrichCardForge:
     def _forge(self, **kwargs):
-        from services.forge_card_loader import ForgeCardData
+        from commander_ai_lab.sim.forge_card_loader import ForgeCardData
         base = dict(
             name="X", mana_cost="2 G", cmc=3, type_line="Creature Elf",
             oracle_text="", pt="2/2", keywords=["Flying"],
@@ -151,7 +151,7 @@ class TestScoreCardForge:
         forge = Card(name="A", type_line="Creature", cmc=3, pt="3/3",
                      forge_trigger_modes=["ChangesZone"])
         text = Card(name="B", type_line="Creature", cmc=3, pt="3/3",
-                    oracle_text="When this enters the battlefield, draw a card.")
+                    oracle_text="When this enters the battlefield, gain 1 life.")
         none = Card(name="C", type_line="Creature", cmc=3, pt="3/3")
         sf, st, sn = score_card(forge), score_card(text), score_card(none)
         assert sf > sn and abs(sf - st) < 0.01

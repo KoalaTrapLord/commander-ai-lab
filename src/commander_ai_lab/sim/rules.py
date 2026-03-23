@@ -19,8 +19,8 @@ import re
 from typing import Optional
 
 from commander_ai_lab.sim.models import Card
-# NEW: Forge enrichment
-from services.forge_card_loader import lookup_forge_card, ForgeCardData
+# Forge enrichment (sibling module inside sim/)
+from commander_ai_lab.sim.forge_card_loader import lookup_forge_card, ForgeCardData
 
 
 # ══════════════════════════════════════════════════════════════
@@ -190,19 +190,20 @@ def enrich_card(card: Card) -> Card:
     """
     name_lower = (card.name or "").lower().strip()
 
-    
     has_real_data = card.cmc > 0 or (card.type_line and len(card.type_line) > 5)
-    # -- NEW: Try Forge enrichment first --
+
+    # Try Forge enrichment first for cards without Scryfall data
     if not has_real_data:
         forge_data = lookup_forge_card(card.name)
         if forge_data:
             _apply_forge_data(card, forge_data)  # sets oracle_text, keywords, etc.
             card.forge_enriched = True
-            _apply_oracle_flags(card)  # reads updated oracle_text
-            return card
-    # -- END NEW --
-
-
+            # Re-check: if Forge provided sufficient data, apply flags and return
+            has_real_data = card.cmc > 0 or (card.type_line and len(card.type_line) > 5)
+            if has_real_data:
+                _apply_oracle_flags(card)
+                return card
+            # Otherwise fall through so known-cards / default heuristics can fill gaps
 
     if not has_real_data:
         # Basic lands

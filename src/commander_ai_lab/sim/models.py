@@ -38,7 +38,7 @@ class Card:
     is_board_wipe: bool = False
     is_commander: bool = False
 
-        # Forge enrichment fields (set by forge_card_loader)
+    # Forge enrichment fields (set by forge_card_loader)
     forge_enriched: bool = False
     forge_keywords: list[str] = field(default_factory=list)
     forge_trigger_modes: list[str] = field(default_factory=list)
