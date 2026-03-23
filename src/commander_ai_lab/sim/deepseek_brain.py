@@ -653,9 +653,10 @@ class DeepSeekBrain:
         text = re.sub(r'\s*```$', '', text)
         text = text.strip()
 
-        json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
-        if json_match:
-            text = json_match.group(0)
+        start = text.find('{')
+    end = text.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        text = text[start:end + 1]
 
         try:
             parsed = json.loads(text)
