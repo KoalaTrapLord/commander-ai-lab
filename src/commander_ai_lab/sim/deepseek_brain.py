@@ -590,7 +590,7 @@ class DeepSeekBrain:
         if not self._connected:
             return self._fallback_action(snapshot, t_start, "not_connected")
 
-last_err = None
+    last_err = None
         for attempt in range(1, self.config.max_retries + 1):
             try:
                 result = self._call_llm(snapshot)
@@ -660,9 +660,9 @@ last_err = None
         text = text.strip()
 
         start = text.find('{')
-    end = text.rfind('}')
-    if start != -1 and end != -1 and end > start:
-        text = text[start:end + 1]
+        end = text.rfind('}')
+        if start != -1 and end != -1 and end > start:
+            text = text[start:end + 1]
 
         try:
             parsed = json.loads(text)
