@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -98,7 +99,7 @@ class GameEvent:
 class TurnManagerConfig:
     """Tunable parameters for the turn manager."""
     max_turns: int = 40
-    ai_decision_timeout: float = 30.0    # seconds before fallback
+    ai_decision_timeout: float = float(os.environ.get("BRAIN_TIMEOUT", "300.0"))    # seconds before fallback
     ai_narration_enabled: bool = True
     ai_decision_delay: float = 0.0       # cosmetic pause (set > 0 for UI readability)
     priority_pass_limit: int = 8         # max APNAP passes per phase before auto-advance
