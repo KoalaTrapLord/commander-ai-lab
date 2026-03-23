@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Ollama exposes an OpenAI-compatible endpoint
 DEFAULT_BASE_URL = "http://localhost:11434/v1"
-DEFAULT_MODEL = "gpt-oss:20b"
+DEFAULT_MODEL = "qwen2.5:7b"
 
 
 def _get_client(base_url: str = DEFAULT_BASE_URL) -> OpenAI:
