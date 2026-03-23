@@ -43,6 +43,11 @@ public class MultiThreadBatchRunner {
     private boolean useSimplifiedAi = false;
     private int aiThinkTimeMs = -1;
 
+    // ── ML Decision Logging ────────────────────────────────────
+    private boolean mlLogEnabled = false;
+    private String mlOutputDir = "results";
+    private String mlBatchId;
+
     public MultiThreadBatchRunner(String forgeJarPath, String forgeWorkDir,
                                   List<DeckInfo> decks, AiPolicy policy, int numThreads) {
         this(forgeJarPath, forgeWorkDir, decks, policy, numThreads, true, 120, "java");
@@ -91,6 +96,16 @@ public class MultiThreadBatchRunner {
     public void setAiOptimization(boolean simplified, int thinkTimeMs) {
         this.useSimplifiedAi = simplified;
         this.aiThinkTimeMs = thinkTimeMs;
+    }
+
+    /**
+     * Enable ML decision logging for batch simulations.
+     * Each thread gets its own log file with a unique batch ID suffix.
+     */
+    public void enableMlLogging(String outputDir, String batchId) {
+        this.mlLogEnabled = true;
+        this.mlOutputDir = outputDir;
+        this.mlBatchId = batchId;
     }
 
     /**
@@ -193,6 +208,11 @@ public class MultiThreadBatchRunner {
 
             // Issue #4: Forward AI optimization settings
             runner.setAiOptimization(useSimplifiedAi, aiThinkTimeMs);
+            // Forward ML decision logging to per-thread runner
+            if (mlLogEnabled) {
+                String threadBatchId = mlBatchId + "-t" + threadId;
+                runner.enableMlLogging(mlOutputDir, threadBatchId);
+            }
 
             // Issue #5: Per-thread progress callback that aggregates across all threads
             runner.setProgressCallback((completed, total, pct, simsPerSec, lastResult) -> {
@@ -218,6 +238,7 @@ public class MultiThreadBatchRunner {
                 for (int i = 0; i < results.size(); i++) {
                     results.get(i).gameIndex = startIndex + i;
                 }
+                if (mlLogEnabled) { runner.closeMlLogger(); }
                 return results;
             }));
 
