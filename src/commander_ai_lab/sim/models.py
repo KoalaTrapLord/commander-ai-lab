@@ -102,6 +102,8 @@ class PlayerStats:
     """Per-game statistics tracked for a player."""
 
     cards_drawn: int = 7  # starting hand
+    mulligans: int = 0
+    opening_hand_lands: int = 0
     lands_played: int = 0
     spells_cast: int = 0
     creatures_played: int = 0
@@ -117,6 +119,8 @@ class PlayerStats:
     def to_dict(self) -> dict:
         return {
             "cardsDrawn": self.cards_drawn,
+            "mulligans": self.mulligans,
+            "openingHandLands": self.opening_hand_lands,
             "landsPlayed": self.lands_played,
             "spellsCast": self.spells_cast,
             "creaturesPlayed": self.creatures_played,
