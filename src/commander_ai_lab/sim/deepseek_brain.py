@@ -10,7 +10,7 @@ action describing what to do this turn (play land, cast spell, attack,
 hold/pass, use removal, use board wipe, cast ramp, cast commander).
 
 Default target: GPT-OSS 20B (Q4_K_M) via Ollama at 192.168.0.240:11434
-  ollama run gpt-oss:20b
+  ollama run deepseek-r1:8b
 
 Also supports:
   - LM Studio (OpenAI-compatible API) — set api_base to LM Studio URL
@@ -58,28 +58,28 @@ class DeepSeekConfig:
 
     Example — LM Studio::
         config = DeepSeekConfig(
-            api_base="http://192.168.0.240:11434",
+            api_base="http://localhost:11434",
             model="deepseek-r1-distill-qwen-8b",
             max_tokens=2048,  # R1 needs room for <think> blocks
         )
 
     Example — Ollama (default)::
-        config = DeepSeekConfig()  # points at 192.168.0.240:11434 / gpt-oss:20b
+        config = DeepSeekConfig()  # points at 192.168.0.240:11434 / deepseek-r1:8b
     """
 
     # API endpoint — Ollama OpenAI-compatible base (NO /v1 suffix)
-    api_base: str = "http://192.168.0.240:11434"
+    api_base: str = "http://localhost:11434"
     # Model name as registered in Ollama
-    model: str = "gpt-oss:20b"
+    model: str = "deepseek-r1:8b"
 
     # Generation parameters
     # GPT-OSS 20B does not emit <think> blocks so 1024 tokens is ample
     temperature: float = 0.3
-    max_tokens: int = 1024
+    max_tokens: int = 2048
     top_p: float = 0.9
 
     # Timeouts
-    request_timeout: float = 30.0  # Ollama local inference; raise vs LM Studio
+    request_timeout: float = 90.0  # Ollama local inference; raise vs LM Studio
     fallback_on_timeout: bool = True
 
     # Caching
