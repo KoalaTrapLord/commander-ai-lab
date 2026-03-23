@@ -256,6 +256,19 @@ class DeckGeneratorV3:
         # Step 5b: Fill basic lands to hit exactly 100 cards
         cards_with_status = self._fill_basic_lands(cards_with_status, color_identity)
 
+        # Step 5c: Secondary safety-net deduplication
+        seen = {}
+        deduped = []
+        for c in cards_with_status:
+            key = c.name.lower()
+            if key in seen:
+                deduped[seen[key]].count += c.count
+                logger.warning("Secondary dedupe caught duplicate: '%s'", c.name)
+            else:
+                seen[key] = len(deduped)
+                deduped.append(c)
+        cards_with_status = deduped
+
         # Step 6: Compute stats
         stats = self._compute_stats(cards_with_status)
 
@@ -284,13 +297,24 @@ class DeckGeneratorV3:
         """
         Cross-reference generated cards against the collection DB.
         Sets owned/scryfall_id/owned_qty and real price.
+        Deduplicates cards by name (case-insensitive) — if the LLM
+        returns the same card twice, the counts are merged.
         """
         conn = self.db_conn_factory()
         enriched = []
+        seen_names: dict[str, int] = {}  # name_lower → index in enriched
 
         for card in cards:
             name = card.get("name", "")
             if not name:
+                continue
+
+            name_lower = name.lower()
+
+            if name_lower in seen_names:
+                idx = seen_names[name_lower]
+                enriched[idx].count += card.get("count", 1)
+                logger.warning("Duplicate card '%s' merged (LLM returned it twice)", name)
                 continue
 
             # Look up in collection
@@ -318,6 +342,7 @@ class DeckGeneratorV3:
                 scryfall_id=row["scryfall_id"] if row else "",
                 status="owned" if is_owned else "missing",
             )
+            seen_names[name_lower] = len(enriched)
             enriched.append(enriched_card)
 
         return enriched
