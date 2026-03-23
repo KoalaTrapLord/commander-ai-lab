@@ -79,7 +79,7 @@ class DeepSeekConfig:
     top_p: float = 0.9
 
     # Timeouts
-    request_timeout: float = 90.0  # Ollama local inference; raise vs LM Studio
+    request_timeout: float = float(os.environ.get("BRAIN_TIMEOUT", "300.0"))  # Ollama local inference; raise vs LM Studio
     fallback_on_timeout: bool = True
 
     # Caching
