@@ -19,6 +19,8 @@ import re
 from typing import Optional
 
 from commander_ai_lab.sim.models import Card
+# Forge enrichment (sibling module inside sim/)
+from commander_ai_lab.sim.forge_card_loader import lookup_forge_card, ForgeCardData
 
 
 # ══════════════════════════════════════════════════════════════
@@ -139,6 +141,47 @@ _KNOWN_CARDS: list[tuple[re.Pattern, dict]] = [
 ]
 
 
+
+def _apply_forge_data(card: Card, forge_data: ForgeCardData) -> None:
+    """
+    Apply Forge card data onto a Card, merging keywords into both fields.
+
+    ISSUE 3 FIX: Writes to both card.keywords AND card.forge_keywords
+    so existing score_card() checks like `if "flying" in kw_list` work.
+
+    ISSUE 4 FIX: Sets card.oracle_text BEFORE returning, so the caller
+    can safely call _apply_oracle_flags(card) afterward.
+    """
+    # Forge-specific tracking fields
+    card.forge_keywords = list(forge_data.keywords)
+    card.forge_trigger_modes = list(forge_data.trigger_modes)
+    card.has_replacement_effect = forge_data.has_replacement_effect
+    card.has_static_ability = forge_data.has_static_ability
+
+    # ISSUE 3: Merge keywords into card.keywords (set union, no dupes)
+    existing = {k.lower() for k in (card.keywords or [])}
+    for kw in forge_data.keywords:
+        if kw.lower() not in existing:
+            card.keywords.append(kw)
+            existing.add(kw.lower())
+
+    # Overwrite type/cost/pt only if Forge has data AND card doesn't
+    if forge_data.type_line and (not card.type_line or len(card.type_line) < 3):
+        card.type_line = forge_data.type_line
+    if forge_data.mana_cost and not card.mana_cost:
+        card.mana_cost = forge_data.mana_cost
+        card.cmc = forge_data.cmc
+    if forge_data.pt and not card.pt:
+        card.pt = forge_data.pt
+        parts = forge_data.pt.split("/", 1)
+        if len(parts) == 2:
+            card.power = parts[0].strip()
+            card.toughness = parts[1].strip()
+
+    # ISSUE 4: Set oracle_text so _apply_oracle_flags sees Forge text
+    if forge_data.oracle_text and not card.oracle_text:
+        card.oracle_text = forge_data.oracle_text
+
 def enrich_card(card: Card) -> Card:
     """
     Enrich a card with type/cost heuristics if it lacks Scryfall data.
@@ -148,6 +191,19 @@ def enrich_card(card: Card) -> Card:
     name_lower = (card.name or "").lower().strip()
 
     has_real_data = card.cmc > 0 or (card.type_line and len(card.type_line) > 5)
+
+    # Try Forge enrichment first for cards without Scryfall data
+    if not has_real_data:
+        forge_data = lookup_forge_card(card.name)
+        if forge_data:
+            _apply_forge_data(card, forge_data)  # sets oracle_text, keywords, etc.
+            card.forge_enriched = True
+            # Re-check: if Forge provided sufficient data, apply flags and return
+            has_real_data = card.cmc > 0 or (card.type_line and len(card.type_line) > 5)
+            if has_real_data:
+                _apply_oracle_flags(card)
+                return card
+            # Otherwise fall through so known-cards / default heuristics can fill gaps
 
     if not has_real_data:
         # Basic lands
@@ -380,11 +436,21 @@ def score_card(
         score += w.get("kw_cascade", 3.0)
     if "defender" in text or "defender" in kw_list:
         score += w.get("kw_defender", -2.0)
-
-    # ── Triggered ability bonuses ──
-    if "when" in text and "enters" in text:
+    # NEW
+    _has_etb = False
+    if card.forge_trigger_modes and "ChangesZone" in card.forge_trigger_modes:
+        _has_etb = True
+    elif "when" in text and "enters" in text:
+        _has_etb = True
+    if _has_etb:
         score += w.get("trig_etb", 2.0) + _MULTI_OPP_SCALING.get("trig_etb", 0.0) * extra_opps
-    if "whenever" in text and "attack" in text:
+    # NEW
+    _has_attack_trig = False
+    if card.forge_trigger_modes and "Attacks" in card.forge_trigger_modes:
+        _has_attack_trig = True
+    elif "whenever" in text and "attack" in text:
+        _has_attack_trig = True
+    if _has_attack_trig:
         score += w.get("trig_attack", 1.5)
     if "when" in text and "dies" in text:
         score += w.get("trig_dies", 1.0) + _MULTI_OPP_SCALING.get("trig_dies", 0.0) * extra_opps

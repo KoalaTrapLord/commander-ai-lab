@@ -71,6 +71,13 @@ class Card:
     is_direct_damage: bool = False
     direct_damage_amount: int = 0
 
+    # Forge enrichment fields (set by forge_card_loader)
+    forge_enriched: bool = False
+    forge_keywords: list[str] = field(default_factory=list)
+    forge_trigger_modes: list[str] = field(default_factory=list)
+    has_replacement_effect: bool = False
+    has_static_ability: bool = False
+
     # Runtime fields (set during game)
     id: int = 0
     owner_id: int = -1
