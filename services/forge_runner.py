@@ -204,6 +204,7 @@ def build_java_command(
         cmd += ['--aiSimplified']
     if ai_think_time_ms > 0:
         cmd += ['--aiThinkTimeMs', str(ai_think_time_ms)]
+    cmd += ['--ml-log']
     if max_queue_depth > 0:
         cmd += ['--maxQueueDepth', str(max_queue_depth)]
     return cmd
