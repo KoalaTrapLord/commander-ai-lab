@@ -33,7 +33,7 @@ public class PolicyServerClient {
 
     private static final Gson GSON = new GsonBuilder().create();
     private static final int CONNECT_TIMEOUT_MS = 2000;
-    private static final int READ_TIMEOUT_MS = 5000;
+    private static final int READ_TIMEOUT_MS = 300_000;
 
     private final String baseUrl;
     private volatile boolean available = false;
