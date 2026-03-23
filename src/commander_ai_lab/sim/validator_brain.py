@@ -58,7 +58,7 @@ class ValidatorConfig:
     model: str = "deepseek-r1:14b"
     temperature: float = 0.0
     max_tokens: int = 2048
-    request_timeout: float = 60.0
+    request_timeout: float = 300.0
     enabled: bool = True
 
     @classmethod
@@ -70,7 +70,7 @@ class ValidatorConfig:
             model=os.environ.get("VALIDATOR_MODEL", "deepseek-r1:14b"),
             temperature=float(os.environ.get("VALIDATOR_TEMPERATURE", "0.0")),
             max_tokens=int(os.environ.get("VALIDATOR_MAX_TOKENS", "2048")),
-            request_timeout=float(os.environ.get("VALIDATOR_TIMEOUT", "60.0")),
+            request_timeout=float(os.environ.get("VALIDATOR_TIMEOUT", "300.0")),
             enabled=(enabled_str == "true"),
         )
 
