@@ -52,9 +52,8 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Optional, Set
-
+from commander_ai_lab.sim.models import Phase, PHASE_ORDER, SORCERY_PHASES, CombatState
 from commander_ai_lab.sim.game_state import CommanderGameState, CommanderPlayer
-from commander_ai_lab.sim.models import Phase, PHASE_ORDER, SORCERY_PHASES
 from commander_ai_lab.sim.ai_opponent import AIOpponent
 from commander_ai_lab.sim.threat_assessor import assess_threats, ThreatScore
 
@@ -68,8 +67,6 @@ ACTION_PHASES = {p.value for p in SORCERY_PHASES}
 # Phases where instant-speed responses can happen
 RESPONSE_PHASES = {
     Phase.UPKEEP.value,
-    Phase.BEGIN_COMBAT.value,
-    Phase.END_COMBAT.value,
     Phase.END_STEP.value,
 }
 
@@ -356,7 +353,13 @@ class CommanderTurnManager:
         await self._apnap_priority_window(active_seat, turn_num, phase)
 
     async def _phase_combat(self, active_seat: int, turn_num: int) -> None:
-        """Declare attackers phase."""
+        """Full combat sequence with priority windows at each sub-phase (Issue #86)."""
+        sim = self.gs.sim_state
+
+        # 1. Beginning of combat — priority window BEFORE attackers chosen
+        await self._apnap_priority_window(active_seat, turn_num, "begin_combat")
+
+        # 2. Declare attackers
         legal_moves = self.get_legal_moves(active_seat)
         attack_moves = [m for m in legal_moves if m.get("category") == "attack"]
         if not attack_moves:
@@ -385,8 +388,43 @@ class CommanderTurnManager:
                 narration=narration,
             ))
 
-        # Defending players get priority to declare blockers
+        # 3. After-attackers priority window
+        await self._apnap_priority_window(active_seat, turn_num, "declare_attackers")
+
+        # 4. Declare blockers — each defending player in APNAP order
+        for defender_seat in [s for s in range(len(self.gs.players))
+                              if s != active_seat
+                              and not self.gs.players[s].eliminated]:
+            block_moves = [m for m in self.get_legal_moves(defender_seat)
+                           if m.get("category") == "block"]
+            if block_moves:
+                block_id = await self._get_action(defender_seat, block_moves, turn_num)
+                if block_id is not None:
+                    self.gs.apply_move(defender_seat, block_id)
+
+        # 5. After-blockers priority window
         await self._apnap_priority_window(active_seat, turn_num, "declare_blockers")
+
+        # 6. First-strike damage sub-step (if applicable)
+        if self._has_first_strikers():
+            # Resolve first-strike damage via engine split method
+            if sim.combat and sim.combat.active:
+                from commander_ai_lab.sim.engine import GameEngine
+                engine = GameEngine()
+                engine.resolve_combat_damage(sim, active_seat, sim.combat, first_strike_only=True)
+            await self._apnap_priority_window(active_seat, turn_num, "first_strike_damage")
+
+        # 7. Normal combat damage
+        if sim.combat and sim.combat.active:
+            from commander_ai_lab.sim.engine import GameEngine
+            engine = GameEngine()
+            engine.resolve_combat_damage(sim, active_seat, sim.combat, first_strike_only=False)
+
+        # 8. End of combat priority window
+        await self._apnap_priority_window(active_seat, turn_num, "end_combat")
+
+        # 9. Clear combat state
+        sim.combat = None
 
     async def _phase_cleanup(self, active_seat: int) -> None:
         """Discard to hand size (7), remove end-of-turn effects."""
@@ -399,6 +437,22 @@ class CommanderTurnManager:
                 "  [cleanup] %s discarded %s",
                 player.name, discarded.name,
             )
+
+    def _has_first_strikers(self) -> bool:
+        """Check if any creature in active combat has first_strike or double_strike."""
+        sim = self.gs.sim_state
+        combat = sim.combat
+        if not combat or not combat.active:
+            return False
+        all_combat_ids = (
+            list(combat.attackers.keys()) +
+            [bid for blist in combat.blockers.values() for bid in blist]
+        )
+        for card_id in all_combat_ids:
+            card = next((c for bf in sim.battlefields for c in bf if c.id == card_id), None)
+            if card and (card.has_keyword("first_strike") or card.has_keyword("double_strike")):
+                return True
+        return False
 
     # ── Priority Passing (APNAP) ──────────────────────────────────────────────
 

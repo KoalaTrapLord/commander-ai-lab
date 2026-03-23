@@ -48,6 +48,36 @@ PHASE_ORDER: tuple[Phase, ...] = tuple(Phase)
 SORCERY_PHASES: frozenset[Phase] = frozenset({Phase.MAIN1, Phase.MAIN2})
 
 
+# ── Combat State ───────────────────────────────────────────
+
+@dataclass
+class CombatState:
+    """Transient combat state shared across combat sub-phases.
+
+    Created at BEGIN_COMBAT, cleared to None at END_COMBAT.
+    Allows priority windows between attacker declaration, blocker
+    declaration, and damage resolution (Issue #86 Item 1).
+    """
+
+    # Seat index of the defending player (multiplayer: chosen target)
+    defending_seat: int = -1
+
+    # attacker card_id -> defending seat
+    attackers: dict[int, int] = field(default_factory=dict)
+
+    # attacker card_id -> list of blocker card_ids
+    blockers: dict[int, list[int]] = field(default_factory=dict)
+
+    # Damage routed to the defending player per-attacker (for unblocked / trample)
+    player_damage: dict[int, int] = field(default_factory=dict)
+
+    # Whether the first-strike damage sub-step has already resolved
+    first_strike_resolved: bool = False
+
+    # Whether combat is currently active
+    active: bool = False
+
+
 @dataclass
 class Card:
     """A single card in the simulation."""
@@ -236,6 +266,9 @@ class SimState:
     next_card_id: int = 90000
     current_phase: Phase = Phase.MAIN1
     active_player_index: int = 0
+
+    # Combat state (transient, set during combat phases)
+    combat: Optional[CombatState] = None
 
     # ── Battlefield helpers ──────────────────────────────────
 
