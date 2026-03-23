@@ -345,6 +345,12 @@ public class LabCli implements Callable<Integer> {
             if (maxQueueDepth > 0) {
                 mtRunner.setMaxQueueDepth(maxQueueDepth);
             }
+                        // v4: Enable ML decision logging if requested
+            if (mlLog) {
+                String batchId = UUID.randomUUID().toString().substring(0, 8);
+                mtRunner.enableMlLogging("results", batchId);
+                System.out.println("[ML] Decision logging enabled (multi-thread) — data will be saved to results/");
+            }
             games = mtRunner.runBatch(numGames, masterSeed);
         } else {
             System.out.printf("Running %d games (single thread)...%n%n", numGames);
