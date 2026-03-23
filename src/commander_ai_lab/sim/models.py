@@ -11,10 +11,41 @@ SimState.battlefields is per-player: battlefields[seat_index] holds that player'
 from __future__ import annotations
 
 import copy
+import enum
 import json
 import re
 from dataclasses import dataclass, field
 from typing import Optional
+
+
+# ── Turn Phases ──────────────────────────────────────────────
+
+class Phase(str, enum.Enum):
+    """MTG turn phases in order.
+
+    Using ``str`` as a mixin allows direct comparison with plain strings
+    and clean JSON serialization (``phase.value`` is a string).
+    """
+
+    UNTAP = "untap"
+    UPKEEP = "upkeep"
+    DRAW = "draw"
+    MAIN1 = "main1"
+    BEGIN_COMBAT = "begin_combat"
+    DECLARE_ATTACKERS = "declare_attackers"
+    DECLARE_BLOCKERS = "declare_blockers"
+    COMBAT_DAMAGE = "combat_damage"
+    END_COMBAT = "end_combat"
+    MAIN2 = "main2"
+    END_STEP = "end_step"
+    CLEANUP = "cleanup"
+
+
+# Ordered tuple for iteration
+PHASE_ORDER: tuple[Phase, ...] = tuple(Phase)
+
+# Phases where sorcery-speed actions (land drops, casting creatures) are legal
+SORCERY_PHASES: frozenset[Phase] = frozenset({Phase.MAIN1, Phase.MAIN2})
 
 
 @dataclass
@@ -196,6 +227,8 @@ class SimState:
     turn: int = 0
     max_turns: int = 25
     next_card_id: int = 90000
+    current_phase: Phase = Phase.MAIN1
+    active_player_index: int = 0
 
     # ── Battlefield helpers ──────────────────────────────────
 

@@ -53,31 +53,24 @@ from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Optional, Set
 
 from commander_ai_lab.sim.game_state import CommanderGameState, CommanderPlayer
+from commander_ai_lab.sim.models import Phase, PHASE_ORDER, SORCERY_PHASES
 from commander_ai_lab.sim.ai_opponent import AIOpponent
 from commander_ai_lab.sim.threat_assessor import assess_threats, ThreatScore
 
 logger = logging.getLogger("turn_manager")
 
-# Commander turn phases in order
-PHASES = [
-    "untap",
-    "upkeep",
-    "draw",
-    "main1",
-    "begin_combat",
-    "declare_attackers",
-    "declare_blockers",
-    "combat_damage",
-    "end_combat",
-    "main2",
-    "end_step",
-    "cleanup",
-]
+# Re-export for backward compatibility; canonical source is models.py
+PHASES = [p.value for p in PHASE_ORDER]
 
 # Phases where a player can take an action (play land, cast spell, etc.)
-ACTION_PHASES = {"main1", "main2"}
+ACTION_PHASES = {p.value for p in SORCERY_PHASES}
 # Phases where instant-speed responses can happen
-RESPONSE_PHASES = {"upkeep", "begin_combat", "end_combat", "end_step"}
+RESPONSE_PHASES = {
+    Phase.UPKEEP.value,
+    Phase.BEGIN_COMBAT.value,
+    Phase.END_COMBAT.value,
+    Phase.END_STEP.value,
+}
 
 
 @dataclass

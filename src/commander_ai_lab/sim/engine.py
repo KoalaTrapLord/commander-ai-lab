@@ -29,9 +29,12 @@ from typing import Optional
 from commander_ai_lab.sim.models import (
   Card,
   GameResult,
+  Phase,
+  PHASE_ORDER,
   Player,
   PlayerResult,
   PlayerStats,
+  SORCERY_PHASES,
   SimState,
 )
 from commander_ai_lab.sim.rules import (
@@ -120,6 +123,7 @@ class GameEngine:
     final_turn = 0
 
     for turn in range(sim.max_turns):
+      sim.turn = turn
       turn_entry = {"turn": turn + 1, "phases": []}
 
       for pi in range(len(sim.players)):
@@ -127,59 +131,106 @@ class GameEngine:
         if p.eliminated:
           continue
         p.stats.turns_alive += 1
+        sim.active_player_index = pi
         phase_events: list[str] = []
-
-        # ── Untap (correct MTG order: untap is first) ──
-        for c in sim.get_battlefield(pi):
-          c.tapped = False
-          c.damage_marked = 0  # clear damage each turn (MTG rule 514.2)
-
-        # ── Draw ──
-        if p.library:
-          drawn = p.library[-1]
-          p.hand.append(p.library.pop())
-          p.stats.cards_drawn += 1
-          if self.record_log:
-            phase_events.append(f"Drew {drawn.name}")
 
         # ── Capture ML snapshot BEFORE turn actions ──
         pre_snapshot = None
         if self.ml_log:
           pre_snapshot = self._capture_ml_snapshot(sim, pi, turn)
 
-        # ── Land drop ──
-        land_before = p.stats.lands_played
-        self._play_land(sim, pi)
-        played_land = p.stats.lands_played > land_before
-        if self.record_log and played_land:
-          last_land = next(
-            (c for c in reversed(sim.get_battlefield(pi))
-             if c.is_land()),
-            None,
-          )
-          if last_land:
-            phase_events.append(f"Played land: {last_land.name}")
-
-        # ── Available mana ──
-        available_mana = self._count_untapped_lands(sim, pi)
-
-        # ── Play spells (up to 2) ──
+        # Track spell/damage counts for ML logging
         spells_before = p.stats.spells_cast
-        self._play_spells(sim, pi, available_mana, phase_events if self.record_log else None)
-        played_spell = p.stats.spells_cast > spells_before
+        damage_before_turn = p.stats.damage_dealt
+        spells_budget = 2  # shared across main1 + main2
 
-        # ── Track board size ──
+        # ── Walk each phase in order ──
+        for phase in PHASE_ORDER:
+          sim.current_phase = phase
+
+          if phase == Phase.UNTAP:
+            for c in sim.get_battlefield(pi):
+              c.tapped = False
+              c.damage_marked = 0  # MTG rule 514.2
+
+          elif phase == Phase.UPKEEP:
+            pass  # placeholder — triggers would fire here
+
+          elif phase == Phase.DRAW:
+            if p.library:
+              drawn = p.library[-1]
+              p.hand.append(p.library.pop())
+              p.stats.cards_drawn += 1
+              if self.record_log:
+                phase_events.append(f"Drew {drawn.name}")
+
+          elif phase == Phase.MAIN1:
+            # Land drop (only in main1, per MTG convention)
+            land_before = p.stats.lands_played
+            self._play_land(sim, pi)
+            played_land = p.stats.lands_played > land_before
+            if self.record_log and played_land:
+              last_land = next(
+                (c for c in reversed(sim.get_battlefield(pi))
+                 if c.is_land()),
+                None,
+              )
+              if last_land:
+                phase_events.append(f"Played land: {last_land.name}")
+
+            # Play spells (shared budget across main1 + main2)
+            available_mana = self._count_untapped_lands(sim, pi)
+            cast = self._play_spells(
+              sim, pi, available_mana,
+              phase_events if self.record_log else None,
+              max_spells=spells_budget,
+            )
+            spells_budget -= cast
+
+          elif phase == Phase.BEGIN_COMBAT:
+            pass  # placeholder — "beginning of combat" triggers
+
+          elif phase == Phase.DECLARE_ATTACKERS:
+            self._resolve_combat(sim, pi, turn, phase_events if self.record_log else None)
+
+          elif phase == Phase.DECLARE_BLOCKERS:
+            pass  # blocking is handled inside _resolve_combat
+
+          elif phase == Phase.COMBAT_DAMAGE:
+            pass  # damage is handled inside _resolve_combat
+
+          elif phase == Phase.END_COMBAT:
+            pass  # placeholder — "end of combat" triggers
+
+          elif phase == Phase.MAIN2:
+            # Second main phase: use remaining spell budget
+            if spells_budget > 0:
+              available_mana = self._count_untapped_lands(sim, pi)
+              cast = self._play_spells(
+                sim, pi, available_mana,
+                phase_events if self.record_log else None,
+                max_spells=spells_budget,
+              )
+              spells_budget -= cast
+
+          elif phase == Phase.END_STEP:
+            pass  # placeholder — "at end of turn" triggers
+
+          elif phase == Phase.CLEANUP:
+            pass  # damage clearing already happened in untap for simplicity
+
+        # ── Post-phase bookkeeping ──
+        played_spell = p.stats.spells_cast > spells_before
+        attacked = p.stats.damage_dealt > damage_before_turn
+
+        # Track board size
         board_size = len(sim.get_battlefield(pi))
         if board_size > p.stats.max_board_size:
           p.stats.max_board_size = board_size
 
-        # ── Combat ──
-        damage_before = p.stats.damage_dealt
-        self._resolve_combat(sim, pi, turn, phase_events if self.record_log else None)
-        attacked = p.stats.damage_dealt > damage_before
-
         # ── Record ML decision snapshot ──
         if self.ml_log and pre_snapshot is not None:
+          available_mana = self._count_untapped_lands(sim, pi)
           if attacked:
             action_type = "attack"
           elif played_spell:
@@ -489,12 +540,15 @@ class GameEngine:
       if not c.tapped and c.is_land()
     )
 
-  def _play_spells(self, sim: SimState, pi: int, available_mana: int, events: list | None = None) -> None:
-    """Play up to 2 spells from hand, prioritized by AI score."""
+  def _play_spells(self, sim: SimState, pi: int, available_mana: int, events: list | None = None, max_spells: int = 2) -> int:
+    """Play up to *max_spells* spells from hand, prioritized by AI score.
+
+    Returns the number of spells actually played this call.
+    """
     p = sim.players[pi]
     w = self.weights
     played = 0
-    while played < 2:
+    while played < max_spells:
       playable = []
       for i, card in enumerate(p.hand):
         if card.is_land():
@@ -623,6 +677,7 @@ class GameEngine:
             f"for {total_cost} mana (tax={tax})"
           )
         available_mana = self._count_untapped_lands(sim, pi)
+    return played
 
   @staticmethod
   def _select_attack_target(sim: SimState, pi: int) -> int:
