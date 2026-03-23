@@ -95,9 +95,6 @@ class CommanderPlayer:
     # Whether this player has drawn their card this turn
     drawn_this_turn: bool = False
 
-    # Commander damage received from each opponent (keyed by seat index)
-    commander_damage_received: dict[int, int] = field(default_factory=dict)
-
     # ── Convenience pass-throughs to base Player ─────────────
 
     @property
@@ -136,13 +133,18 @@ class CommanderPlayer:
     def library(self) -> list[Card]:
         return self.base.library
 
+    @property
+    def commander_damage_received(self) -> dict[int, int]:
+        """Delegate to base Player so headless engine writes are visible."""
+        return self.base.commander_damage_received
+
     def commander_tax(self) -> int:
         """Additional mana cost (2 per cast from command zone)."""
         return self.commander_cast_count * 2
 
     def is_dead_to_commander_damage(self) -> bool:
-        """Returns True if any single opponent has dealt 21+ commander damage."""
-        return any(v >= 21 for v in self.commander_damage_received.values())
+        """Returns True if any single commander has dealt 21+ damage."""
+        return self.base.is_dead_to_commander_damage()
 
     def to_dict(self) -> dict:
         return {
@@ -247,13 +249,25 @@ class CommanderGameState:
             return p.commander_damage_received.get(from_seat, 0)
         return 0
 
-    def deal_commander_damage(self, from_seat: int, to_seat: int, amount: int) -> None:
-        """Record commander damage and reduce life total."""
+    def deal_commander_damage(
+        self, from_seat: int, to_seat: int, amount: int,
+        commander_name: str | None = None,
+    ) -> None:
+        """Record commander damage and reduce life total.
+
+        If *commander_name* is provided the per-card breakdown is also
+        updated (needed for partner-correct 21-damage checks).
+        """
         if to_seat < len(self.commander_players):
             p = self.commander_players[to_seat]
             p.commander_damage_received[from_seat] = (
                 p.commander_damage_received.get(from_seat, 0) + amount
             )
+            if commander_name is not None:
+                key = (from_seat, commander_name)
+                p.base.commander_damage_by_card[key] = (
+                    p.base.commander_damage_by_card.get(key, 0) + amount
+                )
             p.life -= amount
 
     # ── Serialization ────────────────────────────────────────

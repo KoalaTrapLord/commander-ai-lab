@@ -557,12 +557,16 @@ class GameEngine:
       atk_names = [f"{a.name} ({a.pt})" for a in attackers]
       events.append(f"Attacks {opp.name} with: {', '.join(atk_names)}")
     total_damage = 0
+    # Per-commander-card damage dealt to the opponent this combat.
+    # Key = attacker card name; only populated for is_commander cards.
+    cmd_damage_by_card: dict[str, int] = {}
     used_blockers: set[int] = set()
     combat_details: list[str] = []
     for atk in attackers:
       a_pow = atk.get_power()
       a_tou = atk.get_toughness()
       has_flying = atk.has_keyword("flying")
+      is_commander_atk = atk.is_commander
       valid_blockers = [
         b
         for b in opp_blockers
@@ -608,11 +612,17 @@ class GameEngine:
           if atk.has_keyword("trample") and a_pow > blocker.get_toughness():
             trample_over = a_pow - blocker.get_toughness()
             total_damage += trample_over
+            if is_commander_atk:
+              cmd_damage_by_card[atk.name] = cmd_damage_by_card.get(atk.name, 0) + trample_over
           if atk.has_keyword("double strike"):
             if a_pow >= blocker.get_toughness() or atk.has_keyword("deathtouch"):
               total_damage += a_pow
+              if is_commander_atk:
+                cmd_damage_by_card[atk.name] = cmd_damage_by_card.get(atk.name, 0) + a_pow
             else:
               total_damage += trample_over
+              if is_commander_atk:
+                cmd_damage_by_card[atk.name] = cmd_damage_by_card.get(atk.name, 0) + trample_over
           if atk.has_keyword("lifelink"):
             damage_dealt = min(a_pow, blocker.get_toughness()) + trample_over
             if atk.has_keyword("double strike"):
@@ -621,19 +631,39 @@ class GameEngine:
       if not blocked:
         if atk.has_keyword("double strike"):
           total_damage += a_pow * 2
+          if is_commander_atk:
+            cmd_damage_by_card[atk.name] = cmd_damage_by_card.get(atk.name, 0) + a_pow * 2
           if atk.has_keyword("lifelink"):
             p.life += a_pow * 2
         else:
           total_damage += a_pow
+          if is_commander_atk:
+            cmd_damage_by_card[atk.name] = cmd_damage_by_card.get(atk.name, 0) + a_pow
           if atk.has_keyword("lifelink"):
             p.life += a_pow
+    # Apply damage to opponent
     opp.life -= total_damage
     p.stats.damage_dealt += total_damage
     opp.stats.damage_received += total_damage
+    # Track commander damage — both per-seat aggregate and per-card breakdown
+    total_cmd_damage = sum(cmd_damage_by_card.values())
+    if total_cmd_damage > 0:
+      opp.commander_damage_received[pi] = (
+        opp.commander_damage_received.get(pi, 0) + total_cmd_damage
+      )
+      for cmd_name, dmg in cmd_damage_by_card.items():
+        key = (pi, cmd_name)
+        opp.commander_damage_by_card[key] = (
+          opp.commander_damage_by_card.get(key, 0) + dmg
+        )
     if events is not None and total_damage > 0:
-      events.append(f"Dealt {total_damage} combat damage to {opp.name} (now {opp.life} life)")
+      cmd_note = f" ({total_cmd_damage} cmdr)" if total_cmd_damage > 0 else ""
+      events.append(
+        f"Dealt {total_damage} combat damage{cmd_note} to {opp.name} (now {opp.life} life)"
+      )
       events.extend(combat_details)
-    if opp.life <= 0:
+    # Check elimination: life <= 0 or commander damage >= 21
+    if opp.life <= 0 or opp.is_dead_to_commander_damage():
       opp.eliminated = True
 
   def _build_result(

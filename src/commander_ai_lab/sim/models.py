@@ -152,7 +152,28 @@ class Player:
     #                           p.commander_tax[name] = tax + 2
     commander_tax: dict = field(default_factory=dict)
 
+    # Commander damage received from each opponent, keyed by seat index.
+    # This is the aggregate per-seat total (used by GUI matrix and prompt
+    # builder).  For games where a player controls partner commanders
+    # the per-card breakdown lives in commander_damage_by_card.
+    commander_damage_received: dict[int, int] = field(default_factory=dict)
+
+    # Per-commander breakdown: {(seat, card_name): damage}.
+    # In MTG rules, lethal commander damage (21+) is tracked per individual
+    # commander card, not per player.  This dict captures that.
+    commander_damage_by_card: dict[tuple[int, str], int] = field(default_factory=dict)
+
     stats: PlayerStats = field(default_factory=PlayerStats)
+
+    def is_dead_to_commander_damage(self) -> bool:
+        """Returns True if any single commander has dealt 21+ damage.
+
+        Checks per-card tracking first (partner-correct); falls back to
+        per-seat totals for backward compatibility with older game states.
+        """
+        if self.commander_damage_by_card:
+            return any(v >= 21 for v in self.commander_damage_by_card.values())
+        return any(v >= 21 for v in self.commander_damage_received.values())
 
 
 @dataclass
