@@ -60,6 +60,9 @@ class GameEngine:
   ``weights`` explicitly to override (e.g. for A/B testing).
   """
 
+  # London mulligan: max times a player may mulligan before forced keep
+  MAX_MULLIGANS = 4
+
   def __init__(
     self,
     max_turns: int = 25,
@@ -67,6 +70,7 @@ class GameEngine:
     weights: Optional[dict] = None,
     record_log: bool = False,
     ml_log: bool = False,
+    mulligan_rule: str = "london",
   ):
     self.max_turns = max_turns
     self.starting_life = starting_life
@@ -75,6 +79,7 @@ class GameEngine:
     self.record_log = record_log
     self.ml_log = ml_log
     self.ml_decisions: list[dict] = []
+    self.mulligan_rule = mulligan_rule
 
   # ──────────────────────────────────────────────────────────
   # Public API
@@ -282,6 +287,42 @@ class GameEngine:
   # Internal helpers
   # ──────────────────────────────────────────────────────────
 
+  # ──────────────────────────────────────────────────────────
+  # Opening-hand helpers
+  # ──────────────────────────────────────────────────────────
+
+  @staticmethod
+  def _count_lands_in_hand(hand: list[Card]) -> int:
+    """Count lands in a hand of cards."""
+    return sum(1 for c in hand if c.is_land())
+
+  @staticmethod
+  def _should_mulligan(hand: list[Card], mulligan_number: int) -> bool:
+    """Heuristic: mulligan if opening hand has 0-1 lands or 6-7 lands.
+
+    Becomes more lenient with each successive mulligan — after 2+
+    mulligans, accept 1-land hands to avoid going too low on cards.
+    """
+    lands = GameEngine._count_lands_in_hand(hand)
+    total = len(hand)
+    if mulligan_number >= 2:
+      # Desperate: keep anything with 1-5 lands
+      return lands < 1 or lands >= total
+    # Standard: keep 2-5 lands in a 7-card hand
+    return lands <= 1 or lands >= 6
+
+  @staticmethod
+  def _pick_bottom_cards(hand: list[Card], count: int, weights: dict) -> list[Card]:
+    """Choose the worst *count* cards to put on the bottom of library.
+
+    Uses the AI scoring function so the least valuable cards are
+    bottomed — mirrors a real player's London mulligan decision.
+    """
+    if count <= 0 or count >= len(hand):
+      return []
+    scored = sorted(hand, key=lambda c: score_card(c, weights))
+    return scored[:count]
+
   def _create_state(
     self,
     decks: list[list[Card]],
@@ -289,6 +330,11 @@ class GameEngine:
     commander_names: list[str] | None = None,
   ) -> SimState:
     """Create initial simulation state with shuffled decks and opening hands (N players).
+
+    Implements the London mulligan rule: each player draws 7, decides
+    whether to keep, and if not shuffles back and redraws.  After
+    keeping, they put N cards on the bottom of their library where N
+    is the number of times they mulliganed.
 
     If commander_names is provided, the matching card is flagged
     is_commander=True and placed in the player's command_zone
@@ -308,16 +354,46 @@ class GameEngine:
           commander_card = c
         else:
           remaining.append(c)
-      random.shuffle(remaining)
-      hand = remaining[:7]
+
+      # ── London mulligan loop ──
+      mulligan_count = 0
+      if self.mulligan_rule == "london":
+        for attempt in range(self.MAX_MULLIGANS):
+          random.shuffle(remaining)
+          hand = remaining[:7]
+          if not self._should_mulligan(hand, attempt):
+            break
+          mulligan_count += 1
+        else:
+          # Exhausted all mulligans — forced keep with last draw
+          random.shuffle(remaining)
+          hand = remaining[:7]
+      else:
+        # No mulligan (legacy behavior)
+        random.shuffle(remaining)
+        hand = remaining[:7]
+
       library = remaining[7:]
+
+      # ── Bottom N cards for London mulligan ──
+      if mulligan_count > 0:
+        bottom = self._pick_bottom_cards(hand, mulligan_count, self.weights)
+        for card in bottom:
+          hand.remove(card)
+          library.insert(0, card)  # bottom of library
+
+      opening_lands = self._count_lands_in_hand(hand)
       player = Player(
         name=name,
         life=self.starting_life,
         owner_id=idx,
         library=library,
         hand=hand,
-        stats=PlayerStats(cards_drawn=7),
+        stats=PlayerStats(
+          cards_drawn=7,
+          mulligans=mulligan_count,
+          opening_hand_lands=opening_lands,
+        ),
       )
       if commander_card:
         player.command_zone.append(commander_card)
