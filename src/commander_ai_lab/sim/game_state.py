@@ -15,7 +15,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Optional
 
-from commander_ai_lab.sim.models import Card, Phase, Player, SimState
+from commander_ai_lab.sim.models import Card, CombatState, Phase, Player, SimState
 
 
 # ── Mana Pool ────────────────────────────────────────────────
@@ -232,13 +232,65 @@ class CommanderGameState:
     # Bug 9 fix: stub get_legal_moves() and apply_move() so turn_manager
     # doesn't crash.  These delegate to the rules engine once implemented.
     def get_legal_moves(self, seat: int) -> list[dict]:
-        """Return legal moves for a seat. Stub — returns pass-only."""
-        return [{"id": 0, "category": "pass_priority", "description": "Pass"}]
+        """Return legal moves for a seat.
 
+        During DECLARE_BLOCKERS phase, emits block moves for defending
+        creatures against each attacker in sim_state.combat.
+        Otherwise returns pass-only (stub for remaining rules engine).
+        """
+        moves: list[dict] = [{"id": 0, "category": "pass_priority", "description": "Pass"}]
+        combat = self.sim_state.combat
+
+        # Emit block moves during declare_blockers phase
+        if (
+            combat
+            and combat.active
+            and self.current_phase in (Phase.DECLARE_BLOCKERS, "declare_blockers")
+            and seat != self.active_player_seat
+        ):
+            move_id = 1000
+            my_creatures = [
+                c for c in self.sim_state.get_battlefield(seat)
+                if c.is_creature() and not c.tapped
+            ]
+            for atk_id in combat.attackers:
+                atk = next(
+                    (c for bf in self.sim_state.battlefields for c in bf if c.id == atk_id),
+                    None,
+                )
+                if atk is None:
+                    continue
+                for blocker in my_creatures:
+                    moves.append({
+                        "id": move_id,
+                        "category": "block",
+                        "blocker_id": blocker.id,
+                        "attacker_id": atk_id,
+                        "description": f"Block {atk.name} with {blocker.name}",
+                    })
+                    move_id += 1
+
+        return moves
     def apply_move(self, seat: int, move_id: int) -> None:
-        """Apply a chosen move. Stub — no-op until rules engine is wired."""
-        pass
+        """Apply a chosen move.
 
+        Handles 'block' moves by updating sim_state.combat.blockers.
+        Other categories are no-op stubs until the rules engine is wired.
+        """
+        # Find the move dict
+        all_moves = self.get_legal_moves(seat)
+        move = next((m for m in all_moves if m["id"] == move_id), None)
+        if move is None:
+            return
+
+        if move.get("category") == "block":
+            combat = self.sim_state.combat
+            if combat and combat.active:
+                atk_id = move["attacker_id"]
+                blocker_id = move["blocker_id"]
+                if atk_id not in combat.blockers:
+                    combat.blockers[atk_id] = []
+                combat.blockers[atk_id].append(blocker_id)
     def living_players(self) -> list[CommanderPlayer]:
         return [p for p in self.commander_players if not p.eliminated]
 

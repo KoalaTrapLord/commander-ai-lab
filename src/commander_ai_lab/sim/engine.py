@@ -28,6 +28,7 @@ from typing import Optional
 
 from commander_ai_lab.sim.models import (
   Card,
+    CombatState,
   GameResult,
   Phase,
   PHASE_ORDER,
@@ -847,6 +848,232 @@ class GameEngine:
         f"Dealt {total_damage} combat damage{cmd_note} to {opp.name} (now {opp.life} life)"
       )
       events.extend(combat_details)
+
+    # ──────────────────────────────────────────────────────────
+    # Split combat methods for turn_manager priority windows
+    # (Issue #86 Item 1). The original _resolve_combat() above
+    # remains as the backward-compatible atomic path for run_n().
+    # ──────────────────────────────────────────────────────────
+
+    def assign_attackers(
+        self, sim: SimState, pi: int, events: list | None = None,
+    ) -> Optional[CombatState]:
+        """Phase 1 of split combat: choose attackers, populate CombatState.
+
+        Returns a CombatState with attackers set and tapped, or None if
+        no valid attack is possible.  Does NOT deal any damage.
+        """
+        p = sim.players[pi]
+        opp_idx = self._select_attack_target(sim, pi)
+        if opp_idx == -1:
+            return None
+
+        opp = sim.players[opp_idx]
+        w = self.weights
+        my_creatures = [
+            c
+            for c in sim.get_battlefield(pi)
+            if (
+                c.is_creature()
+                and not c.tapped
+                and (c.turn_played < sim.turn or c.has_keyword("haste"))
+            )
+        ]
+        if not my_creatures:
+            return None
+
+        opp_blockers = [
+            c
+            for c in sim.get_battlefield(opp_idx)
+            if c.is_creature() and not c.tapped
+        ]
+
+        attackers = []
+        total_my_power = sum(c.get_power() for c in my_creatures)
+        for atk in my_creatures:
+            a_pow = atk.get_power()
+            a_tou = atk.get_toughness()
+            has_flying = atk.has_keyword("flying")
+            has_trample = atk.has_keyword("trample")
+            has_haste = atk.has_keyword("haste")
+
+            if has_flying or has_trample or has_haste or a_pow >= 3 or opp.life <= total_my_power:
+                attackers.append(atk)
+                atk.tapped = True
+                continue
+
+            can_die_profitably = any(
+                (
+                    (not has_flying or b.has_keyword("flying") or b.has_keyword("reach"))
+                    and (b.get_power() >= a_tou or b.has_keyword("deathtouch"))
+                    and b.get_toughness() > a_pow
+                )
+                for b in opp_blockers
+            )
+            if not can_die_profitably or p.life > 25:
+                attackers.append(atk)
+                atk.tapped = True
+
+        if not attackers:
+            return None
+
+        if events is not None:
+            atk_names = [f"{a.name} ({a.pt})" for a in attackers]
+            events.append(f"Attacks {opp.name} with: {', '.join(atk_names)}")
+
+        # Build and store CombatState
+        combat = CombatState(
+            defending_seat=opp_idx,
+            attackers={atk.id: opp_idx for atk in attackers},
+            active=True,
+        )
+        sim.combat = combat
+        return combat
+
+    def assign_blockers(
+        self, sim: SimState, pi: int, combat: CombatState,
+        events: list | None = None,
+    ) -> None:
+        """Phase 2 of split combat: assign blockers into CombatState.
+
+        Populates combat.blockers and combat.player_damage.
+        Does NOT apply any damage to players or creatures yet.
+        """
+        opp_idx = combat.defending_seat
+        opp_blockers = [
+            c for c in sim.get_battlefield(opp_idx)
+            if c.is_creature() and not c.tapped
+        ]
+        used_blockers: set[int] = set()
+
+        for atk_id in combat.attackers:
+            atk = next((c for bf in sim.battlefields for c in bf if c.id == atk_id), None)
+            if atk is None:
+                continue
+            a_pow = atk.get_power()
+            has_flying = atk.has_keyword("flying")
+            valid_blockers = [
+                b for b in opp_blockers
+                if b.id not in used_blockers
+                and (not has_flying or b.has_keyword("flying") or b.has_keyword("reach"))
+            ]
+
+            blocker = None
+            if valid_blockers and (not atk.has_keyword("menace") or len(valid_blockers) >= 2):
+                if atk.has_keyword("menace") and len(valid_blockers) >= 2:
+                    valid_blockers.sort(key=lambda b: -b.get_toughness())
+                    blocker = valid_blockers[0]
+                    used_blockers.add(valid_blockers[1].id)
+                else:
+                    blocker = next(
+                        (b for b in valid_blockers if b.get_toughness() > a_pow),
+                        None,
+                    )
+                    opp = sim.players[opp_idx]
+                    if blocker is None and opp.life <= a_pow * 2 and valid_blockers:
+                        blocker = valid_blockers[0]
+
+            if blocker:
+                used_blockers.add(blocker.id)
+                combat.blockers[atk_id] = [blocker.id]
+                if events is not None:
+                    events.append(f"{atk.name} blocked by {blocker.name}")
+            else:
+                # Unblocked — full damage goes to player
+                combat.player_damage[atk_id] = a_pow
+
+    def resolve_combat_damage(
+        self, sim: SimState, pi: int, combat: CombatState,
+        first_strike_only: bool = False,
+        events: list | None = None,
+    ) -> None:
+        """Phase 3 of split combat: apply damage from CombatState.
+
+        When first_strike_only=True, only processes creatures with
+        first_strike or double_strike.  When False, processes all
+        remaining (skipping first-strikers if already resolved).
+        """
+        opp_idx = combat.defending_seat
+        p = sim.players[pi]
+        total_damage = 0
+        attacker_damage: list[tuple[Card, int]] = []
+        combat_details: list[str] = []
+
+        for atk_id, def_seat in list(combat.attackers.items()):
+            atk = next((c for bf in sim.battlefields for c in bf if c.id == atk_id), None)
+            if atk is None:
+                continue  # removed by instant before damage
+
+            is_fs = atk.has_keyword("first_strike") or atk.has_keyword("double_strike")
+            if first_strike_only and not is_fs:
+                continue
+            if not first_strike_only and is_fs and combat.first_strike_resolved:
+                if not atk.has_keyword("double_strike"):
+                    continue  # already dealt damage in FS step
+
+            a_pow = atk.get_power()
+            a_tou = atk.get_toughness()
+            blocker_ids = combat.blockers.get(atk_id, [])
+
+            if blocker_ids:
+                blocker = next((c for bf in sim.battlefields for c in bf if c.id == blocker_ids[0]), None)
+                if blocker is None:
+                    # Blocker removed — attacker is still blocked but deals no combat damage to player
+                    continue
+                b_pow = blocker.get_power()
+                blocker.damage_marked += a_pow
+                if blocker.damage_marked >= blocker.get_toughness() or atk.has_keyword("deathtouch"):
+                    sim.remove_from_battlefield(blocker.id)
+                    self._send_to_graveyard(sim, blocker, opp_idx)
+                    if events is not None:
+                        combat_details.append(f"  {blocker.name} dies")
+                atk.damage_marked += b_pow
+                if atk.damage_marked >= a_tou or blocker.has_keyword("deathtouch"):
+                    sim.remove_from_battlefield(atk.id)
+                    self._send_to_graveyard(sim, atk, pi)
+                    if events is not None:
+                        combat_details.append(f"  {atk.name} dies")
+                # Trample over
+                trample_over = 0
+                if atk.has_keyword("trample") and a_pow > blocker.get_toughness():
+                    trample_over = a_pow - blocker.get_toughness()
+                    attacker_damage.append((atk, trample_over))
+                    total_damage += trample_over
+                if atk.has_keyword("lifelink"):
+                    p.life += min(a_pow, blocker.get_toughness()) + trample_over
+            else:
+                # Unblocked
+                atk_dmg = a_pow * 2 if atk.has_keyword("double_strike") else a_pow
+                if atk.has_keyword("lifelink"):
+                    p.life += atk_dmg
+                attacker_damage.append((atk, atk_dmg))
+                total_damage += atk_dmg
+
+        # Route each attacker's damage through deal_damage()
+        for atk_card, dmg in attacker_damage:
+            if dmg > 0:
+                self.deal_damage(
+                    sim, dmg, opp_idx,
+                    source_card=atk_card, source_seat=pi,
+                    is_combat=True,
+                )
+
+        if first_strike_only:
+            combat.first_strike_resolved = True
+
+        if events is not None and total_damage > 0:
+            opp = sim.players[opp_idx]
+            total_cmd_damage = sum(
+                dmg for (atk_card, dmg) in attacker_damage
+                if atk_card.is_commander and dmg > 0
+            )
+            cmd_note = f" ({total_cmd_damage} cmdr)" if total_cmd_damage > 0 else ""
+            events.append(
+                f"Dealt {total_damage} combat damage{cmd_note} to {opp.name} (now {opp.life} life)"
+            )
+            events.extend(combat_details)
+
+
 
   def _build_result(
     self,
