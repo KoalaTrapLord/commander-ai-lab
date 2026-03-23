@@ -343,9 +343,21 @@ class GameEngine:
     sim.add_to_battlefield(pi, land_card)
     p.stats.lands_played += 1
 
-  @staticmethod
-  def _send_to_graveyard(sim: SimState, card, owner_idx: int) -> None:
-    """Route card to command zone if it's a commander, else graveyard."""
+  def _send_to_graveyard(self, sim: SimState, card, owner_idx: int,
+                          controller_seat: int | None = None,
+                          events: list | None = None) -> None:
+    """Route card to command zone if it's a commander, else graveyard.
+
+    If the dying card has a dies-trigger damage ability, fire it through
+    deal_damage() before the zone change.
+    """
+    # Fire dies-trigger damage before the card leaves
+    if card.dies_damage and card.is_creature():
+      trigger_seat = controller_seat if controller_seat is not None else owner_idx
+      self._fire_trigger_damage(
+        sim, card, "dies", trigger_seat, events=events,
+      )
+
     owner = sim.players[owner_idx]
     if card.is_commander:
       card.tapped = False
@@ -353,6 +365,111 @@ class GameEngine:
       owner.command_zone.append(card)
     else:
       owner.graveyard.append(card)
+
+  # ──────────────────────────────────────────────────────────
+  # Centralized Damage
+  # ──────────────────────────────────────────────────────────
+
+  @staticmethod
+  def deal_damage(
+    sim: SimState,
+    amount: int,
+    target_seat: int,
+    source_card: Card | None = None,
+    source_seat: int | None = None,
+    is_combat: bool = False,
+    events: list | None = None,
+    label: str = "",
+  ) -> int:
+    """Apply *amount* damage to a player, updating stats and checking elimination.
+
+    Returns the actual damage dealt (always *amount* in this simplified model;
+    future prevention/replacement effects will reduce it here).
+
+    Parameters
+    ----------
+    sim : SimState
+    amount : int – damage to deal (<=0 is a no-op)
+    target_seat : int – seat index of the player receiving damage
+    source_card : Card | None – the card that is the source (for logging)
+    source_seat : int | None – seat index of the damage source's controller
+    is_combat : bool – whether this is combat damage (for future commander tracking)
+    events : list | None – optional event log
+    label : str – descriptive label for the log entry
+    """
+    if amount <= 0:
+      return 0
+    target = sim.players[target_seat]
+    if target.eliminated:
+      return 0
+
+    target.life -= amount
+    target.stats.damage_received += amount
+    if source_seat is not None:
+      sim.players[source_seat].stats.damage_dealt += amount
+
+    if events is not None and label:
+      events.append(f"{label} ({target.name} now at {target.life} life)")
+
+    if target.life <= 0:
+      target.eliminated = True
+    return amount
+
+  # ──────────────────────────────────────────────────────────
+  # Triggered-Ability Damage
+  # ──────────────────────────────────────────────────────────
+
+  def _fire_trigger_damage(
+    self,
+    sim: SimState,
+    card: Card,
+    trigger_kind: str,
+    controller_seat: int,
+    events: list | None = None,
+  ) -> None:
+    """Resolve a simple ETB or dies damage trigger through deal_damage().
+
+    trigger_kind: "etb" | "dies"
+    """
+    if trigger_kind == "etb":
+      amount = card.etb_damage
+      target_mode = card.etb_damage_target
+    elif trigger_kind == "dies":
+      amount = card.dies_damage
+      target_mode = card.dies_damage_target
+    else:
+      return
+
+    if amount <= 0:
+      return
+
+    if target_mode == "each_opponent":
+      for si, sp in enumerate(sim.players):
+        if si == controller_seat or sp.eliminated:
+          continue
+        label = f"{card.name} {trigger_kind} trigger deals {amount} to {sp.name}"
+        self.deal_damage(
+          sim, amount, si,
+          source_card=card, source_seat=controller_seat,
+          events=events, label=label,
+        )
+    else:
+      # "opponent" / "any_target" — target the weakest non-eliminated opponent
+      best = self._select_attack_target(sim, controller_seat)
+      if best != -1:
+        target_name = sim.players[best].name
+        label = f"{card.name} {trigger_kind} trigger deals {amount} to {target_name}"
+        self.deal_damage(
+          sim, amount, best,
+          source_card=card, source_seat=controller_seat,
+          events=events, label=label,
+        )
+
+  def _fire_etb_trigger(self, sim: SimState, card: Card, controller_seat: int,
+                         events: list | None = None) -> None:
+    """Fire an ETB damage trigger if the card has one."""
+    if card.etb_damage and card.is_creature():
+      self._fire_trigger_damage(sim, card, "etb", controller_seat, events=events)
 
   def _count_untapped_lands(self, sim: SimState, pi: int) -> int:
     """Count untapped lands for a player."""
@@ -414,7 +531,8 @@ class GameEngine:
           all_opp_creatures.sort(key=lambda c: -score_card(c, w))
           killed = all_opp_creatures[0]
           sim.remove_from_battlefield(killed.id)
-          self._send_to_graveyard(sim, killed, killed.owner_id)
+          self._send_to_graveyard(sim, killed, killed.owner_id,
+                                  controller_seat=killed.owner_id, events=events)
           if events is not None:
             events.append(f"Cast {card.name} (removal) \u2014 destroyed {killed.name}")
         else:
@@ -430,7 +548,8 @@ class GameEngine:
           for c in bf:
             if c.is_creature():
               wiped_names.append(c.name)
-              self._send_to_graveyard(sim, c, c.owner_id)
+              self._send_to_graveyard(sim, c, c.owner_id,
+                                      controller_seat=c.owner_id, events=events)
             else:
               keep.append(c)
           sim.battlefields[seat_idx] = keep
@@ -443,6 +562,8 @@ class GameEngine:
           p.stats.creatures_played += 1
           if events is not None:
             events.append(f"Cast {card.name} ({card.pt or 'creature'}) for {card.cmc} mana")
+          # Fire ETB damage trigger
+          self._fire_etb_trigger(sim, card, pi, events=events)
         elif card.is_ramp:
           p.stats.ramp_played += 1
           if events is not None:
@@ -481,6 +602,9 @@ class GameEngine:
             f"Cast commander {cmd_card.name} from command zone "
             f"for {total_cost} mana (tax={tax})"
           )
+        # Fire ETB damage trigger for commander creatures
+        if cmd_card.is_creature():
+          self._fire_etb_trigger(sim, cmd_card, pi, events=events)
         available_mana = self._count_untapped_lands(sim, pi)
 
   @staticmethod
@@ -595,15 +719,17 @@ class GameEngine:
           blocker.damage_marked += a_pow
           if blocker.damage_marked >= blocker.get_toughness() or atk.has_keyword("deathtouch"):
             sim.remove_from_battlefield(blocker.id)
-            self._send_to_graveyard(sim, blocker, opp_idx)
             if events is not None:
               combat_details.append(f"  {blocker.name} dies")
+            self._send_to_graveyard(sim, blocker, opp_idx,
+                                    controller_seat=opp_idx, events=events)
           atk.damage_marked += b_pow
           if atk.damage_marked >= a_tou or blocker.has_keyword("deathtouch"):
             sim.remove_from_battlefield(atk.id)
-            self._send_to_graveyard(sim, atk, pi)
             if events is not None:
               combat_details.append(f"  {atk.name} dies")
+            self._send_to_graveyard(sim, atk, pi,
+                                    controller_seat=pi, events=events)
           trample_over = 0
           if atk.has_keyword("trample") and a_pow > blocker.get_toughness():
             trample_over = a_pow - blocker.get_toughness()
@@ -627,14 +753,15 @@ class GameEngine:
           total_damage += a_pow
           if atk.has_keyword("lifelink"):
             p.life += a_pow
-    opp.life -= total_damage
-    p.stats.damage_dealt += total_damage
-    opp.stats.damage_received += total_damage
-    if events is not None and total_damage > 0:
-      events.append(f"Dealt {total_damage} combat damage to {opp.name} (now {opp.life} life)")
-      events.extend(combat_details)
-    if opp.life <= 0:
-      opp.eliminated = True
+    if total_damage > 0:
+      self.deal_damage(
+        sim, total_damage, opp_idx,
+        source_seat=pi, is_combat=True,
+        events=events,
+        label=f"Dealt {total_damage} combat damage to {opp.name}",
+      )
+      if events is not None:
+        events.extend(combat_details)
 
   def _build_result(
     self,

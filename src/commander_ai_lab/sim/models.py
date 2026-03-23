@@ -38,6 +38,12 @@ class Card:
     is_board_wipe: bool = False
     is_commander: bool = False
 
+    # Triggered-ability damage flags (set by enrich_card)
+    etb_damage: int = 0       # damage dealt when this creature enters the battlefield
+    dies_damage: int = 0      # damage dealt when this creature dies
+    etb_damage_target: str = ""   # "opponent" | "any_target" | "each_opponent"
+    dies_damage_target: str = ""  # "opponent" | "any_target" | "each_opponent"
+
     # Runtime fields (set during game)
     id: int = 0
     owner_id: int = -1

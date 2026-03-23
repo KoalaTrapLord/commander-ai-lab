@@ -186,7 +186,7 @@ def enrich_card(card: Card) -> Card:
 
 
 def _apply_oracle_flags(card: Card) -> None:
-    """Set is_removal, is_ramp, is_board_wipe from oracle_text and type_line."""
+    """Set is_removal, is_ramp, is_board_wipe, and trigger-damage flags from oracle_text and type_line."""
     oracle = (card.oracle_text or "").lower()
     type_line = (card.type_line or "").lower()
 
@@ -222,6 +222,60 @@ def _apply_oracle_flags(card: Card) -> None:
             "{t}: add" in oracle and "land" not in type_line
         ):
             card.is_ramp = True
+
+    # Triggered-ability damage detection (ETB / dies)
+    _detect_trigger_damage(card, oracle)
+
+
+# ── Trigger-damage detection ─────────────────────────────────
+
+# Patterns: "when ~ enters the battlefield, ~ deals N damage to ..."
+# and "when ~ dies, ~ deals N damage to ..."
+_ETB_DAMAGE_RE = re.compile(
+    r"when\b.*\benters\b.*\bdeals?\s+(\d+)\s+damage\b",
+    re.IGNORECASE,
+)
+_DIES_DAMAGE_RE = re.compile(
+    r"when\b.*\bdies\b.*\bdeals?\s+(\d+)\s+damage\b",
+    re.IGNORECASE,
+)
+
+
+def _detect_trigger_damage(card: Card, oracle: str) -> None:
+    """Detect ETB and dies damage triggers from oracle text and set card flags."""
+    if not oracle:
+        return
+
+    # ETB damage
+    if not card.etb_damage:
+        m = _ETB_DAMAGE_RE.search(oracle)
+        if m:
+            card.etb_damage = int(m.group(1))
+            card.etb_damage_target = _classify_trigger_target(oracle, "enters")
+
+    # Dies damage
+    if not card.dies_damage:
+        m = _DIES_DAMAGE_RE.search(oracle)
+        if m:
+            card.dies_damage = int(m.group(1))
+            card.dies_damage_target = _classify_trigger_target(oracle, "dies")
+
+
+def _classify_trigger_target(oracle: str, trigger_word: str) -> str:
+    """Classify the target mode of a damage trigger from oracle text.
+
+    Returns "each_opponent", "any_target", or "opponent".
+    """
+    # Find the clause containing the trigger word
+    # Look for "each opponent" or "each player" after the trigger
+    idx = oracle.find(trigger_word)
+    clause = oracle[idx:] if idx != -1 else oracle
+
+    if "each opponent" in clause or "each player" in clause:
+        return "each_opponent"
+    if "any target" in clause or "target creature or player" in clause or "target creature or planeswalker" in clause:
+        return "any_target"
+    return "opponent"
 
 
 # ── Multi-opponent scaling factors ────────────────────────────
