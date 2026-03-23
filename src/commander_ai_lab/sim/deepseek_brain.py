@@ -75,7 +75,7 @@ class DeepSeekConfig:
     # Generation parameters
     # GPT-OSS 20B does not emit <think> blocks so 1024 tokens is ample
     temperature: float = 0.3
-    max_tokens: int = 2048
+    max_tokens: int = 4096
     top_p: float = 0.9
 
     # Timeouts
@@ -91,7 +91,7 @@ class DeepSeekConfig:
     log_dir: str = ""
 
     # Retry
-    max_retries: int = 1
+    max_retries: int = 2
 
 
 # ══════════════════════════════════════════════════════════════
@@ -590,25 +590,31 @@ class DeepSeekBrain:
         if not self._connected:
             return self._fallback_action(snapshot, t_start, "not_connected")
 
-        try:
-            result = self._call_llm(snapshot)
-            result["source"] = "llm"
-            result["latency_ms"] = round((time.time() - t_start) * 1000, 1)
+last_err = None
+        for attempt in range(1, self.config.max_retries + 1):
+            try:
+                result = self._call_llm(snapshot)
+                result["source"] = "llm"
+                result["latency_ms"] = round((time.time() - t_start) * 1000, 1)
 
-            if self.config.cache_enabled:
-                self._put_cache(cache_key, result)
+                if self.config.cache_enabled:
+                    self._put_cache(cache_key, result)
 
-            if self.config.log_decisions:
-                self._log_decision(snapshot, result, player_index)
+                if self.config.log_decisions:
+                    self._log_decision(snapshot, result, player_index)
 
-            self._total_latency_ms += result["latency_ms"]
-            return result
+                self._total_latency_ms += result["latency_ms"]
+                return result
 
-        except Exception as e:
-            logger.warning("LLM call failed (turn %d): %s", turn + 1, e)
-            if self.config.fallback_on_timeout:
-                return self._fallback_action(snapshot, t_start, str(e))
-            raise
+            except Exception as e:
+                last_err = e
+                logger.warning("LLM call failed (turn %d, attempt %d/%d): %s", turn + 1, attempt, self.config.max_retries, e)
+                if attempt < self.config.max_retries:
+                    continue
+
+        if self.config.fallback_on_timeout:
+            return self._fallback_action(snapshot, t_start, str(last_err))
+        raise last_err
 
     def _call_llm(self, snapshot: dict) -> dict:
         """Send game state to LLM and parse response."""
