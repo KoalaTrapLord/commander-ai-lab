@@ -15,17 +15,13 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 
-import routes.shared as _shared
-from routes.shared import (
-    ImportUrlRequest,
-    ImportTextRequest,
-    MetaFetchRequest,
-    _import_from_url,
-    _parse_text_decklist,
-    _save_profile_to_dck,
+from models.state import COMMANDER_META
+from models.requests import ImportUrlRequest, ImportTextRequest, MetaFetchRequest
+from services.import_helpers import (
+    _import_from_url, _parse_text_decklist, _save_profile_to_dck,
     _fetch_edhrec_average,
-    log,
 )
+from services.logging import log
 
 router = APIRouter(tags=["import"])
 
@@ -74,7 +70,7 @@ async def import_from_text(req: ImportTextRequest):
 async def list_meta_commanders():
     """List available commanders in the meta mapping."""
     commanders = []
-    for name, entries in _shared.COMMANDER_META.items():
+    for name, entries in COMMANDER_META.items():
         entry = entries[0] if entries else {}
         commanders.append({
             "name": name,
@@ -90,7 +86,7 @@ async def search_meta_commanders(q: str = ""):
     """Search commanders by partial name match."""
     query = q.lower()
     matches = []
-    for name, entries in _shared.COMMANDER_META.items():
+    for name, entries in COMMANDER_META.items():
         if query in name.lower():
             entry = entries[0] if entries else {}
             matches.append({

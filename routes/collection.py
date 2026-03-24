@@ -25,30 +25,21 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from routes.shared import (
-    CFG,
-    _get_db_conn,
-    _row_to_dict,
-    _add_image_url,
-    _build_collection_filters,
-    _detect_card_roles,
-    _classify_card_type,
-    _enrich_from_scryfall,
-    _fetch_scryfall_api,
-    _parse_finish,
-    _parse_text_line,
-    _parse_csv_content,
-    _auto_infer_mapping,
-    _scryfall_cache,
-    _scryfall_rate_limit,
-    _snake_to_camel,
-    VALID_SORT_FIELDS,
-    _JSON_FIELDS,
-    SCRYFALL_CACHE_DB_PATH,
-    SCRYFALL_CACHE_TTL_SECONDS,
-    _API_HEADERS,
-    log_collect,
-    log_cache,
+from models.state import CFG
+from services.card_analysis import _detect_card_roles
+from services.database import (
+    _get_db_conn, _row_to_dict, _add_image_url, _build_collection_filters,
+    _snake_to_camel, VALID_SORT_FIELDS, _JSON_FIELDS,
+)
+from services.deck_service import _classify_card_type
+from services.import_service import (
+    _parse_finish, _parse_text_line, _parse_csv_content, _auto_infer_mapping,
+)
+from services.logging import log_collect, log_cache
+from services.scryfall import (
+    SCRYFALL_CACHE_DB_PATH, SCRYFALL_CACHE_TTL_SECONDS, _API_HEADERS,
+    _scryfall_cache, _scryfall_rate_limit,
+    _enrich_from_scryfall, _fetch_scryfall_api,
 )
 
 router = APIRouter(tags=["collection"])

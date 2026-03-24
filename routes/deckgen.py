@@ -36,14 +36,15 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from models.requests import DeckResearchRequest, DeckGenerateAIRequest
 
 import routes.coach as _coach  # for _deck_gen_v3 / _deck_gen_v3_error module-level access
-from routes.shared import (
-    CFG,
-    log_deckgen, log_pplx,
-    _get_db_conn,
-    _scryfall_rate_limit, _API_HEADERS,
+from models.state import CFG
+from models.requests import (
     DeckGenerationRequest, DeckGenV3Request, DeckGenV3SubstituteRequest,
-    GeneratedDeckCard, DeckGenerationSourceConfig,
+    DeckGenerationSourceConfig,
 )
+from models.responses import GeneratedDeckCard
+from services.database import _get_db_conn
+from services.logging import log_deckgen, log_pplx
+from services.scryfall import _scryfall_rate_limit, _API_HEADERS
 from services.deck_service import _write_dck_file, _build_dck_lines
 
 router = APIRouter(tags=["deckgen"])
