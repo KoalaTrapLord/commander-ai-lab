@@ -90,7 +90,7 @@ public class LabCli implements Callable<Integer> {
             description = "Master RNG seed for reproducibility (blank for random)")
     private String seed;
 
-    @Option(names = {"--output", "-o"}, defaultValue = "results/batch-latest.json",
+    @Option(names = {"--output", "-o"}, defaultValue = "results/ml-decision-latest.json",
             description = "Output JSON file path")
     private String outputPath;
 
