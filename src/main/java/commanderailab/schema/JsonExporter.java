@@ -31,7 +31,7 @@ public class JsonExporter {
      * Write a BatchResult to a JSON file.
      *
      * @param result   The batch result to export
-     * @param filePath Output file path (e.g., "results/batch-20260306-001.json")
+     * @param filePath Output file path (e.g., "results/ml-decision-20260306-001.json")
      * @throws IOException if file cannot be written
      */
     public static void writeToFile(BatchResult result, String filePath) throws IOException {
