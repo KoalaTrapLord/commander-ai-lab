@@ -50,7 +50,7 @@ class ValidatorConfig:
 
     Example -- LM Studio::
         cfg = ValidatorConfig(
-            api_base="http://192.168.0.240:1234",
+            api_base="http://localhost:1234",
             model="deepseek-r1-distill-qwen-14b",
         )
     """

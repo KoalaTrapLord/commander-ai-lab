@@ -9,7 +9,7 @@ The LLM receives a structured game-state snapshot and returns a JSON
 action describing what to do this turn (play land, cast spell, attack,
 hold/pass, use removal, use board wipe, cast ramp, cast commander).
 
-Default target: GPT-OSS 20B (Q4_K_M) via Ollama at 192.168.0.240:11434
+Default target: GPT-OSS 20B (Q4_K_M) via Ollama at localhost:11434
   ollama run deepseek-r1:8b
 
 Also supports:
@@ -64,7 +64,7 @@ class DeepSeekConfig:
         )
 
     Example — Ollama (default)::
-        config = DeepSeekConfig()  # points at 192.168.0.240:11434 / deepseek-r1:8b
+        config = DeepSeekConfig()  # points at localhost:11434 / deepseek-r1:8b
     """
 
     # API endpoint — Ollama OpenAI-compatible base (NO /v1 suffix)
