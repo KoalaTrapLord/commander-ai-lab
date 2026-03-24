@@ -590,7 +590,7 @@ class DeepSeekBrain:
         if not self._connected:
             return self._fallback_action(snapshot, t_start, "not_connected")
 
-    last_err = None
+        last_err = None
         for attempt in range(1, self.config.max_retries + 1):
             try:
                 result = self._call_llm(snapshot)
