@@ -154,7 +154,7 @@ public class MultiThreadBatchRunner {
 
     private BatchRunner createWorker(int threadId) {
         BatchRunner worker = new BatchRunner(
-                forgeJarPath, forgeWorkDir, decks, policy, quiet, clockSeconds, javaPath);
+                forgeJarPath, forgeWorkDir, decks, policy, mlLogEnabled ? false : quiet, clockSeconds, javaPath);
         worker.setAiOptimization(useSimplifiedAi, aiThinkTimeMs);
         if (mlLogEnabled) {
             String threadBatchId = mlBatchId + "-t" + threadId;
