@@ -38,7 +38,7 @@ def generate_deck_reports(results_dir: str, reports_dir: str = None) -> List[str
     output_path.mkdir(parents=True, exist_ok=True)
 
     # Load all batch results
-    batch_files = sorted(results_path.glob("batch-*.json"))
+    batch_files = sorted(results_path.glob("ml-decision-*.json"))
     if not batch_files:
         logger.info("No batch result files found in %s", results_dir)
         return []
@@ -108,7 +108,7 @@ def generate_single_deck_report(batch_json_path: str, reports_dir: str = None) -
     # Also load existing batch results for comprehensive reports
     results_dir = Path(batch_json_path).parent
     all_batches = []
-    for bf in sorted(results_dir.glob("batch-*.json")):
+    for bf in sorted(results_dir.glob("ml-decision-*.json")):
         try:
             with open(bf, "r", encoding="utf-8") as f:
                 all_batches.append(json.load(f))
