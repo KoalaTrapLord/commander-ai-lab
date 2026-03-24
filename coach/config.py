@@ -44,6 +44,8 @@ DEFAULT_MAX_TOKENS = 8192
 DECK_GEN_PROVIDER = os.environ.get("DECK_GEN_PROVIDER", "local")
 # Model for deck generation (sonar = fast/$0.004, sonar-pro = deep/$0.04)
 DECK_GEN_MODEL = os.environ.get("DECK_GEN_MODEL", "gpt-oss:20b")
+# Perplexity cloud model (sonar / sonar-pro / sonar-deep-research)
+PPLX_MODEL = os.environ.get("PPLX_MODEL", "sonar-pro")
 DECK_GEN_BASE_URL = os.environ.get("DECK_GEN_BASE_URL", "http://localhost:11434/v1")
 DECK_GEN_TEMPERATURE = float(os.environ.get("DECK_GEN_TEMPERATURE", "0.2"))
 DECK_GEN_MAX_TOKENS = int(os.environ.get("DECK_GEN_MAX_TOKENS", "16384"))
