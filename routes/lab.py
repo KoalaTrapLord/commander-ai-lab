@@ -79,7 +79,7 @@ async def start_batch(req: StartRequest, background_tasks: BackgroundTasks):
     active_batches[batch_id] = state
 
     os.makedirs(CFG.results_dir, exist_ok=True)
-    output_path = os.path.join(CFG.results_dir, f"batch-{batch_id}.json")
+    output_path = os.path.join(CFG.results_dir, f"ml-decision-{batch_id}.json")
     state.result_path = output_path
 
       # Auto-export deckbuilder decks to .dck if not already exported
@@ -242,7 +242,7 @@ async def list_history():
     if not results_dir.exists():
         return {"results": []}
     results = []
-    for f in sorted(results_dir.glob("batch-*.json"), reverse=True):
+    for f in sorted(results_dir.glob("ml-decision-*.json"), reverse=True):
         try:
             with open(f, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
@@ -375,7 +375,7 @@ async def get_deck_trends(deck_name: str):
     if not results_dir.exists():
         return {"deckName": deck_name, "history": []}
     history = []
-    for f in sorted(results_dir.glob("batch-*.json")):
+    for f in sorted(results_dir.glob("ml-decision-*.json")):
         try:
             with open(f, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
