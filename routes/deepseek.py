@@ -255,6 +255,8 @@ def _finish_sim(sim_id, summary, game_results, engine=None):
         logger.error(f'Failed to persist sim results: {e}')
 
     # --- Flush ML decisions JSONL for training pipeline ---
+    # NOTE: DeepSeek thread flushes manually before calling _finish_sim(engine=None)
+    # to avoid a double-flush that would produce an empty .jsonl file.
     if engine is not None and hasattr(engine, 'flush_ml_decisions'):
         ml_decisions = engine.flush_ml_decisions()
         if ml_decisions:
@@ -360,7 +362,8 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
             game_id_prefix=f'ds-sim-{sim_id[:8]}',
             archetype='midrange')
 
-        # Write ML decision JSONL for training pipeline
+        # Flush ML decisions once here — pass engine=None to _finish_sim
+        # to prevent a second flush that would produce an empty .jsonl file.
         ml_decisions = engine.flush_ml_decisions()
         if ml_decisions:
             ml_path = os.path.join('results',
@@ -369,12 +372,16 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
             with open(ml_path, 'w', encoding='utf-8') as mf:
                 for dec in ml_decisions:
                     mf.write(json.dumps(dec) + '\n')
+            logger.info(f'[ML Data] Wrote {len(ml_decisions)} decision snapshots to {ml_path}')
+        else:
+            logger.warning(f'[ML Data] No decision snapshots captured for sim {sim_id} (0 decisions)')
 
         ds_stats = brain.get_stats() if brain else {}
         summary = _build_summary(
             stats, deck_name, 'DeepSeek AI', num_games, elapsed,
             opponentType='deepseek', deepseekStats=ds_stats)
-        _finish_sim(sim_id, summary, game_results, engine=engine)
+        # engine=None: ML decisions already flushed above — do not flush again
+        _finish_sim(sim_id, summary, game_results, engine=None)
     except Exception as e:
         _fail_sim(sim_id, e)
         traceback.print_exc()
