@@ -17,9 +17,15 @@ that feed directly into the RolloutBuffer for PPO training.
 For real game integration (Phase 9+), the Java sim would call the
 policy server and feed back actual game states — this synthetic
 version allows training to begin immediately.
+
+.. deprecated:: Phase 3 (Issue #83)
+    Synthetic training mode is DEPRECATED for production training.
+    Use forge_episode_generator.py with real Forge engine games.
+    Retained ONLY for quick local testing and unit tests.
 """
 
 import logging
+import warnings
 import random
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -41,6 +47,12 @@ from ml.training.reward import compute_intermediate_reward, compute_terminal_rew
 from ml.training.decision_exporter import DecisionExporter
 
 logger = logging.getLogger("ml.self_play")
+
+_TRAINING_DEPRECATION_MSG = (
+    "self_play.py synthetic training is deprecated for production training (Issue #83). "
+    "Use forge_episode_generator.py with real Forge engine games instead. "
+    "Synthetic self-play is retained for local testing and unit tests only."
+)
 
 
 @dataclass
@@ -554,7 +566,8 @@ def collect_rollouts(
     total_wins = 0
     total_losses = 0
     total_draws = 0
-    total_steps = 0
+    warnings.warn(_TRAINING_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
+  total_steps = 0
     total_rewards = 0.0
 
     for ep in range(num_episodes):
