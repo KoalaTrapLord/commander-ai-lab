@@ -10,6 +10,7 @@ import json
 import logging
 import uuid
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -57,7 +58,7 @@ class CoachService:
         if not report_path.exists():
             # Try case-insensitive match
             for f in DECK_REPORTS_DIR.glob("*.json"):
-                if f.stem.lower() == deck_id.lower():
+                if re.sub(r'[^a-z0-9]', '', f.stem.lower()) == re.sub(r'[^a-z0-9]', '', deck_id.lower()):
                     report_path = f
                     break
 
