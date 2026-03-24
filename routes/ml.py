@@ -33,8 +33,6 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 
 from models.state import CFG
-from services.logging import _ml_logging_enabled
-
 log_ml = logging.getLogger("commander_ai_lab.ml")
 
 router = APIRouter(tags=["ml"])
@@ -93,9 +91,6 @@ _ppo_lock   = threading.Lock()
 
 _tournament_state = _TournamentState()
 _tournament_lock  = threading.Lock()
-
-# module-level toggle (local copy; the shared one is for batch runs)
-_ml_logging_enabled_local = _ml_logging_enabled
 
 
 def _get_policy_service():

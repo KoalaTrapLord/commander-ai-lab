@@ -33,13 +33,11 @@ import httpx
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
-from models.requests import DeckResearchRequest, DeckGenerateAIRequest
-
 import routes.coach as _coach  # for _deck_gen_v3 / _deck_gen_v3_error module-level access
 from models.state import CFG
 from models.requests import (
     DeckGenerationRequest, DeckGenV3Request, DeckGenV3SubstituteRequest,
-    DeckGenerationSourceConfig,
+    DeckGenerationSourceConfig, DeckResearchRequest, DeckGenerateAIRequest,
 )
 from models.responses import GeneratedDeckCard
 from services.database import _get_db_conn

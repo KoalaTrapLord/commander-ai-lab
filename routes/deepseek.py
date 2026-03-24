@@ -31,7 +31,7 @@ from fastapi.responses import JSONResponse
 from models.state import CFG
 from services.database import _get_db_conn
 from services.forge_runner import _get_deepseek_brain
-from services.logging import log_sim, _ml_logging_enabled
+from services.logging import log_sim
 from commander_ai_lab.sim.validator_brain import ValidatorBrain, ValidatorConfig
 logger = logging.getLogger(__name__)
 
