@@ -37,6 +37,8 @@ from models.state import CFG
 from services.database import _get_db_conn
 from services.deck_service import _compute_deck_analysis
 from services.logging import log_coach, log_deckgen
+import httpx
+from coach.config import COACH_PROVIDER, PPLX_MODEL
 
 router = APIRouter(tags=["coach"])
 
@@ -417,13 +419,68 @@ async def coach_chat(body: CoachChatRequest):
     # Build messages array for LLM
     messages = [{"role": "system", "content": system_prompt}]
     for msg in body.messages:
-        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
-
-    # Call LLM with multi-turn messages
+            messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+          # ── Perplexity provider path ──────────────────────────────
+    if COACH_PROVIDER == 'perplexity':
+      if not CFG.pplx_api_key:
+        raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var.')
+      pplx_payload = {
+        'model': PPLX_MODEL,
+        'messages': messages,
+        'max_tokens': 4096,
+        'temperature': 0.7,
+      }
+      pplx_headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {CFG.pplx_api_key}',
+      }
+      if body.stream:
+        async def pplx_stream():
+          pplx_payload['stream'] = True
+          async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream('POST', 'https://api.perplexity.ai/chat/completions',
+                                     json=pplx_payload, headers=pplx_headers) as resp:
+              async for line in resp.aiter_lines():
+                if line.startswith('data: '):
+                  data = line[6:]
+                  if data == '[DONE]':
+                    yield 'data: [DONE]\n\n'
+                    break
+                  try:
+                    chunk = json.loads(data)
+                    content = chunk.get('choices', [{}])[0].get('delta', {}).get('content', '')
+                    if content:
+                      yield f'data: {json.dumps({"content": content})}\n\n'
+                  except json.JSONDecodeError:
+                    continue
+        return StreamingResponse(pplx_stream(), media_type='text/event-stream')
+      else:
+        try:
+          async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+              'https://api.perplexity.ai/chat/completions',
+              json=pplx_payload, headers=pplx_headers,
+            )
+            resp.raise_for_status()
+            raw = resp.json()
+          content = raw.get('choices', [{}])[0].get('message', {}).get('content', '')
+          usage = raw.get('usage', {})
+          return {
+            'content': content,
+            'model': raw.get('model', ''),
+            'prompt_tokens': usage.get('prompt_tokens', 0),
+            'completion_tokens': usage.get('completion_tokens', 0),
+          }
+        except httpx.HTTPStatusError as e:
+          raise HTTPException(502, f'Perplexity API returned {e.response.status_code}')
+        except httpx.RequestError as e:
+          raise HTTPException(502, f'Perplexity API call failed: {e}')
+  
+          # Call LLM with multi-turn messages
     try:
         import json
         from urllib.request import urlopen, Request as UrlRequest
-        from coach.config import LLM_URL, LLM_TIMEOUT
+        
 
         model_name = _coach_llm._resolve_model()
         llm_body = {
