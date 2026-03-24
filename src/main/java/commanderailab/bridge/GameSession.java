@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import commanderailab.ai.PolicyClient;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
@@ -13,10 +14,11 @@ import java.util.function.Consumer;
 /**
  * GameSession — holds state for one live interactive Commander game.
  *
- * PHASE 1 STUB: generates synthetic game state so you can verify the full
- * WebSocket contract round-trips correctly before wiring in real Forge IPC.
+ * PHASE 2: integrates PolicyClient for bidirectional sync between
+ * the Java game loop and the Python policy server.
  *
- * Replace run() in Phase 2 once the contract is verified end-to-end.
+ * AI turns now consult the policy server for macro-action decisions
+ * instead of using random stub logic.
  */
 public class GameSession {
 
@@ -27,6 +29,7 @@ public class GameSession {
     private final String forgeJarPath;
     private final String forgeWorkDir;
     private final BlockingQueue<String> humanActionQueue;
+    private final PolicyClient policyClient;
 
     private volatile boolean running = false;
     private volatile int turnNumber = 1;
@@ -56,11 +59,21 @@ public class GameSession {
     public GameSession(List<String> deckNames, Long seed,
                        String forgeJarPath, String forgeWorkDir,
                        BlockingQueue<String> humanActionQueue) {
+        this(deckNames, seed, forgeJarPath, forgeWorkDir, humanActionQueue,
+             new PolicyClient("http://localhost:8080"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public GameSession(List<String> deckNames, Long seed,
+                       String forgeJarPath, String forgeWorkDir,
+                       BlockingQueue<String> humanActionQueue,
+                       PolicyClient policyClient) {
         this.deckNames = deckNames;
         this.seed = seed;
         this.forgeJarPath = forgeJarPath;
         this.forgeWorkDir = forgeWorkDir;
         this.humanActionQueue = humanActionQueue;
+        this.policyClient = policyClient;
 
         int seats = Math.min(deckNames.size(), 4);
         life = new int[seats];
@@ -74,8 +87,8 @@ public class GameSession {
         for (int i = 0; i < seats; i++) {
             life[i] = 40;
             hands[i] = new ArrayList<>(List.of(
-                "card_stub_1", "card_stub_2", "card_stub_3",
-                "card_stub_4", "card_stub_5", "card_stub_6", "card_stub_7"
+                    "card_stub_1", "card_stub_2", "card_stub_3",
+                    "card_stub_4", "card_stub_5", "card_stub_6", "card_stub_7"
             ));
             battlefields[i] = new ArrayList<>();
             graveyards[i] = new ArrayList<>();
@@ -85,28 +98,27 @@ public class GameSession {
 
     public boolean isRunning() { return running; }
     public int getTurnNumber() { return turnNumber; }
-
-    public void stop() {
-        running = false;
-    }
+    public void stop() { running = false; }
 
     /**
      * Run the game loop. Calls onStateChange after every action resolves.
      * Blocks until the game ends or stop() is called.
      *
-     * PHASE 1 STUB: advances through phases automatically; on MAIN1 of seat 0's
-     * turn, pauses and waits for the human client to send an action.
+     * PHASE 2: AI turns now consult the PolicyClient for decisions.
+     * The policy server returns a macro-action which is applied to game state.
+     * Falls back to PASS_PRIORITY if the policy server is unreachable.
      */
-    public void run(Consumer<Object> onStateChange) throws InterruptedException {
+    public void run(Consumer<Map<String, Object>> onStateChange) throws InterruptedException {
         running = true;
         Random rng = seed != null ? new Random(seed) : new Random();
+
         System.out.println("[Session] Game started. Decks: " + deckNames);
+        System.out.println("[Session] PolicyClient endpoint: " + policyClient.getBaseUrl());
 
         while (running && !isGameOver()) {
             String currentPhase = PHASES[phaseIndex];
             phase = currentPhase;
             activePlayer = (turnNumber - 1) % deckNames.size();
-
             boolean isHumanTurn = (activePlayer == 0);
             boolean isInteractivePhase = currentPhase.equals("MAIN1") || currentPhase.equals("MAIN2");
 
@@ -117,7 +129,6 @@ public class GameSession {
 
                 System.out.println("[Session] Awaiting human action for " + currentPhase + "...");
                 String actionJson = humanActionQueue.poll(120, TimeUnit.SECONDS);
-
                 if (actionJson == null) {
                     System.out.println("[Session] Human timed out — auto passing.");
                 } else {
@@ -125,13 +136,18 @@ public class GameSession {
                     System.out.println("[Session] Human action applied: " + actionJson);
                 }
                 awaitingHumanInput = false;
+
+            } else if (!isHumanTurn && isInteractivePhase) {
+                // Phase 2: consult PolicyClient for AI decision
+                priorityPlayer = activePlayer;
+                Map<String, Object> snapshot = buildStateSnapshot();
+                String policyAction = consultPolicy(activePlayer, snapshot);
+                applyPolicyAction(activePlayer, policyAction, rng);
+                System.out.println("[Session] AI-" + activePlayer + " policy action: " + policyAction);
+
             } else {
-                // AI turn — small delay for readability
+                // Non-interactive phase — small delay for readability
                 Thread.sleep(300);
-                // Simulate AI occasionally dealing damage to human
-                if (!isHumanTurn && currentPhase.equals("DAMAGE") && life[0] > 5) {
-                    life[0] -= rng.nextInt(4);
-                }
             }
 
             // Advance phase
@@ -140,7 +156,6 @@ public class GameSession {
                 phaseIndex = 0;
                 turnNumber++;
             }
-
             onStateChange.accept(buildStateSnapshot());
         }
 
@@ -148,11 +163,70 @@ public class GameSession {
         System.out.println("[Session] Game ended after " + turnNumber + " turns.");
     }
 
+    // ---------------------------------------------------------
+    // Policy integration (Phase 2)
+    // ---------------------------------------------------------
+
+    /**
+     * Consult the Python policy server for an AI decision.
+     * Sends the current game snapshot and returns the recommended macro-action.
+     * Falls back to PASS_PRIORITY on error.
+     */
+    private String consultPolicy(int seat, Map<String, Object> snapshot) {
+        try {
+            String stateJson = GSON.toJson(snapshot);
+            PolicyClient.PolicyDecision decision = policyClient.decide(stateJson, seat);
+            if (decision != null && decision.action() != null) {
+                System.out.println("[Session] Policy decision for seat " + seat
+                    + ": " + decision.action()
+                    + " (confidence=" + String.format("%.2f", decision.confidence()) + ")");
+                return decision.action();
+            }
+        } catch (Exception e) {
+            System.err.println("[Session] Policy server error for seat " + seat + ": " + e.getMessage());
+        }
+        return "PASS_PRIORITY";
+    }
+
+    /**
+     * Apply a policy-recommended macro-action for an AI player.
+     */
+    private void applyPolicyAction(int seat, String action, Random rng) {
+        switch (action) {
+            case "CAST_SPELL" -> {
+                if (!hands[seat].isEmpty()) {
+                    String card = hands[seat].remove(0);
+                    battlefields[seat].add(card);
+                    System.out.println("[Session] AI-" + seat + " cast: " + card);
+                }
+            }
+            case "PLAY_LAND" -> {
+                if (!hands[seat].isEmpty()) {
+                    String card = hands[seat].remove(hands[seat].size() - 1);
+                    battlefields[seat].add(card);
+                }
+            }
+            case "ATTACK" -> {
+                int target = (seat + 1) % life.length;
+                if (life[target] > 0) {
+                    int dmg = rng.nextInt(3) + 1;
+                    life[target] -= dmg;
+                    System.out.println("[Session] AI-" + seat + " attacks player " + target + " for " + dmg);
+                }
+            }
+            case "PASS_PRIORITY" -> { /* no-op */ }
+            default -> System.out.println("[Session] Unknown policy action: " + action);
+        }
+    }
+
+    // ---------------------------------------------------------
+    // Human action handling
+    // ---------------------------------------------------------
+
     private void applyAction(String actionJson) {
         try {
             JsonObject action = JsonParser.parseString(actionJson).getAsJsonObject();
             String type = action.has("type") ? action.get("type").getAsString() : "PASS_PRIORITY";
-
             switch (type) {
                 case "PLAY_LAND", "CAST_SPELL" -> {
                     String cardId = action.has("cardId") ? action.get("cardId").getAsString() : null;
@@ -172,7 +246,6 @@ public class GameSession {
     private boolean isGameOver() {
         int alive = 0;
         for (int lp : life) if (lp > 0) alive++;
-        // Phase 1 stub: end after 50 turns or only 1 player alive
         return alive <= 1 || turnNumber > 50;
     }
 
@@ -210,7 +283,7 @@ public class GameSession {
             p.put("poison", poison[i]);
             p.put("commanderTax", commanderTax[i]);
             p.put("handCount", hands[i].size());
-            p.put("hand", i == 0 ? hands[i] : List.of()); // hide opponent hands
+            p.put("hand", i == 0 ? hands[i] : List.of());
             p.put("battlefield", battlefields[i]);
             p.put("graveyard", graveyards[i]);
             p.put("commandZone", commandZones[i]);
