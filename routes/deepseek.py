@@ -208,7 +208,7 @@ def _finish_sim(sim_id, summary, game_results, engine=None):
         _sim_runs[sim_id]['status'] = 'complete'
         _sim_runs[sim_id]['result'] = {'summary': summary, 'games': game_results}
 
-          # --- Persist batch-*.json for coach / training dashboard ---
+          # --- Persist ml-decision-*.json for coach / training dashboard ---
     try:
         deck_name = summary.get('deckName', 'Unknown')
         opponent_name = summary.get('opponentName', 'Training Deck')
@@ -235,7 +235,7 @@ def _finish_sim(sim_id, summary, game_results, engine=None):
         }
         results_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
         os.makedirs(results_dir, exist_ok=True)
-        batch_path = os.path.join(results_dir, f'batch-sim-{sim_id}.json')
+        batch_path = os.path.join(results_dir, f'ml-decision-sim-{sim_id}.json')
         with open(batch_path, 'w') as f:
             json.dump(batch_data, f, indent=2, default=str)
         logger.info(f'Saved batch results to {batch_path}')
