@@ -22,13 +22,13 @@ from urllib.error import URLError
 from fastapi import APIRouter, HTTPException
 from fastapi import Request as FastAPIRequest
 
-from routes.shared import (
-    CFG, log_scan, log_deckgen,
-    _get_db_conn, _row_to_dict, _enrich_from_scryfall,
-    _scryfall_fuzzy_lookup, _detect_card_roles,
-    _to_edhrec_slug, _API_HEADERS,
-    _edhrec_cache_get, _edhrec_cache_set,
-)
+from models.state import CFG
+from services.card_analysis import _detect_card_roles
+from services.database import _get_db_conn, _row_to_dict
+from services.deck_service import _to_edhrec_slug
+from services.import_helpers import _edhrec_cache_get, _edhrec_cache_set
+from services.logging import log_scan, log_deckgen
+from services.scryfall import _API_HEADERS, _enrich_from_scryfall, _scryfall_fuzzy_lookup
 
 router = APIRouter(tags=["scanner"])
 

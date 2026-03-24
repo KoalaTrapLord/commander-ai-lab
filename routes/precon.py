@@ -15,8 +15,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-import routes.shared as _shared                    # module reference, not value import
-from routes.shared import CFG, download_precon_database, log
+from models.state import CFG
+from services.precon_service import download_precon_database, PRECON_INDEX
+from services.logging import log
 from services.precon_service import _get_precon_dir
 
 router = APIRouter(tags=["precon"])
@@ -25,7 +26,7 @@ router = APIRouter(tags=["precon"])
 @router.get("/api/lab/precons")
 async def list_precons():
     """List all available precon decks."""
-    return {"precons": _shared.PRECON_INDEX}        # reads current value every call
+    return {"precons": PRECON_INDEX}        # reads current value every call
 
 
 @router.post("/api/lab/precons/install")

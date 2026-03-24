@@ -36,35 +36,25 @@ from urllib.parse import quote
 from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 from fastapi.responses import JSONResponse
 
-from routes.shared import (
-    CFG,
-    _get_db_conn,
-    _row_to_dict,
-    _add_image_url,
-    _get_deck_or_404,
-    _compute_deck_analysis,
-    _check_ratio_limit,
-    _classify_card_type,
-    _detect_card_roles,
-    _enrich_from_scryfall,
-    _fetch_scryfall_api,
-    _scryfall_rate_limit,
-    _to_edhrec_slug,
-    _edhrec_cache_get,
-    _edhrec_cache_set,
-    _fetch_edhrec_average,
+from models.state import CFG
+from models.requests import (
+    CreateDeckRequest, UpdateDeckRequest, AddDeckCardRequest,
+    PatchDeckCardRequest, BulkAddRequest, BulkAddRecommendedRequest,
+)
+from services.card_analysis import _detect_card_roles
+from services.database import _get_db_conn, _row_to_dict, _add_image_url
+from services.deck_service import (
+    _get_deck_or_404, _compute_deck_analysis, _check_ratio_limit,
+    _classify_card_type, _to_edhrec_slug, _TYPE_TARGETS,
     _save_profile_to_dck,
-    _parse_text_decklist,
-    _API_HEADERS,
-    _TYPE_TARGETS,
-    CreateDeckRequest,
-    UpdateDeckRequest,
-    AddDeckCardRequest,
-    PatchDeckCardRequest,
-    BulkAddRequest,
-    BulkAddRecommendedRequest,
-    log_collect,
-    log_deckgen,
+)
+from services.import_helpers import (
+    _fetch_edhrec_average, _parse_text_decklist,
+    _edhrec_cache_get, _edhrec_cache_set,
+)
+from services.logging import log_collect, log_deckgen
+from services.scryfall import (
+    _API_HEADERS, _enrich_from_scryfall, _fetch_scryfall_api, _scryfall_rate_limit,
 )
 
 router = APIRouter(tags=["deckbuilder"])

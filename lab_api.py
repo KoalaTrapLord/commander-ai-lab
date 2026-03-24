@@ -22,15 +22,10 @@ except ImportError:
     print("ERROR: FastAPI not installed. Run: pip install fastapi uvicorn")
     import sys; sys.exit(1)
 
-from routes.shared import (
-    CFG,
-    setup_logging,
-    init_collection_db,
-    download_precon_database,
-    load_commander_meta,
-    PRECON_INDEX,
-    COMMANDER_META,
-)
+from models.state import CFG, COMMANDER_META, load_commander_meta
+from services.database import init_collection_db
+from services.logging import setup_logging
+from services.precon_service import PRECON_INDEX, download_precon_database
 from routes.collection import router as collection_router
 from routes.deckbuilder import router as deckbuilder_router
 from routes.precon import router as precon_router
@@ -80,15 +75,14 @@ async def health_check():
 @app.on_event("startup")
 async def _on_startup():
     """Ensure DB and precon index are ready (supports uvicorn --reload)."""
-    import routes.shared as _shared
     # Ensure precon_dir is resolved even when started via uvicorn directly
     if not CFG.precon_dir:
         CFG.precon_dir = _resolve_precon_dir()
-    _shared.init_collection_db()
-    if not _shared.PRECON_INDEX:
-        _shared.download_precon_database()
-    if not _shared.COMMANDER_META:
-        _shared.load_commander_meta()
+    init_collection_db()
+    if not PRECON_INDEX:
+        download_precon_database()
+    if not COMMANDER_META:
+        load_commander_meta()
 
 # ── Static UI ──────────────────────────────────────────────────
 _legacy_ui_dir = Path(__file__).parent / "ui"
@@ -288,7 +282,7 @@ def main():
     CFG.ximilar_api_key = args.ximilar_key
     CFG.pplx_api_key = args.pplx_key
 
-    from routes.shared import get_java17
+    from services.forge_runner import get_java17
     j17 = get_java17()
 
     log.info("Commander AI Lab — API Server v3.0.0")

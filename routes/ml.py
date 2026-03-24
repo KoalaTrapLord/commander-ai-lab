@@ -32,7 +32,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 
-from routes.shared import CFG, _ml_logging_enabled
+from models.state import CFG
+from services.logging import _ml_logging_enabled
 
 log_ml = logging.getLogger("commander_ai_lab.ml")
 
@@ -121,7 +122,7 @@ def _get_policy_service():
 @router.get("/api/ml/status")
 async def ml_status():
     """Get ML decision logging status and available training data."""
-    import routes.shared as _shared
+    import services.logging as _logging_mod
     lab_root = Path(__file__).resolve().parent.parent
     results_dir = lab_root / CFG.results_dir
     ml_files = []
@@ -140,7 +141,7 @@ async def ml_status():
             })
     total_decisions = sum(f["decisions"] for f in ml_files)
     return {
-        "ml_logging_enabled": _shared._ml_logging_enabled,
+        "ml_logging_enabled": _logging_mod._ml_logging_enabled,
         "training_files": ml_files,
         "total_decisions": total_decisions,
         "total_files": len(ml_files),
@@ -150,10 +151,10 @@ async def ml_status():
 @router.post("/api/ml/toggle")
 async def ml_toggle(enable: bool = True):
     """Enable or disable ML decision logging for future batch runs."""
-    import routes.shared as _shared
-    _shared._ml_logging_enabled = enable
+    import services.logging as _logging_mod
+    _logging_mod._ml_logging_enabled = enable
     return {
-        "ml_logging_enabled": _shared._ml_logging_enabled,
+        "ml_logging_enabled": _logging_mod._ml_logging_enabled,
         "message": f"ML decision logging {'enabled' if enable else 'disabled'} for future batches",
     }
 

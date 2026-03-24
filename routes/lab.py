@@ -31,23 +31,15 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request as FastAPIRequest
 from fastapi.responses import JSONResponse
 
-from routes.shared import (
-    CFG,
-    active_batches,
-    BatchState,
-    StartRequest,
-    StartResponse,
-    StatusResponse,
-    AI_PROFILES,
-    build_java_command,
-    run_batch_subprocess,
-    _run_deepseek_batch_thread,
-    parse_dck_file,
-    _get_db_conn,
-    _load_deck_cards_by_name,
-    log,
-    log_batch,
+from models.state import CFG, active_batches, BatchState, AI_PROFILES
+from models.requests import StartRequest
+from models.responses import StartResponse, StatusResponse
+from services.database import _get_db_conn
+from services.deck_service import parse_dck_file, _load_deck_cards_by_name
+from services.forge_runner import (
+    build_java_command, run_batch_subprocess, _run_deepseek_batch_thread,
 )
+from services.logging import log, log_batch
 
 router = APIRouter(tags=["lab"])
 

@@ -33,12 +33,10 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from models.requests import CoachRequestBody, CoachChatMessage, CoachChatRequest, CoachApplyRequest, CoachGoalsRequest
 
-from routes.shared import (
-    CFG,
-    log_coach, log_deckgen,
-    _get_db_conn,
-    _compute_deck_analysis,
-)
+from models.state import CFG
+from services.database import _get_db_conn
+from services.deck_service import _compute_deck_analysis
+from services.logging import log_coach, log_deckgen
 
 router = APIRouter(tags=["coach"])
 
