@@ -361,7 +361,7 @@ def _run_deepseek_batch_thread(
             results_dir = CFG.results_dir
             if os.path.isdir(results_dir):
                 for fname in sorted(os.listdir(results_dir), reverse=True):
-                    if fname.startswith('batch-') and fname.endswith('.json'):
+                    if fname.startswith('ml-decision-') and fname.endswith('.json'):
                         try:
                             with open(os.path.join(results_dir, fname), 'r') as rf:
                                 past = json.loads(rf.read())
