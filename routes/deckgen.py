@@ -772,7 +772,7 @@ async def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperatu
     Uses httpx.AsyncClient so the uvicorn event loop is never stalled.
     Returns the assistant message content.
     """
-    from coach.config import DECK_GEN_PROVIDER, DECK_GEN_BASE_URL, DECK_GEN_MODEL
+    from coach.config import DECK_GEN_PROVIDER, DECK_GEN_BASE_URL, DECK_GEN_MODEL, PPLX_MODEL
 
     if DECK_GEN_PROVIDER == 'local':
         base_url = DECK_GEN_BASE_URL
@@ -782,7 +782,7 @@ async def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperatu
         if not CFG.pplx_api_key:
             raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var or --pplx-key.')
         base_url = 'https://api.perplexity.ai'
-        model = 'sonar'
+        model = PPLX_MODEL
         headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {CFG.pplx_api_key}',
