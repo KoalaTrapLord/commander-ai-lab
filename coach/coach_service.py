@@ -9,6 +9,7 @@ calls the LLM, parses responses, and persists coaching sessions.
 import json
 import logging
 import uuid
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -16,6 +17,7 @@ from typing import Optional, List, Dict
 from .config import (
     DECK_REPORTS_DIR, COACH_SESSIONS_DIR,
     MAX_UNDERPERFORMERS, MAX_CANDIDATES_PER_UNDERPERFORMER,
+    COACH_PROVIDER, PPLX_MODEL,
     UNDERPERFORMER_IMPACT_THRESHOLD, ensure_dirs,
 )
 from .models import (
@@ -265,13 +267,25 @@ class CoachService:
         """Check the health of all coach subsystems."""
         status = CoachStatus()
 
-        # Check LLM
-        llm_status = self.llm.check_connection()
-        status.llmConnected = llm_status.get("connected", False)
-        status.llmModel = llm_status.get("active_model")
-        status.llmModels = llm_status.get("models", [])
-        if not status.llmConnected:
-            status.error = llm_status.get("error", "LM Studio not reachable")
+        # Check LLM / Perplexity provider
+        if COACH_PROVIDER == "perplexity":
+            pplx_key = os.environ.get("PPLX_API_KEY", "")
+            if pplx_key:
+                status.llmConnected = True
+                status.llmModel = f"Perplexity ({PPLX_MODEL})"
+                status.llmModels = [PPLX_MODEL]
+            else:
+                status.llmConnected = False
+                status.llmModel = None
+                status.llmModels = []
+                status.error = "Perplexity API key not configured. Set PPLX_API_KEY env var."
+        else:
+            llm_status = self.llm.check_connection()
+            status.llmConnected = llm_status.get("connected", False)
+            status.llmModel = llm_status.get("active_model")
+            status.llmModels = llm_status.get("models", [])
+            if not status.llmConnected:
+                status.error = llm_status.get("error", "Local LLM not reachable")
 
         # Check embeddings
         status.embeddingsLoaded = self.embeddings.loaded
