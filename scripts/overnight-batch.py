@@ -85,7 +85,7 @@ def start_batch(base_url, decks, num_games, playstyle, threads):
 def poll_batch(base_url, batch_id, poll_interval=5):
     """Poll batch status until complete. Returns final status."""
     while True:
-        result = api_call(base_url, f"/api/lab/status/{batch_id}")
+        result = api_call(base_url, f"/api/lab/status?batchId={batch_id}")
         if result is None:
             time.sleep(poll_interval)
             continue
