@@ -168,22 +168,49 @@ def build_deck(request: BuildRequest) -> BuildResult:
     # ── Step 7: Assemble final deck ──────────────────────────────
     logger.info("Step 7: Assembling final deck")
 
-    # Convert to CardEntry list via Scryfall batch lookup
-    all_card_names = []
-    for names in adjusted.values():
-        all_card_names.extend(names)
+    # Build a globally-deduplicated name list. enforce_deck_ratios can
+    # return the same card name under multiple category keys (e.g. a
+    # protection card that also appears in synergy). Without this step
+    # get_cards_by_names produces duplicate CardEntry objects that
+    # immediately fail the CommanderDeck singleton validator.
+    seen_names: dict[str, str] = {}  # name -> first category that claimed it
+    for cat, names in adjusted.items():
+        for name in names:
+            if name not in seen_names:
+                seen_names[name] = cat
+            else:
+                logger.warning(
+                    "Duplicate card '%s' found in categories '%s' and '%s' — "
+                    "keeping first assignment, dropping second",
+                    name, seen_names[name], cat,
+                )
+
+    if len(seen_names) < sum(len(v) for v in adjusted.values()):
+        warnings.append(
+            "enforce_deck_ratios returned duplicate card names across categories; "
+            "duplicates were silently dropped before singleton validation."
+        )
+
+    all_card_names = list(seen_names.keys())
 
     card_entries = scryfall.get_cards_by_names(all_card_names)
 
-    # Map back categories
-    name_to_cat: Dict[str, str] = {}
-    for cat, names in adjusted.items():
-        for name in names:
-            name_to_cat[name] = cat
-
+    # Safety-net: deduplicate CardEntry list by name in case Scryfall
+    # returns multiple printings for the same name.
+    seen_entry_names: set[str] = set()
+    unique_entries: List[CardEntry] = []
     for entry in card_entries:
-        if entry.name in name_to_cat:
-            entry.category = name_to_cat[entry.name]
+        if entry.name not in seen_entry_names:
+            seen_entry_names.add(entry.name)
+            unique_entries.append(entry)
+        else:
+            logger.warning("Scryfall returned duplicate entry for '%s' — skipping", entry.name)
+    card_entries = unique_entries
+
+    # Map back categories
+    for entry in card_entries:
+        if entry.name in seen_names:
+            entry.category = seen_names[entry.name]
 
     # Build the deck
     elapsed = time.time() - start
