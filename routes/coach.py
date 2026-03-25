@@ -38,16 +38,16 @@ from services.database import _get_db_conn
 from services.deck_service import _compute_deck_analysis
 from services.logging import log_coach, log_deckgen
 import httpx
-from coach.config import COACH_PROVIDER, PPLX_MODEL
+from coach.config import COACH_PROVIDER, PPLX_MODEL, DECK_GEN_PROVIDER, DECK_GEN_MODEL
 
 LLM_TIMEOUT = 120  # seconds
 
 router = APIRouter(tags=["coach"])
 
 
-# ══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 # Coach Service (LLM-powered deck coaching)
-# ══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 
 # Global coach instances (initialized at startup)
 _coach_service = None
@@ -84,22 +84,34 @@ def init_coach_service():
 
         _coach_service = CoachService(_coach_llm, _coach_embeddings)
 
-        # Check LLM connection
-        llm_status = _coach_llm.check_connection()
-        if llm_status.get("connected"):
-            log_coach.info(f"  Coach LLM:    Connected ({llm_status.get('active_model', 'unknown')})")
+        # Log coach LLM provider
+        if COACH_PROVIDER == "perplexity":
+            log_coach.info(f"  Coach LLM:    Perplexity ({PPLX_MODEL})")
         else:
-            log_coach.warning(f"  Coach LLM:    Not connected (start Ollama on localhost:11434)")
+            # Only probe Ollama when actually using it
+            llm_status = _coach_llm.check_connection()
+            if llm_status.get("connected"):
+                log_coach.info(f"  Coach LLM:    Connected ({llm_status.get('active_model', 'unknown')})")
+            else:
+                log_coach.warning(f"  Coach LLM:    Not connected (start Ollama on localhost:11434)")
 
-        # Initialize V3 Deck Generator (Ollama-based)
+        # Initialize V3 Deck Generator
         _deck_gen_v3_error = None
         try:
             from src.commander_ai_lab.deck_builder.adapter import DeckBuilderAdapter
-            _deck_gen_v3 = DeckBuilderAdapter(
-                db_conn_factory=_get_db_conn,
-                model="gpt-oss:20b",
-            )
-            log_deckgen.info("  Deck Gen V3:  Initialized (Ollama DeckBuilderAdapter)")
+            if DECK_GEN_PROVIDER == "perplexity":
+                _deck_gen_v3 = DeckBuilderAdapter(
+                    db_conn_factory=_get_db_conn,
+                    model=DECK_GEN_MODEL,
+                )
+                log_deckgen.info(f"  Deck Gen V3:  Initialized (Perplexity {DECK_GEN_MODEL})")
+            else:
+                from coach.config import LLM_MODEL
+                _deck_gen_v3 = DeckBuilderAdapter(
+                    db_conn_factory=_get_db_conn,
+                    model=LLM_MODEL,
+                )
+                log_deckgen.info(f"  Deck Gen V3:  Initialized (Ollama {LLM_MODEL})")
         except ImportError as e:
             _deck_gen_v3_error = f"Missing dependency: {e}"
             log_deckgen.error(f"  Deck Gen V3:  {_deck_gen_v3_error}")
@@ -146,7 +158,6 @@ async def coach_list_decks():
     decks = []
     for r in rows:
         deck_name = r["deck_name"]
-        # Check if a report exists (by deck name slug match)
         has_report = any(
             deck_name.lower().replace(" ", "-") == rid.lower() or
             deck_name.lower() == rid.lower()
@@ -181,7 +192,6 @@ async def coach_run_session(deck_id: str, body: CoachRequestBody = None):
     if _coach_service is None:
         raise HTTPException(500, "Coach service not initialized")
 
-    # Load embeddings on first use if not loaded
     if _coach_embeddings and not _coach_embeddings.loaded:
         try:
             _coach_embeddings.load(force_download=True)
@@ -196,7 +206,6 @@ async def coach_run_session(deck_id: str, body: CoachRequestBody = None):
         except Exception:
             goals = None
 
-    # Build a fallback DeckReport from the DB if no simulation report exists
     fallback_report = None
     try:
         fallback_report = _build_deck_report_from_db(deck_id)
@@ -223,7 +232,6 @@ def _build_deck_report_from_db(deck_slug: str):
     from coach.models import DeckReport, CardPerformance, DeckStructure
     conn = _get_db_conn()
 
-    # --- Input validation ---
     import re
     if not deck_slug or len(deck_slug) > 200:
         return None
@@ -231,19 +239,16 @@ def _build_deck_report_from_db(deck_slug: str):
     if not deck_slug:
         return None
 
-    # Find the deck by parameterized query instead of full-table scan
     slug_lower = deck_slug.lower()
     slug_hyphenated = slug_lower.replace(' ', '-')
     clean_slug = re.sub(r'[^a-z0-9]+', '-', slug_lower).strip('-')
 
     if slug_lower.isdigit():
-        # Numeric slug -- match by ID directly
         matched_deck = conn.execute(
             "SELECT id, name, commander_name, color_identity FROM decks WHERE id = ?",
             (int(slug_lower),)
         ).fetchone()
     else:
-        # Try exact name match, hyphenated match, or clean-slug match
         matched_deck = conn.execute(
             """SELECT id, name, commander_name, color_identity FROM decks
                WHERE LOWER(name) = ?
@@ -260,14 +265,12 @@ def _build_deck_report_from_db(deck_slug: str):
     deck_name = matched_deck["name"]
     commander = matched_deck["commander_name"] or ""
 
-    # Parse color identity
     ci_raw = matched_deck["color_identity"] or "[]"
     try:
         color_identity = json.loads(ci_raw) if isinstance(ci_raw, str) else ci_raw
     except Exception:
         color_identity = []
 
-    # Load all cards in this deck
     card_rows = conn.execute(
         """SELECT dc.card_name, dc.quantity, dc.is_commander, dc.role_tag,
                   ce.type_line, ce.cmc, ce.oracle_text
@@ -289,7 +292,6 @@ def _build_deck_report_from_db(deck_slug: str):
         qty = cr["quantity"] or 1
         role_tag = cr["role_tag"] or ""
 
-        # Build tags from type_line and role_tag
         tags = []
         if role_tag:
             tags.append(role_tag)
@@ -309,16 +311,13 @@ def _build_deck_report_from_db(deck_slug: str):
         elif "Planeswalker" in type_line:
             tags.append("planeswalker")
 
-        # Type count
         for t in ["Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land"]:
             if t in type_line:
                 type_counts[t] = type_counts.get(t, 0) + qty
 
-        # CMC bucket
         bucket = min(int(cmc), 7)
         cmc_buckets[bucket] += qty
 
-        # CardPerformance with zeroed-out sim stats
         cards.append(CardPerformance(
             name=card_name,
             drawnRate=0.0,
@@ -394,10 +393,8 @@ async def coach_chat(body: CoachChatRequest):
     if _coach_service is None:
         raise HTTPException(500, "Coach service not initialized")
 
-    # Load deck report for context
     report = _coach_service.load_deck_report(body.deck_id)
 
-    # Build system prompt with report context
     from coach.prompt_template import build_system_prompt
     from coach.models import CoachGoals
 
@@ -418,71 +415,70 @@ async def coach_chat(body: CoachChatRequest):
             "Be specific and actionable in your advice."
         )
 
-    # Build messages array for LLM
     messages = [{"role": "system", "content": system_prompt}]
     for msg in body.messages:
-            messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
-          # ── Perplexity provider path ──────────────────────────────
+        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+
+    # ── Perplexity provider path ─────────────────────────────────────────
     if COACH_PROVIDER == 'perplexity':
-      if not CFG.pplx_api_key:
-        raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var.')
-      pplx_payload = {
-        'model': PPLX_MODEL,
-        'messages': messages,
-        'max_tokens': 4096,
-        'temperature': 0.7,
-      }
-      pplx_headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'Bearer {CFG.pplx_api_key}',
-      }
-      if body.stream:
-        async def pplx_stream():
-          pplx_payload['stream'] = True
-          async with httpx.AsyncClient(timeout=120.0) as client:
-            async with client.stream('POST', 'https://api.perplexity.ai/chat/completions',
-                                     json=pplx_payload, headers=pplx_headers) as resp:
-              async for line in resp.aiter_lines():
-                if line.startswith('data: '):
-                  data = line[6:]
-                  if data == '[DONE]':
-                    yield 'data: [DONE]\n\n'
-                    break
-                  try:
-                    chunk = json.loads(data)
-                    content = chunk.get('choices', [{}])[0].get('delta', {}).get('content', '')
-                    if content:
-                      yield f'data: {json.dumps({"content": content})}\n\n'
-                  except json.JSONDecodeError:
-                    continue
-        return StreamingResponse(pplx_stream(), media_type='text/event-stream')
-      else:
-        try:
-          async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-              'https://api.perplexity.ai/chat/completions',
-              json=pplx_payload, headers=pplx_headers,
-            )
-            resp.raise_for_status()
-            raw = resp.json()
-          content = raw.get('choices', [{}])[0].get('message', {}).get('content', '')
-          usage = raw.get('usage', {})
-          return {
-            'content': content,
-            'model': raw.get('model', ''),
-            'prompt_tokens': usage.get('prompt_tokens', 0),
-            'completion_tokens': usage.get('completion_tokens', 0),
-          }
-        except httpx.HTTPStatusError as e:
-          raise HTTPException(502, f'Perplexity API returned {e.response.status_code}')
-        except httpx.RequestError as e:
-          raise HTTPException(502, f'Perplexity API call failed: {e}')
-  
-          # Call LLM with multi-turn messages
+        if not CFG.pplx_api_key:
+            raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var.')
+        pplx_payload = {
+            'model': PPLX_MODEL,
+            'messages': messages,
+            'max_tokens': 4096,
+            'temperature': 0.7,
+        }
+        pplx_headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {CFG.pplx_api_key}',
+        }
+        if body.stream:
+            async def pplx_stream():
+                pplx_payload['stream'] = True
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    async with client.stream('POST', 'https://api.perplexity.ai/chat/completions',
+                                             json=pplx_payload, headers=pplx_headers) as resp:
+                        async for line in resp.aiter_lines():
+                            if line.startswith('data: '):
+                                data = line[6:]
+                                if data == '[DONE]':
+                                    yield 'data: [DONE]\n\n'
+                                    break
+                                try:
+                                    chunk = json.loads(data)
+                                    content = chunk.get('choices', [{}])[0].get('delta', {}).get('content', '')
+                                    if content:
+                                        yield f'data: {json.dumps({"content": content})}\n\n'
+                                except json.JSONDecodeError:
+                                    continue
+            return StreamingResponse(pplx_stream(), media_type='text/event-stream')
+        else:
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    resp = await client.post(
+                        'https://api.perplexity.ai/chat/completions',
+                        json=pplx_payload, headers=pplx_headers,
+                    )
+                    resp.raise_for_status()
+                    raw = resp.json()
+                content = raw.get('choices', [{}])[0].get('message', {}).get('content', '')
+                usage = raw.get('usage', {})
+                return {
+                    'content': content,
+                    'model': raw.get('model', ''),
+                    'prompt_tokens': usage.get('prompt_tokens', 0),
+                    'completion_tokens': usage.get('completion_tokens', 0),
+                }
+            except httpx.HTTPStatusError as e:
+                raise HTTPException(502, f'Perplexity API returned {e.response.status_code}')
+            except httpx.RequestError as e:
+                raise HTTPException(502, f'Perplexity API call failed: {e}')
+
+    # ── Local Ollama provider path ───────────────────────────────────
     try:
         import json
         from urllib.request import urlopen, Request as UrlRequest
-        
 
         model_name = _coach_llm._resolve_model()
         llm_body = {
@@ -493,18 +489,11 @@ async def coach_chat(body: CoachChatRequest):
         }
 
         if body.stream:
-            # SSE streaming response
             llm_body["stream"] = True
 
             async def generate():
                 import asyncio
                 def _stream():
-                    req = UrlRequest(
-                        f"{_coach_llm.base_url}/chat/completions",
-                        data=json.dumps(llm_body).encode("utf-8"),
-                        headers={"Content-Type": "application/json"},
-                        method="POST",
-                    )
                     import http.client
                     import urllib.parse
                     parsed = urllib.parse.urlparse(f"{_coach_llm.base_url}/chat/completions")
@@ -539,14 +528,12 @@ async def coach_chat(body: CoachChatRequest):
                         delta = chunk.get("choices", [{}])[0].get("delta", {})
                         content = delta.get("content", "")
                         if content:
-                            # Strip think tags from streaming chunks
                             yield f"data: {json.dumps({'content': content})}\n\n"
                     except json.JSONDecodeError:
                         continue
 
             return StreamingResponse(generate(), media_type="text/event-stream")
         else:
-            # Non-streaming: regular call
             req = UrlRequest(
                 f"{_coach_llm.base_url}/chat/completions",
                 data=json.dumps(llm_body).encode("utf-8"),
@@ -563,7 +550,6 @@ async def coach_chat(body: CoachChatRequest):
             raw = await loop.run_in_executor(None, _call)
 
             content = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
-            # Strip think tags
             content = _coach_llm._strip_think_tags(content)
             usage = raw.get("usage", {})
 
@@ -583,14 +569,12 @@ async def coach_apply_suggestions(body: CoachApplyRequest):
     """Apply accepted coaching suggestions to a deck — remove cuts, add adds."""
     conn = _get_db_conn()
 
-    # Verify deck exists
     deck = conn.execute("SELECT * FROM decks WHERE id = ?", (body.deck_id,)).fetchone()
     if not deck:
         raise HTTPException(404, f"Deck {body.deck_id} not found")
 
     results = {"cuts": [], "adds": [], "errors": []}
 
-    # Process cuts: remove cards by name
     for card_name in body.accepted_cuts:
         row = conn.execute(
             "SELECT id FROM deck_cards WHERE deck_id = ? AND card_name = ? LIMIT 1",
@@ -600,7 +584,6 @@ async def coach_apply_suggestions(body: CoachApplyRequest):
             conn.execute("DELETE FROM deck_cards WHERE id = ?", (row["id"],))
             results["cuts"].append({"name": card_name, "status": "removed"})
         else:
-            # Try case-insensitive
             row = conn.execute(
                 "SELECT id, card_name FROM deck_cards WHERE deck_id = ? AND LOWER(card_name) = LOWER(?) LIMIT 1",
                 (body.deck_id, card_name)
@@ -611,9 +594,7 @@ async def coach_apply_suggestions(body: CoachApplyRequest):
             else:
                 results["errors"].append({"name": card_name, "error": "Card not found in deck"})
 
-    # Process adds: look up in collection first, then Scryfall
     for card_name in body.accepted_adds:
-        # Try to find in collection
         ce = conn.execute(
             "SELECT scryfall_id, name FROM collection_entries WHERE LOWER(name) = LOWER(?) LIMIT 1",
             (card_name,)
@@ -626,7 +607,6 @@ async def coach_apply_suggestions(body: CoachApplyRequest):
             scryfall_id = ce["scryfall_id"]
             resolved_name = ce["name"]
         else:
-            # Try Scryfall API lookup
             try:
                 import urllib.parse
                 from urllib.request import urlopen, Request as UrlRequest
@@ -643,7 +623,6 @@ async def coach_apply_suggestions(body: CoachApplyRequest):
                 pass
 
         if scryfall_id:
-            # Check if already in deck
             existing = conn.execute(
                 "SELECT id FROM deck_cards WHERE deck_id = ? AND scryfall_id = ?",
                 (body.deck_id, scryfall_id)
@@ -681,14 +660,12 @@ async def coach_cards_like(card: str, colors: str = None, top_n: int = 10):
     conn = _get_db_conn()
     results = []
     for m in matches:
-        # Check if card is in collection
         owned = conn.execute(
             "SELECT SUM(quantity) as qty FROM collection_entries WHERE LOWER(name) = LOWER(?)",
             (m.name,)
         ).fetchone()
         owned_qty = (owned["qty"] or 0) if owned else 0
 
-        # Get image URL and price
         ce = conn.execute(
             "SELECT scryfall_id, tcg_price FROM collection_entries WHERE LOWER(name) = LOWER(?) LIMIT 1",
             (m.name,)
