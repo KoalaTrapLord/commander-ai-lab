@@ -84,6 +84,13 @@ async def _on_startup():
     if not COMMANDER_META:
         load_commander_meta()
 
+
+@app.on_event("shutdown")
+async def _on_shutdown():
+    """Close the async SQLite connection pool."""
+    from services.async_db import async_close_db
+    await async_close_db()
+
 # ── Static UI ──────────────────────────────────────────────────
 _legacy_ui_dir = Path(__file__).parent / "ui"
 _spa_dir = Path(__file__).parent / "frontend" / "commander-ai-lab-ui" / "dist"
