@@ -61,6 +61,17 @@ async def export_collection(
     priceMin: Optional[float] = None,
     priceMax: Optional[float] = None,
     category: Optional[str] = None,
+        rarity: Optional[str] = None,
+    setCode: Optional[str] = None,
+    powerMin: Optional[str] = None,
+    powerMax: Optional[str] = None,
+    toughMin: Optional[str] = None,
+    toughMax: Optional[str] = None,
+    keyword: Optional[str] = None,
+    edhrecMin: Optional[int] = None,
+    edhrecMax: Optional[int] = None,
+    qtyMin: Optional[int] = None,
+    qtyMax: Optional[int] = None,
 ):
     """Export collection in various formats with optional filters."""
     where_str, params = _build_collection_filters(
@@ -68,6 +79,12 @@ async def export_collection(
         isBasic=isBasic, isGameChanger=isGameChanger, highSalt=highSalt,
         finish=finish, cmcMin=cmcMin, cmcMax=cmcMax,
         priceMin=priceMin, priceMax=priceMax, category=category,
+                rarity=rarity, setCode=setCode,
+        powerMin=powerMin, powerMax=powerMax,
+        toughMin=toughMin, toughMax=toughMax,
+        keyword=keyword,
+        edhrecMin=edhrecMin, edhrecMax=edhrecMax,
+        qtyMin=qtyMin, qtyMax=qtyMax,
     )
 
     sql = f"SELECT * FROM collection_entries {where_str} ORDER BY name ASC"
