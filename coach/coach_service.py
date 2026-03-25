@@ -273,9 +273,62 @@ class CoachService:
         system_prompt = build_system_prompt(report, goals)
         user_prompt = build_user_prompt(report, candidates)
 
-        # 5. Call LLM
-        logger.info("Calling LLM for deck: %s", deck_id)
-        llm_response = await self.llm.chat(system_prompt, user_prompt)
+        # 5. Call LLM (Perplexity or local Ollama)
+        logger.info("Calling LLM for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
+        if COACH_PROVIDER == "perplexity":
+            import httpx
+            pplx_key = os.environ.get("PPLX_API_KEY", "")
+            if not pplx_key:
+                raise ConnectionError("Perplexity API key not configured. Set PPLX_API_KEY env var.")
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+            pplx_payload = {
+                "model": PPLX_MODEL,
+                "messages": messages,
+                "max_tokens": 8192,
+                "temperature": 0.7,
+            }
+            pplx_headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {pplx_key}",
+            }
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(
+                    "https://api.perplexity.ai/chat/completions",
+                    json=pplx_payload,
+                    headers=pplx_headers,
+                )
+                resp.raise_for_status()
+                raw = resp.json()
+            content = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
+            usage = raw.get("usage", {})
+            # Build an LLMResponse-compatible object
+            from types import SimpleNamespace
+            llm_response = SimpleNamespace(
+                content=content,
+                model=raw.get("model", PPLX_MODEL),
+                prompt_tokens=usage.get("prompt_tokens", 0),
+                completion_tokens=usage.get("completion_tokens", 0),
+                parsed_json=None,
+            )
+            # Try to parse JSON from the response
+            try:
+                import re as _re
+                cleaned = _re.sub(r'^```(?:json)?\s*', '', content.strip())
+                cleaned = _re.sub(r'\s*```$', '', cleaned.strip())
+                llm_response.parsed_json = json.loads(cleaned)
+            except (json.JSONDecodeError, ValueError):
+                # Try to find JSON object in the text
+                match = re.search(r'\{[\s\S]*\}', content)
+                if match:
+                    try:
+                        llm_response.parsed_json = json.loads(match.group(0))
+                    except json.JSONDecodeError:
+                        pass
+        else:
+            llm_response = await self.llm.chat(system_prompt, user_prompt)
 
         # 6. Parse response into CoachSession
         session_id = f"sess-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
