@@ -38,9 +38,9 @@ DEFAULT_MAX_TOKENS = 8192
 
 # ── Perplexity Deck Generation Settings ───────────────────────
 # Provider for deck generation: "perplexity" (V3) or "local" (V2 collection-based)
-DECK_GEN_PROVIDER = os.environ.get("DECK_GEN_PROVIDER", "local")
-# Model for deck generation (sonar = fast/$0.004, sonar-pro = deep/$0.04)
-DECK_GEN_MODEL = os.environ.get("DECK_GEN_MODEL", "gpt-oss:20b")
+DECK_GEN_PROVIDER = os.environ.get("DECK_GEN_PROVIDER", "perplexity")
+# Model used when DECK_GEN_PROVIDER="perplexity" (sonar = fast, sonar-pro = deep)
+DECK_GEN_MODEL = os.environ.get("DECK_GEN_MODEL", "sonar-pro")
 # Perplexity cloud model (sonar / sonar-pro / sonar-deep-research)
 PPLX_MODEL = os.environ.get("PPLX_MODEL", "sonar-pro")
 # Coach chat provider: "perplexity" (Perplexity API) or "local" (Ollama)
@@ -55,7 +55,7 @@ SUBSTITUTION_MIN_SIMILARITY = float(os.environ.get("SUBSTITUTION_MIN_SIMILARITY"
 # Maximum number of alternatives to suggest per missing card
 SUBSTITUTION_MAX_ALTERNATIVES = int(os.environ.get("SUBSTITUTION_MAX_ALTERNATIVES", "5"))
 # Model for substitution fallback (sonar is fine — small focused queries)
-SUBSTITUTION_MODEL = os.environ.get("SUBSTITUTION_MODEL", "gpt-oss:20b")
+SUBSTITUTION_MODEL = os.environ.get("SUBSTITUTION_MODEL", "sonar")
 # Enable Perplexity fallback for low-confidence embedding matches
 SUBSTITUTION_USE_PPLX_FALLBACK = os.environ.get("SUBSTITUTION_USE_PPLX_FALLBACK", "true").lower() == "true"
 
