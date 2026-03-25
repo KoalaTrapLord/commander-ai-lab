@@ -31,6 +31,18 @@ from .prompt_template import build_system_prompt, build_user_prompt
 
 logger = logging.getLogger("coach.service")
 
+# SQLite persistence for coach sessions
+try:
+    from services.database import (
+        save_coach_session as _db_save_session,
+        load_coach_session as _db_load_session,
+        list_coach_sessions as _db_list_sessions,
+        delete_coach_session as _db_delete_session,
+    )
+    _DB_AVAILABLE = True
+except ImportError:
+    _DB_AVAILABLE = False
+
 
 class CoachService:
     """
@@ -83,15 +95,62 @@ class CoachService:
     # ── Coach Session I/O ──────────────────────────────────────
 
     def save_session(self, session: CoachSession) -> Path:
-        """Persist a coaching session to disk."""
+        """Persist a coaching session to disk and SQLite."""
+        # 1. Write JSON file (backward compat)
         COACH_SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
         path = COACH_SESSIONS_DIR / f"{session.sessionId}.json"
         with open(path, "w") as f:
             f.write(session.model_dump_json(indent=2))
+        # 2. Write to SQLite
+        if _DB_AVAILABLE:
+            try:
+                _db_save_session({
+                    "session_id": session.sessionId,
+                    "deck_id": session.deckId,
+                    "timestamp": session.timestamp,
+                    "model_used": session.modelUsed or "",
+                    "prompt_tokens": session.promptTokens or 0,
+                    "completion_tokens": session.completionTokens or 0,
+                    "summary": session.summary or "",
+                    "goals_json": json.dumps(session.goals.model_dump() if session.goals else {}),
+                    "cuts_json": json.dumps([c.model_dump() for c in session.suggestedCuts]),
+                    "adds_json": json.dumps([a.model_dump() for a in session.suggestedAdds]),
+                    "heuristic_hints_json": json.dumps(session.heuristicHints or []),
+                    "mana_base_advice": session.manaBaseAdvice or "",
+                    "raw_text": session.rawTextExplanation or "",
+                })
+                logger.info("Coach session persisted to SQLite: %s", session.sessionId)
+            except Exception as e:
+                logger.warning("Failed to persist session to SQLite: %s", e)
         return path
 
+
     def load_session(self, session_id: str) -> Optional[CoachSession]:
-        """Load a coaching session from disk."""
+        """Load a coaching session from SQLite, falling back to disk."""
+        # Try SQLite first
+        if _DB_AVAILABLE:
+            try:
+                row = _db_load_session(session_id)
+                if row:
+                    data = dict(row)
+                    return CoachSession(
+                        sessionId=data["session_id"],
+                        deckId=data["deck_id"],
+                        timestamp=data["timestamp"],
+                        modelUsed=data.get("model_used", ""),
+                        promptTokens=data.get("prompt_tokens", 0),
+                        completionTokens=data.get("completion_tokens", 0),
+                        summary=data.get("summary", ""),
+                        goals=json.loads(data["goals_json"]) if data.get("goals_json") and data["goals_json"] != "{}" else None,
+                        suggestedCuts=[SuggestedCut(**c) for c in json.loads(data.get("cuts_json", "[]"))],
+                        suggestedAdds=[SuggestedAdd(**a) for a in json.loads(data.get("adds_json", "[]"))],
+                        heuristicHints=json.loads(data.get("heuristic_hints_json", "[]")),
+                        manaBaseAdvice=data.get("mana_base_advice", ""),
+                        rawTextExplanation=data.get("raw_text", ""),
+                    )
+            except Exception as e:
+                logger.warning("SQLite load failed for %s: %s", session_id, e)
+        # Fallback to disk
         path = COACH_SESSIONS_DIR / f"{session_id}.json"
         if not path.exists():
             return None
@@ -103,8 +162,18 @@ class CoachService:
             logger.error("Failed to load session %s: %s", session_id, e)
             return None
 
+
     def list_sessions(self, deck_id: str = None) -> List[dict]:
-        """List all coaching sessions, optionally filtered by deck."""
+        """List coaching sessions from SQLite, falling back to disk."""
+        # Try SQLite first
+        if _DB_AVAILABLE:
+            try:
+                rows = _db_list_sessions(deck_id)
+                if rows is not None:
+                    return rows
+            except Exception as e:
+                logger.warning("SQLite list_sessions failed: %s", e)
+        # Fallback to disk
         if not COACH_SESSIONS_DIR.exists():
             return []
         sessions = []
@@ -125,6 +194,7 @@ class CoachService:
             except Exception:
                 continue
         return sessions
+
 
     # ── Main Coaching Pipeline ─────────────────────────────────
 

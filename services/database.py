@@ -136,6 +136,28 @@ def init_collection_db() -> None:
             FOREIGN KEY (deck_id) REFERENCES decks(id) ON DELETE CASCADE
         );
 
+                CREATE TABLE IF NOT EXISTS coach_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL UNIQUE,
+            deck_id TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            model_used TEXT DEFAULT '',
+            prompt_tokens INTEGER DEFAULT 0,
+            completion_tokens INTEGER DEFAULT 0,
+            summary TEXT DEFAULT '',
+            goals_json TEXT DEFAULT '{}',
+            cuts_json TEXT DEFAULT '[]',
+            adds_json TEXT DEFAULT '[]',
+            heuristic_hints_json TEXT DEFAULT '[]',
+            mana_base_advice TEXT DEFAULT '',
+            raw_text TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cs_session_id ON coach_sessions(session_id);
+        CREATE INDEX IF NOT EXISTS idx_cs_deck_id ON coach_sessions(deck_id);
+        CREATE INDEX IF NOT EXISTS idx_cs_timestamp ON coach_sessions(timestamp);
+
         CREATE INDEX IF NOT EXISTS idx_dc_deck_id ON deck_cards(deck_id);
         CREATE INDEX IF NOT EXISTS idx_dc_scryfall_id ON deck_cards(scryfall_id);
         CREATE INDEX IF NOT EXISTS idx_dk_commander ON decks(commander_scryfall_id);
@@ -302,3 +324,105 @@ def _build_collection_filters(
         conditions.append("quantity <= ?"); params.append(qtyMax)
     where_str = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     return where_str, params
+
+
+# ══════════════════════════════════════════════════════════════
+# Coach Session DB Helpers
+# ══════════════════════════════════════════════════════════════
+
+
+def save_coach_session(session_data: dict) -> int:
+    """Insert or update a coach session in SQLite. Returns the row id."""
+    conn = _get_db_conn()
+    existing = conn.execute(
+        "SELECT id FROM coach_sessions WHERE session_id = ?",
+        (session_data["session_id"],),
+    ).fetchone()
+    if existing:
+        conn.execute(
+            """UPDATE coach_sessions SET
+                deck_id=?, timestamp=?, model_used=?, prompt_tokens=?,
+                completion_tokens=?, summary=?, goals_json=?, cuts_json=?,
+                adds_json=?, heuristic_hints_json=?, mana_base_advice=?,
+                raw_text=?
+            WHERE session_id=?""",
+            (
+                session_data.get("deck_id", ""),
+                session_data.get("timestamp", ""),
+                session_data.get("model_used", ""),
+                session_data.get("prompt_tokens", 0),
+                session_data.get("completion_tokens", 0),
+                session_data.get("summary", ""),
+                session_data.get("goals_json", "{}"),
+                session_data.get("cuts_json", "[]"),
+                session_data.get("adds_json", "[]"),
+                session_data.get("heuristic_hints_json", "[]"),
+                session_data.get("mana_base_advice", ""),
+                session_data.get("raw_text", ""),
+                session_data["session_id"],
+            ),
+        )
+        conn.commit()
+        return existing["id"]
+    else:
+        cur = conn.execute(
+            """INSERT INTO coach_sessions
+                (session_id, deck_id, timestamp, model_used, prompt_tokens,
+                 completion_tokens, summary, goals_json, cuts_json, adds_json,
+                 heuristic_hints_json, mana_base_advice, raw_text)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                session_data["session_id"],
+                session_data.get("deck_id", ""),
+                session_data.get("timestamp", ""),
+                session_data.get("model_used", ""),
+                session_data.get("prompt_tokens", 0),
+                session_data.get("completion_tokens", 0),
+                session_data.get("summary", ""),
+                session_data.get("goals_json", "{}"),
+                session_data.get("cuts_json", "[]"),
+                session_data.get("adds_json", "[]"),
+                session_data.get("heuristic_hints_json", "[]"),
+                session_data.get("mana_base_advice", ""),
+                session_data.get("raw_text", ""),
+            ),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def load_coach_session(session_id: str) -> Optional[dict]:
+    """Load a single coach session by session_id."""
+    conn = _get_db_conn()
+    row = conn.execute(
+        "SELECT * FROM coach_sessions WHERE session_id = ?", (session_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def list_coach_sessions(deck_id: str = None) -> list:
+    """List coach sessions, optionally filtered by deck_id."""
+    conn = _get_db_conn()
+    if deck_id:
+        rows = conn.execute(
+            "SELECT session_id, deck_id, timestamp, summary, created_at "
+            "FROM coach_sessions WHERE deck_id = ? ORDER BY timestamp DESC",
+            (deck_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT session_id, deck_id, timestamp, summary, created_at "
+            "FROM coach_sessions ORDER BY timestamp DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_coach_session(session_id: str) -> bool:
+    """Delete a coach session. Returns True if a row was deleted."""
+    conn = _get_db_conn()
+    cur = conn.execute(
+        "DELETE FROM coach_sessions WHERE session_id = ?", (session_id,)
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
