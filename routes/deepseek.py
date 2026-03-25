@@ -365,7 +365,7 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
         # Flush ML decisions once here — pass engine=None to _finish_sim
         # to prevent a second flush that would produce an empty .jsonl file.
         ml_decisions = engine.flush_ml_decisions()
-        if ml_decisions:
+        if ml_decisions and brain and brain._connected:
             ml_path = os.path.join('results',
                                    f'ml-decisions-sim-{sim_id[:8]}.jsonl')
             os.makedirs('results', exist_ok=True)
@@ -373,8 +373,15 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
                 for dec in ml_decisions:
                     mf.write(json.dumps(dec) + '\n')
             logger.info(f'[ML Data] Wrote {len(ml_decisions)} decision snapshots to {ml_path}')
-        else:
+                elif ml_decisions and (not brain or not brain._connected):
+                              logger.warning(
+                f'[ML Data] Skipping {len(ml_decisions)} snapshots for sim {sim_id} — '
+                f'brain not connected, all actions are heuristic fallback '
+                f'(not useful for supervised training)'
+            )
+                          else:
             logger.warning(f'[ML Data] No decision snapshots captured for sim {sim_id} (0 decisions)')
+                              
 
         ds_stats = brain.get_stats() if brain else {}
         summary = _build_summary(
