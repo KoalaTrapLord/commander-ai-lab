@@ -103,7 +103,7 @@ def _resolve_commander(req: DeckGenerationRequest) -> dict:
     # Try scryfall_id first
     if req.commander_scryfall_id:
         row = conn.execute(
-            "SELECT name, type_line, color_identity, mana_cost, scryfall_id FROM collection_entries WHERE scryfall_id = ? LIMIT 1",
+            "SELECT name, type_line, color_identity, mana_cost, scryfall_id, oracle_text FROM collection_entries WHERE scryfall_id = ? LIMIT 1",
             (req.commander_scryfall_id,)
         ).fetchone()
         if row:
@@ -119,6 +119,7 @@ def _resolve_commander(req: DeckGenerationRequest) -> dict:
                 "color_identity": ci,
                 "type_line": row["type_line"],
                 "mana_cost": row["mana_cost"] or "",
+                                    "oracle_text": row["oracle_text"] or "",
                 "image_url": f"https://api.scryfall.com/cards/{row['scryfall_id']}?format=image&version=normal",
             }
         # Fallback to Scryfall API
@@ -136,7 +137,7 @@ def _resolve_commander(req: DeckGenerationRequest) -> dict:
     if req.commander_name:
         name_lower = req.commander_name.strip().lower()
         row = conn.execute(
-            "SELECT name, type_line, color_identity, mana_cost, scryfall_id FROM collection_entries WHERE LOWER(name) = ? LIMIT 1",
+            "SELECT name, type_line, color_identity, mana_cost, scryfall_id, oracle_text FROM collection_entries WHERE LOWER(name) = ? LIMIT 1",
             (name_lower,)
         ).fetchone()
         if row:
@@ -152,6 +153,7 @@ def _resolve_commander(req: DeckGenerationRequest) -> dict:
                 "color_identity": ci,
                 "type_line": row["type_line"],
                 "mana_cost": row["mana_cost"] or "",
+                                    "oracle_text": row["oracle_text"] or "",
                 "image_url": f"https://api.scryfall.com/cards/{row['scryfall_id']}?format=image&version=normal",
             }
 
@@ -183,6 +185,7 @@ def _scryfall_to_commander(data: dict) -> dict:
         "color_identity": ci,
         "type_line": data.get("type_line", ""),
         "mana_cost": data.get("mana_cost", ""),
+                "oracle_text": data.get("oracle_text", ""),
         "image_url": image_uris.get("normal", ""),
     }
 
@@ -233,6 +236,31 @@ def _get_collection_for_colors(color_identity: list) -> list:
     return valid
 
 
+# ── Oracle-text keyword extraction for scoring ────────────────────────
+_ORACLE_STOP_WORDS = frozenset({
+    'a', 'an', 'the', 'of', 'to', 'and', 'or', 'is', 'it', 'its',
+    'in', 'on', 'at', 'for', 'by', 'with', 'from', 'as', 'if',
+    'that', 'this', 'you', 'your', 'up', 'all', 'each', 'may',
+    'can', 'one', 'two', 'three', 'four', 'five', 'card', 'cards',
+    'target', 'player', 'creature', 'creatures', 'spell', 'spells',
+    'permanent', 'permanents', 'turn', 'end', 'step', 'phase',
+    'mana', 'color', 'pay', 'cost', 'tap', 'untap', 'put', 'get',
+    'has', 'have', 'are', 'be', 'been', 'was', 'were', 'do', 'does',
+    'any', 'no', 'not', 'only', 'also', 'then', 'when', 'whenever',
+    'where', 'which', 'who', 'them', 'they', 'their', 'other',
+    'more', 'less', 'than', 'into', 'under', 'over', 'until',
+    'would', 'could', 'instead', 'about', 'number', 'equal',
+})
+
+
+def _extract_oracle_keywords(oracle_text: str) -> set[str]:
+    """Extract meaningful keywords from oracle text, filtering stop words."""
+    if not oracle_text:
+        return set()
+    cleaned = re.sub(r'\([^)]*\)', '', oracle_text)
+    tokens = re.findall(r'[a-z]{3,}', cleaned.lower())
+    return {t for t in tokens if t not in _ORACLE_STOP_WORDS}
+
 def _generate_deck(req: DeckGenerationRequest) -> dict:
     """
     Core deck generation algorithm.
@@ -251,6 +279,8 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
 
     color_identity = req.color_identity or commander.get("color_identity", [])
     log_deckgen.info(f"  Commander: {commander['name']}, CI: {color_identity}")
+        commander_keywords = _extract_oracle_keywords(commander.get("oracle_text", ""))
+    log_deckgen.info(f"  Commander keywords ({len(commander_keywords)}): {sorted(commander_keywords)[:15]}")
 
     # 2. Load collection
     collection = _get_collection_for_colors(color_identity)
@@ -317,6 +347,7 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
             )
             candidate_map[key] = {
                 "scryfall_id": card.get("scryfall_id", ""),
+                                    "oracle_text": card.get("oracle_text", ""),
                 "name": name,
                 "type_line": type_line,
                 "mana_cost": card.get("mana_cost", ""),
@@ -409,6 +440,17 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
                 score += 5
             elif cmc <= 4:
                 score += 3
+                                    # Oracle-text keyword overlap with commander
+                    card_oracle = card.get("oracle_text") or ""
+                    if commander_keywords and card_oracle:
+                        card_kw = _extract_oracle_keywords(card_oracle)
+                        overlap = len(commander_keywords & card_kw)
+                        if overlap >= 4:
+                            score += 12
+                        elif overlap >= 2:
+                            score += 7
+                        elif overlap >= 1:
+                            score += 3
             card["_score"] = score
         cards.sort(key=lambda x: x["_score"], reverse=True)
 
