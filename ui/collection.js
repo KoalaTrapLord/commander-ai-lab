@@ -2736,7 +2736,7 @@ const Collection = (() => {
             // Refresh collection after short delay
             setTimeout(() => {
                 closeScan();
-                loadCollection();
+                fetchCollection();
             }, 1500);
         } catch (e) {
             if (statusEl) statusEl.innerHTML = '<div class="coll-scan-error-msg">Failed: ' + escapeHtml(e.message) + '</div>';

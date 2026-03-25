@@ -1541,7 +1541,7 @@ async def deck_gen_v3_export_shopping(req: DeckGenV3Request):
     shopping = []
     total = 0.0
     for card in cards:
-        if not card.get('owned', True) and card.get('status') != 'substituted':
+        if not card.get('from_collection', False) and card.get('status') != 'substituted':
             price = card.get('estimated_price_usd', 0)
             shopping.append({
                 'name': card.get('name', ''),
