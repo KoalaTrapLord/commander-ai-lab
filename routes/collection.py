@@ -45,6 +45,103 @@ from services.scryfall import (
 router = APIRouter(tags=["collection"])
 
 
+@router.get("/api/collection/stats")
+async def collection_stats():
+    """Aggregate collection statistics for the dashboard."""
+    conn = _get_db_conn()
+    stats = {}
+
+    # Total cards and unique cards
+    row = conn.execute(
+        "SELECT COUNT(*) as total_rows, COALESCE(SUM(quantity),0) as total_cards, "
+        "COALESCE(SUM(tcg_price * quantity),0) as total_value "
+        "FROM collection_entries"
+    ).fetchone()
+    stats["totalUniqueCards"] = row["total_rows"]
+    stats["totalCards"] = row["total_cards"]
+    stats["totalValue"] = round(row["total_value"], 2)
+
+    # CMC distribution (0-7+)
+    cmc_rows = conn.execute(
+        "SELECT CASE WHEN cmc >= 7 THEN 7 ELSE CAST(cmc AS INTEGER) END as cmc_bucket, "
+        "SUM(quantity) as count FROM collection_entries GROUP BY cmc_bucket ORDER BY cmc_bucket"
+    ).fetchall()
+    stats["cmcCurve"] = {str(r["cmc_bucket"]): r["count"] for r in cmc_rows}
+
+    # Color identity distribution
+    color_rows = conn.execute(
+        "SELECT color_identity, SUM(quantity) as count FROM collection_entries GROUP BY color_identity"
+    ).fetchall()
+    color_counts = {"W": 0, "U": 0, "B": 0, "R": 0, "G": 0, "C": 0}
+    for r in color_rows:
+        ci = r["color_identity"] or "[]"
+        try:
+            colors = json.loads(ci) if isinstance(ci, str) else ci
+        except (json.JSONDecodeError, TypeError):
+            colors = []
+        qty = r["count"] or 0
+        if not colors:
+            color_counts["C"] += qty
+        else:
+            for c in colors:
+                if c in color_counts:
+                    color_counts[c] += qty
+    stats["colorDistribution"] = color_counts
+
+    # Type distribution
+    type_rows = conn.execute(
+        "SELECT type_line, SUM(quantity) as count FROM collection_entries GROUP BY type_line"
+    ).fetchall()
+    type_counts = {}
+    for r in type_rows:
+        tl = r["type_line"] or ""
+        qty = r["count"] or 0
+        for t in ["Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land"]:
+            if t in tl:
+                type_counts[t] = type_counts.get(t, 0) + qty
+    stats["typeDistribution"] = type_counts
+
+    # Category/role distribution
+    cat_rows = conn.execute(
+        "SELECT category, SUM(quantity) as count FROM collection_entries "
+        "WHERE category != '' AND category != '[]' GROUP BY category"
+    ).fetchall()
+    cat_counts = {}
+    for r in cat_rows:
+        raw = r["category"] or "[]"
+        qty = r["count"] or 0
+        try:
+            cats = json.loads(raw) if isinstance(raw, str) else raw
+        except (json.JSONDecodeError, TypeError):
+            cats = []
+        if isinstance(cats, list):
+            for c in cats:
+                cat_counts[c] = cat_counts.get(c, 0) + qty
+    stats["categoryDistribution"] = cat_counts
+
+    # Rarity distribution
+    rarity_rows = conn.execute(
+        "SELECT LOWER(rarity) as rarity, SUM(quantity) as count FROM collection_entries "
+        "WHERE rarity != '' GROUP BY LOWER(rarity)"
+    ).fetchall()
+    stats["rarityDistribution"] = {r["rarity"]: r["count"] for r in rarity_rows}
+
+    # Top 10 most valuable cards
+    top_value = conn.execute(
+        "SELECT name, tcg_price, quantity FROM collection_entries "
+        "WHERE tcg_price > 0 ORDER BY tcg_price DESC LIMIT 10"
+    ).fetchall()
+    stats["topValueCards"] = [{"name": r["name"], "price": r["tcg_price"], "qty": r["quantity"]} for r in top_value]
+
+    # Average CMC (excluding lands)
+    avg_row = conn.execute(
+        "SELECT AVG(cmc) as avg_cmc FROM collection_entries WHERE type_line NOT LIKE '%Land%'"
+    ).fetchone()
+    stats["avgCmc"] = round(avg_row["avg_cmc"] or 0, 2)
+
+    return stats
+
+
 @router.get("/api/collection/export")
 async def export_collection(
     format: str = "INTERNAL_CSV",

@@ -410,6 +410,148 @@ const Collection = (() => {
         renderCountBadge();
     }
 
+    // ── Stats Dashboard ──────────────────────────────────────
+    let statsData = null;
+    let statsOpen = false;
+
+    async function fetchStats() {
+        try {
+            const res = await fetch(`${API_BASE}/api/collection/stats`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            statsData = await res.json();
+        } catch (err) {
+            console.error('[Collection] fetchStats error:', err);
+            statsData = null;
+        }
+    }
+
+    function toggleStats() {
+        statsOpen = !statsOpen;
+        const panel = document.getElementById('coll-stats-panel');
+        if (!panel) return;
+        if (statsOpen) {
+            if (!statsData) {
+                panel.innerHTML = '<div class="coll-stats-loading">Loading stats…</div>';
+                panel.style.display = 'block';
+                fetchStats().then(() => renderStatsPanel());
+            } else {
+                renderStatsPanel();
+            }
+            panel.style.display = 'block';
+        } else {
+            panel.style.display = 'none';
+        }
+    }
+
+    function renderStatsPanel() {
+        const panel = document.getElementById('coll-stats-panel');
+        if (!panel || !statsData) return;
+        const s = statsData;
+
+        // CMC curve bar chart (CSS-only)
+        const cmcMax = Math.max(...Object.values(s.cmcCurve || {}), 1);
+        const cmcBars = [0,1,2,3,4,5,6,7].map(i => {
+            const count = (s.cmcCurve || {})[String(i)] || 0;
+            const pct = Math.round((count / cmcMax) * 100);
+            const label = i === 7 ? '7+' : String(i);
+            return `<div class="coll-stat-bar-col">
+                <div class="coll-stat-bar" style="height:${pct}%" title="${count}"></div>
+                <span class="coll-stat-bar-label">${label}</span>
+            </div>`;
+        }).join('');
+
+        // Color distribution
+        const colorTotal = Math.max(Object.values(s.colorDistribution || {}).reduce((a,b) => a+b, 0), 1);
+        const colorBars = ['W','U','B','R','G','C'].map(c => {
+            const count = (s.colorDistribution || {})[c] || 0;
+            const pct = Math.round((count / colorTotal) * 100);
+            const ci = COLOR_MAP[c];
+            return `<div class="coll-stat-color-bar">
+                <span class="coll-stat-color-pip" style="background:${ci.bg};color:${ci.color}">${ci.label}</span>
+                <div class="coll-stat-hbar-track"><div class="coll-stat-hbar" style="width:${pct}%;background:${ci.bg}"></div></div>
+                <span class="coll-stat-hbar-val">${count}</span>
+            </div>`;
+        }).join('');
+
+        // Type distribution
+        const typeTotal = Math.max(Object.values(s.typeDistribution || {}).reduce((a,b) => a+b, 0), 1);
+        const typeBars = Object.entries(s.typeDistribution || {}).sort((a,b) => b[1]-a[1]).map(([t, count]) => {
+            const pct = Math.round((count / typeTotal) * 100);
+            return `<div class="coll-stat-type-row">
+                <span class="coll-stat-type-label">${escapeHtml(t)}</span>
+                <div class="coll-stat-hbar-track"><div class="coll-stat-hbar coll-stat-hbar-type" style="width:${pct}%"></div></div>
+                <span class="coll-stat-hbar-val">${count}</span>
+            </div>`;
+        }).join('');
+
+        // Rarity distribution
+        const rarityOrder = ['common','uncommon','rare','mythic'];
+        const rarityColors = {common:'#706f6f', uncommon:'#859ba6', rare:'#c9a849', mythic:'#d35400'};
+        const rarityTotal = Math.max(Object.values(s.rarityDistribution || {}).reduce((a,b) => a+b, 0), 1);
+        const rarityBars = rarityOrder.map(r => {
+            const count = (s.rarityDistribution || {})[r] || 0;
+            const pct = Math.round((count / rarityTotal) * 100);
+            return `<div class="coll-stat-type-row">
+                <span class="coll-stat-type-label" style="color:${rarityColors[r] || '#ccc'}">${r.charAt(0).toUpperCase() + r.slice(1)}</span>
+                <div class="coll-stat-hbar-track"><div class="coll-stat-hbar" style="width:${pct}%;background:${rarityColors[r] || '#555'}"></div></div>
+                <span class="coll-stat-hbar-val">${count}</span>
+            </div>`;
+        }).join('');
+
+        // Top value cards
+        const topCards = (s.topValueCards || []).map(c =>
+            `<div class="coll-stat-top-row"><span>${escapeHtml(c.name)}</span><span>$${Number(c.price).toFixed(2)}</span></div>`
+        ).join('');
+
+        // Category/role coverage
+        const catEntries = Object.entries(s.categoryDistribution || {}).sort((a,b) => b[1]-a[1]).slice(0, 12);
+        const catMax = Math.max(...catEntries.map(e => e[1]), 1);
+        const catBars = catEntries.map(([cat, count]) => {
+            const pct = Math.round((count / catMax) * 100);
+            return `<div class="coll-stat-type-row">
+                <span class="coll-stat-type-label">${escapeHtml(cat)}</span>
+                <div class="coll-stat-hbar-track"><div class="coll-stat-hbar coll-stat-hbar-cat" style="width:${pct}%"></div></div>
+                <span class="coll-stat-hbar-val">${count}</span>
+            </div>`;
+        }).join('');
+
+        panel.innerHTML = `
+            <div class="coll-stats-grid">
+                <div class="coll-stats-summary">
+                    <div class="coll-stat-card"><div class="coll-stat-num">${(s.totalCards || 0).toLocaleString()}</div><div class="coll-stat-label">Total Cards</div></div>
+                    <div class="coll-stat-card"><div class="coll-stat-num">${(s.totalUniqueCards || 0).toLocaleString()}</div><div class="coll-stat-label">Unique</div></div>
+                    <div class="coll-stat-card"><div class="coll-stat-num">$${(s.totalValue || 0).toLocaleString(undefined,{minimumFractionDigits:2})}</div><div class="coll-stat-label">Total Value</div></div>
+                    <div class="coll-stat-card"><div class="coll-stat-num">${s.avgCmc || 0}</div><div class="coll-stat-label">Avg CMC</div></div>
+                </div>
+                <div class="coll-stats-section">
+                    <h4>CMC Curve</h4>
+                    <div class="coll-stat-bar-chart">${cmcBars}</div>
+                </div>
+                <div class="coll-stats-section">
+                    <h4>Color Distribution</h4>
+                    ${colorBars}
+                </div>
+                <div class="coll-stats-section">
+                    <h4>Type Distribution</h4>
+                    ${typeBars}
+                </div>
+                <div class="coll-stats-section">
+                    <h4>Rarity</h4>
+                    ${rarityBars}
+                </div>
+                <div class="coll-stats-section">
+                    <h4>Role Coverage</h4>
+                    ${catBars || '<div class="coll-stats-empty">No categories assigned yet</div>'}
+                </div>
+                <div class="coll-stats-section">
+                    <h4>Top Value Cards</h4>
+                    ${topCards || '<div class="coll-stats-empty">No priced cards</div>'}
+                </div>
+            </div>
+        `;
+    }
+
+
     async function fetchCardDetail(cardId) {
         const res = await fetch(`${API_BASE}/api/collection/${cardId}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -489,10 +631,13 @@ const Collection = (() => {
                     <button class="coll-export-btn" onclick="Collection.openExport()">Export</button>
                     <button class="coll-autoclassify-btn" onclick="Collection.autoClassify()" title="Auto-detect categories (Ramp, Draw, Removal, etc.) for uncategorized cards">Auto-Classify</button>
                     <button class="coll-reenrich-btn" onclick="Collection.reEnrich()" title="Re-fetch all card data from Scryfall">Refresh Data</button>
+          <button class="coll-stats-btn" onclick="Collection.toggleStats()" title="Show collection statistics dashboard">📊 Stats</button>
                     <a href="deckbuilder.html" class="coll-nav-link" style="color:var(--lab-purple);border-color:var(--lab-purple)">⚔ Deck Builder</a>
                     <a href="deckgenerator.html" class="coll-nav-link" style="color:var(--lab-warning);border-color:var(--lab-warning)">⚡ Auto Gen</a>
                 </div>
             </div>
+        <!-- Stats Dashboard Panel -->
+        <div id="coll-stats-panel" class="coll-stats-panel" style="display:none"></div>
 
             <!-- Main -->
             <div class="coll-main">
@@ -2851,5 +2996,6 @@ const Collection = (() => {
         popoverAddCatFromInput,
         reEnrich,
         autoClassify,
+        toggleStats,
     };
 })();
