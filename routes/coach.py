@@ -1,6 +1,6 @@
 """
 routes/coach.py
-===============
+================
 LLM-powered deck coaching endpoints:
   GET  /api/coach/status
   GET  /api/coach/decks
@@ -19,6 +19,9 @@ Globals:
   _coach_service, _coach_embeddings, _coach_llm
   _deck_gen_v3, _deck_gen_v3_error
   init_coach_service(), _build_deck_report_from_db()
+
+Async-safety: every DB and HTTP call in this module uses
+async helpers so nothing blocks the FastAPI event loop.
 """
 from __future__ import annotations
 
@@ -34,672 +37,496 @@ from fastapi.responses import StreamingResponse
 from models.requests import CoachRequestBody, CoachChatMessage, CoachChatRequest, CoachApplyRequest, CoachGoalsRequest
 
 from models.state import CFG
-from services.database import _get_db_conn
+from services.async_db import (
+    async_get_db, async_fetchall, async_fetchone,
+    async_execute, async_execute_commit, async_commit,
+)
 from services.deck_service import _compute_deck_analysis
 from services.logging import log_coach, log_deckgen
 import httpx
+
 from coach.config import COACH_PROVIDER, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, DECK_GEN_PROVIDER, DECK_GEN_MODEL
 
 LLM_TIMEOUT = 120  # seconds
 
 router = APIRouter(tags=["coach"])
 
-
-# ════════════════════════════════════════════════════════════
-# Coach Service (LLM-powered deck coaching)
-# ════════════════════════════════════════════════════════════
-
 # Global coach instances (initialized at startup)
 _coach_service = None
 _coach_embeddings = None
 _coach_llm = None
-_deck_gen_v3 = None  # V3 Deck Generator (Anthropic Claude structured output)
-_deck_gen_v3_error = None  # Error message if V3 init failed
+_deck_gen_v3 = None
+_deck_gen_v3_error = None
 
 
 def init_coach_service():
-    """Initialize the coach service with LLM client and embeddings."""
-    global _coach_service, _coach_embeddings, _coach_llm, _deck_gen_v3, _deck_gen_v3_error
+  """Initialize the coach service with LLM client and embeddings."""
+  global _coach_service, _coach_embeddings, _coach_llm, _deck_gen_v3, _deck_gen_v3_error
+  try:
+    from coach.llm_client import LLMClient
+    from coach.embeddings import MTGEmbeddingIndex
+    from coach.coach_service import CoachService
+    from coach.config import ensure_dirs
+    from services.database import _get_db_conn
+    ensure_dirs()
+    _coach_llm = LLMClient()
+    _coach_embeddings = MTGEmbeddingIndex()
     try:
-        from coach.llm_client import LLMClient
-        from coach.embeddings import MTGEmbeddingIndex
-        from coach.coach_service import CoachService
-        from coach.config import ensure_dirs
-
-        ensure_dirs()
-
-        _coach_llm = LLMClient()
-        _coach_embeddings = MTGEmbeddingIndex()
-
-        # Try to load embeddings (non-blocking — download happens on first use)
-        try:
-            from coach.config import EMBEDDINGS_NPZ
-            if EMBEDDINGS_NPZ.exists():
-                _coach_embeddings.load()
-                log_coach.info(f"  Coach:        Embeddings loaded ({_coach_embeddings.card_count} cards)")
-            else:
-                log_coach.warning("  Coach:        Embeddings not yet downloaded (will download on first use)")
-        except Exception as e:
-            log_coach.error(f"  Coach:        Embeddings load failed: {e}")
-
-        _coach_service = CoachService(_coach_llm, _coach_embeddings)
-
-        # Log coach LLM provider
-        if COACH_PROVIDER == "anthropic":
-            log_coach.info(f"  Coach LLM:    Anthropic Claude ({ANTHROPIC_MODEL})")
-        else:
-            # Only probe Ollama when actually using it
-            llm_status = _coach_llm.check_connection()
-            if llm_status.get("connected"):
-                log_coach.info(f"  Coach LLM:    Connected ({llm_status.get('active_model', 'unknown')})")
-            else:
-                log_coach.warning(f"  Coach LLM:    Not connected (start Ollama on localhost:11434)")
-
-        # Initialize V3 Deck Generator
-        _deck_gen_v3_error = None
-        try:
-            from src.commander_ai_lab.deck_builder.adapter import DeckBuilderAdapter
-            if DECK_GEN_PROVIDER == "anthropic":
-                _deck_gen_v3 = DeckBuilderAdapter(
-                    db_conn_factory=_get_db_conn,
-                    model=DECK_GEN_MODEL,
-                )
-                log_deckgen.info(f"  Deck Gen V3:  Initialized (Anthropic Claude {DECK_GEN_MODEL})")
-            else:
-                from coach.config import LLM_MODEL
-                _deck_gen_v3 = DeckBuilderAdapter(
-                    db_conn_factory=_get_db_conn,
-                    model=LLM_MODEL,
-                )
-                log_deckgen.info(f"  Deck Gen V3:  Initialized (Ollama {LLM_MODEL})")
-        except ImportError as e:
-            _deck_gen_v3_error = f"Missing dependency: {e}"
-            log_deckgen.error(f"  Deck Gen V3:  {_deck_gen_v3_error}")
-            _deck_gen_v3 = None
-        except Exception as e:
-            _deck_gen_v3_error = str(e)
-            log_deckgen.error(f"  Deck Gen V3:  Failed to initialize: {e}")
-            _deck_gen_v3 = None
-
+      from coach.config import EMBEDDINGS_NPZ
+      if EMBEDDINGS_NPZ.exists():
+        _coach_embeddings.load()
+        log_coach.info(f"  Coach: Embeddings loaded ({_coach_embeddings.card_count} cards)")
+      else:
+        log_coach.warning("  Coach: Embeddings not yet downloaded")
     except Exception as e:
-        log_coach.error(f"  Coach:        Failed to initialize: {e}\n{traceback.format_exc()}")
-        _coach_service = None
+      log_coach.error(f"  Coach: Embeddings load failed: {e}")
+    _coach_service = CoachService(_coach_llm, _coach_embeddings)
+    if COACH_PROVIDER == "anthropic":
+      log_coach.info(f"  Coach LLM: Anthropic Claude ({ANTHROPIC_MODEL})")
+    else:
+      llm_status = _coach_llm.check_connection_sync()
+      if llm_status.get("connected"):
+        log_coach.info(f"  Coach LLM: Connected ({llm_status.get('active_model', 'unknown')})")
+      else:
+        log_coach.warning("  Coach LLM: Not connected (start Ollama on localhost:11434)")
+    _deck_gen_v3_error = None
+    try:
+      from src.commander_ai_lab.deck_builder.adapter import DeckBuilderAdapter
+      if DECK_GEN_PROVIDER == "anthropic":
+        _deck_gen_v3 = DeckBuilderAdapter(db_conn_factory=_get_db_conn, model=DECK_GEN_MODEL)
+        log_deckgen.info(f"  Deck Gen V3: Initialized (Anthropic Claude {DECK_GEN_MODEL})")
+      else:
+        from coach.config import LLM_MODEL
+        _deck_gen_v3 = DeckBuilderAdapter(db_conn_factory=_get_db_conn, model=LLM_MODEL)
+        log_deckgen.info(f"  Deck Gen V3: Initialized (Ollama {LLM_MODEL})")
+    except ImportError as e:
+      _deck_gen_v3_error = f"Missing dependency: {e}"
+      log_deckgen.error(f"  Deck Gen V3: {_deck_gen_v3_error}")
+      _deck_gen_v3 = None
+    except Exception as e:
+      _deck_gen_v3_error = str(e)
+      log_deckgen.error(f"  Deck Gen V3: Failed to initialize: {e}")
+      _deck_gen_v3 = None
+  except Exception as e:
+    log_coach.error(f"  Coach: Failed to initialize: {e}\n{traceback.format_exc()}")
+    _coach_service = None
 
 
 @router.get("/api/coach/status")
 async def coach_status():
-    """Check coach subsystem health."""
-    if _coach_service is None:
-        return {"llmConnected": False, "embeddingsLoaded": False,
-                "embeddingCards": 0, "deckReportsAvailable": 0,
-                "error": "Coach service not initialized"}
-    status = _coach_service.get_status()
-    return status.model_dump()
+  if _coach_service is None:
+    return {"llmConnected": False, "embeddingsLoaded": False, "embeddingCards": 0, "deckReportsAvailable": 0, "error": "Coach service not initialized"}
+  status = _coach_service.get_status()
+  return status.model_dump()
 
 
 @router.get("/api/coach/decks")
 async def coach_list_decks():
-    """List all decks available for coaching (from deck builder DB)."""
-    conn = _get_db_conn()
-    rows = conn.execute(
-        """SELECT d.id as deck_id, d.name as deck_name, d.commander_name,
-                  COUNT(dc.id) as card_count
-           FROM decks d
-           LEFT JOIN deck_cards dc ON dc.deck_id = d.id
-           GROUP BY d.id
-           ORDER BY d.name"""
-    ).fetchall()
-
-    # Also get report availability from coach service
-    report_ids = set()
-    if _coach_service:
-        report_ids = set(_coach_service.list_deck_reports())
-
-    decks = []
-    for r in rows:
-        deck_name = r["deck_name"]
-        has_report = any(
-            deck_name.lower().replace(" ", "-") == rid.lower() or
-            deck_name.lower() == rid.lower()
-            for rid in report_ids
-        )
-        decks.append({
-            "deck_id": r["deck_id"],
-            "deck_name": r["deck_name"],
-            "commander": r["commander_name"] or "",
-            "card_count": r["card_count"],
-            "has_report": has_report,
-            "report_count": 1 if has_report else 0,
-            "last_report_date": None,
-        })
-    return decks
+  """List all decks available for coaching (async DB)."""
+  rows = await async_fetchall(
+    """SELECT d.id as deck_id, d.name as deck_name, d.commander_name,
+       COUNT(dc.id) as card_count
+    FROM decks d LEFT JOIN deck_cards dc ON dc.deck_id = d.id
+    GROUP BY d.id ORDER BY d.name"""
+  )
+  report_ids = set()
+  if _coach_service:
+    report_ids = set(_coach_service.list_deck_reports())
+  decks = []
+  for r in rows:
+    deck_name = r["deck_name"]
+    has_report = any(
+      deck_name.lower().replace(" ", "-") == rid.lower()
+      or deck_name.lower() == rid.lower()
+      for rid in report_ids
+    )
+    decks.append({
+      "deck_id": r["deck_id"], "deck_name": r["deck_name"],
+      "commander": r["commander_name"] or "",
+      "card_count": r["card_count"], "has_report": has_report,
+      "report_count": 1 if has_report else 0, "last_report_date": None,
+    })
+  return decks
 
 
 @router.get("/api/coach/decks/{deck_id}/report")
 async def coach_get_report(deck_id: str):
-    """Get the latest DeckReport for a deck."""
-    if _coach_service is None:
-        raise HTTPException(500, "Coach service not initialized")
-    report = _coach_service.load_deck_report(deck_id)
-    if report is None:
-        raise HTTPException(404, f"Deck report not found: {deck_id}")
-    return report.model_dump()
+  if _coach_service is None:
+    raise HTTPException(500, "Coach service not initialized")
+  report = _coach_service.load_deck_report(deck_id)
+  if report is None:
+    raise HTTPException(404, f"Deck report not found: {deck_id}")
+  return report.model_dump()
 
 
 @router.post("/api/coach/decks/{deck_id}")
 async def coach_run_session(deck_id: str, body: CoachRequestBody = None):
-    """Trigger a coaching session for a deck."""
-    if _coach_service is None:
-        raise HTTPException(500, "Coach service not initialized")
-
-    if _coach_embeddings and not _coach_embeddings.loaded:
-        try:
-            _coach_embeddings.load(force_download=True)
-        except Exception as e:
-            log_coach.error(f"  Coach: Embeddings download failed: {e}")
-
-    goals = None
-    if body and body.goals:
-        from coach.models import CoachGoals
-        try:
-            goals = CoachGoals(**body.goals)
-        except Exception:
-            goals = None
-
-    fallback_report = None
+  if _coach_service is None:
+    raise HTTPException(500, "Coach service not initialized")
+  if _coach_embeddings and not _coach_embeddings.loaded:
     try:
-        fallback_report = _build_deck_report_from_db(deck_id)
+      _coach_embeddings.load(force_download=True)
     except Exception as e:
-        log_coach.error(f"  Coach: Fallback report build failed for '{deck_id}': {e}")
-
+      log_coach.error(f"  Coach: Embeddings download failed: {e}")
+  goals = None
+  if body and body.goals:
+    from coach.models import CoachGoals
     try:
-        session = await _coach_service.run_coaching_session(deck_id, goals, fallback_report=fallback_report)
-        return session.model_dump()
-    except ValueError as e:
-        raise HTTPException(404, str(e))
-    except ConnectionError as e:
-        raise HTTPException(503, f"LLM connection failed: {e}")
-    except Exception as e:
-        raise HTTPException(500, f"Coach session failed: {e}")
-
-
-def _build_deck_report_from_db(deck_slug: str):
-    """
-    Build a lightweight DeckReport from the deck builder DB when no
-    simulation report exists. Allows the coach to analyze deck composition
-    even without simulation data.
-    """
-    from coach.models import DeckReport, CardPerformance, DeckStructure
-    conn = _get_db_conn()
-
-    import re
-    if not deck_slug or len(deck_slug) > 200:
-        return None
-    deck_slug = re.sub(r'[^a-zA-Z0-9 _-]', '', deck_slug)
-    if not deck_slug:
-        return None
-
-    slug_lower = deck_slug.lower()
-    slug_hyphenated = slug_lower.replace(' ', '-')
-    clean_slug = re.sub(r'[^a-z0-9]+', '-', slug_lower).strip('-')
-
-    if slug_lower.isdigit():
-        matched_deck = conn.execute(
-            "SELECT id, name, commander_name, color_identity FROM decks WHERE id = ?",
-            (int(slug_lower),)
-        ).fetchone()
-    else:
-        matched_deck = conn.execute(
-            """SELECT id, name, commander_name, color_identity FROM decks
-               WHERE LOWER(name) = ?
-                  OR LOWER(REPLACE(name, ' ', '-')) = ?
-                  OR LOWER(REPLACE(name, ' ', '-')) = ?
-               LIMIT 1""",
-            (slug_lower, slug_hyphenated, clean_slug)
-        ).fetchone()
-
-    if matched_deck is None:
-        return None
-
-    deck_id = matched_deck["id"]
-    deck_name = matched_deck["name"]
-    commander = matched_deck["commander_name"] or ""
-
-    ci_raw = matched_deck["color_identity"] or "[]"
-    try:
-        color_identity = json.loads(ci_raw) if isinstance(ci_raw, str) else ci_raw
+      goals = CoachGoals(**body.goals)
     except Exception:
-        color_identity = []
+      goals = None
+  fallback_report = None
+  try:
+    fallback_report = await _build_deck_report_from_db(deck_id)
+  except Exception as e:
+    log_coach.error(f"  Coach: Fallback report build failed for '{deck_id}': {e}")
+  try:
+    session = await _coach_service.run_coaching_session(deck_id, goals, fallback_report=fallback_report)
+    return session.model_dump()
+  except ValueError as e:
+    raise HTTPException(404, str(e))
+  except ConnectionError as e:
+    raise HTTPException(503, f"LLM connection failed: {e}")
+  except Exception as e:
+    raise HTTPException(500, f"Coach session failed: {e}")
 
-    card_rows = conn.execute(
-        """SELECT dc.card_name, dc.quantity, dc.is_commander, dc.role_tag,
-                  ce.type_line, ce.cmc, ce.oracle_text
-           FROM deck_cards dc
-           LEFT JOIN collection_entries ce ON LOWER(dc.card_name) = LOWER(ce.name)
-           WHERE dc.deck_id = ?""",
-        (deck_id,)
-    ).fetchall()
 
-    cards = []
-    type_counts = {}
-    cmc_buckets = [0] * 8
-    land_count = 0
-
-    for cr in card_rows:
-        card_name = cr["card_name"] or ""
-        type_line = cr["type_line"] or ""
-        cmc = cr["cmc"] or 0
-        qty = cr["quantity"] or 1
-        role_tag = cr["role_tag"] or ""
-
-        tags = []
-        if role_tag:
-            tags.append(role_tag)
-        if "Land" in type_line:
-            tags.append("land")
-            land_count += qty
-        elif "Creature" in type_line:
-            tags.append("creature")
-        elif "Instant" in type_line:
-            tags.append("instant")
-        elif "Sorcery" in type_line:
-            tags.append("sorcery")
-        elif "Artifact" in type_line:
-            tags.append("artifact")
-        elif "Enchantment" in type_line:
-            tags.append("enchantment")
-        elif "Planeswalker" in type_line:
-            tags.append("planeswalker")
-
-        for t in ["Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land"]:
-            if t in type_line:
-                type_counts[t] = type_counts.get(t, 0) + qty
-
-        bucket = min(int(cmc), 7)
-        cmc_buckets[bucket] += qty
-
-        cards.append(CardPerformance(
-            name=card_name,
-            drawnRate=0.0,
-            castRate=0.0,
-            impactScore=0.0,
-            tags=tags,
-        ))
-
-    slug = deck_slug
-    return DeckReport(
-        deckId=slug,
-        commander=commander,
-        colorIdentity=color_identity,
-        cards=cards,
-        structure=DeckStructure(
-            landCount=land_count,
-            curveBuckets=cmc_buckets,
-            cardTypeCounts=type_counts,
-        ),
+async def _build_deck_report_from_db(deck_slug: str):
+  """Build a lightweight DeckReport from DB (async). Allows coaching without simulation data."""
+  from coach.models import DeckReport, CardPerformance, DeckStructure
+  import re
+  if not deck_slug or len(deck_slug) > 200:
+    return None
+  deck_slug = re.sub(r'[^a-zA-Z0-9 _-]', '', deck_slug)
+  if not deck_slug:
+    return None
+  slug_lower = deck_slug.lower()
+  slug_hyphenated = slug_lower.replace(' ', '-')
+  clean_slug = re.sub(r'[^a-z0-9]+', '-', slug_lower).strip('-')
+  if slug_lower.isdigit():
+    matched_deck = await async_fetchone(
+      "SELECT id, name, commander_name, color_identity FROM decks WHERE id = ?",
+      (int(slug_lower),)
     )
+  else:
+    matched_deck = await async_fetchone(
+      """SELECT id, name, commander_name, color_identity FROM decks
+      WHERE LOWER(name) = ? OR LOWER(REPLACE(name, ' ', '-')) = ?
+      OR LOWER(REPLACE(name, ' ', '-')) = ? LIMIT 1""",
+      (slug_lower, slug_hyphenated, clean_slug)
+    )
+  if matched_deck is None:
+    return None
+  deck_id = matched_deck["id"]
+  deck_name = matched_deck["name"]
+  commander = matched_deck["commander_name"] or ""
+  ci_raw = matched_deck["color_identity"] or "[]"
+  try:
+    color_identity = json.loads(ci_raw) if isinstance(ci_raw, str) else ci_raw
+  except Exception:
+    color_identity = []
+  card_rows = await async_fetchall(
+    """SELECT dc.card_name, dc.quantity, dc.is_commander, dc.role_tag,
+       ce.type_line, ce.cmc, ce.oracle_text
+    FROM deck_cards dc
+    LEFT JOIN collection_entries ce ON LOWER(dc.card_name) = LOWER(ce.name)
+    WHERE dc.deck_id = ?""",
+    (deck_id,)
+  )
+  cards = []
+  type_counts = {}
+  cmc_buckets = [0] * 8
+  land_count = 0
+  for cr in card_rows:
+    card_name = cr["card_name"] or ""
+    type_line = cr["type_line"] or ""
+    cmc = cr["cmc"] or 0
+    qty = cr["quantity"] or 1
+    role_tag = cr["role_tag"] or ""
+    tags = []
+    if role_tag:
+      tags.append(role_tag)
+    if "Land" in type_line:
+      tags.append("land")
+      land_count += qty
+    elif "Creature" in type_line:
+      tags.append("creature")
+    elif "Instant" in type_line:
+      tags.append("instant")
+    elif "Sorcery" in type_line:
+      tags.append("sorcery")
+    elif "Artifact" in type_line:
+      tags.append("artifact")
+    elif "Enchantment" in type_line:
+      tags.append("enchantment")
+    elif "Planeswalker" in type_line:
+      tags.append("planeswalker")
+    for t in ["Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land"]:
+      if t in type_line:
+        type_counts[t] = type_counts.get(t, 0) + qty
+    bucket = min(int(cmc), 7)
+    cmc_buckets[bucket] += qty
+    cards.append(CardPerformance(name=card_name, drawnRate=0.0, castRate=0.0, impactScore=0.0, tags=tags))
+  return DeckReport(
+    deckId=deck_slug, commander=commander, colorIdentity=color_identity,
+    cards=cards, structure=DeckStructure(landCount=land_count, curveBuckets=cmc_buckets, cardTypeCounts=type_counts),
+  )
 
 
 @router.get("/api/coach/sessions")
 async def coach_list_sessions(deck_id: str = None):
-    """List all coaching sessions, optionally filtered by deck."""
-    if _coach_service is None:
-        raise HTTPException(500, "Coach service not initialized")
-    return {"sessions": _coach_service.list_sessions(deck_id)}
+  if _coach_service is None:
+    raise HTTPException(500, "Coach service not initialized")
+  return {"sessions": _coach_service.list_sessions(deck_id)}
 
 
 @router.get("/api/coach/sessions/{session_id}")
 async def coach_get_session(session_id: str):
-    """Get a specific coaching session."""
-    if _coach_service is None:
-        raise HTTPException(500, "Coach service not initialized")
-    session = _coach_service.load_session(session_id)
-    if session is None:
-        raise HTTPException(404, f"Session not found: {session_id}")
-    return session.model_dump()
+  if _coach_service is None:
+    raise HTTPException(500, "Coach service not initialized")
+  session = _coach_service.load_session(session_id)
+  if session is None:
+    raise HTTPException(404, f"Session not found: {session_id}")
+  return session.model_dump()
 
 
 @router.post("/api/coach/embeddings/download")
 async def coach_download_embeddings():
-    """Download and convert MTG card embeddings from HuggingFace."""
-    if _coach_embeddings is None:
-        raise HTTPException(500, "Coach service not initialized")
-    try:
-        _coach_embeddings.load(force_download=True)
-        return {
-            "success": True,
-            "cards": _coach_embeddings.card_count,
-            "message": f"Loaded {_coach_embeddings.card_count} card embeddings"
-        }
-    except Exception as e:
-        raise HTTPException(500, f"Failed to download embeddings: {e}")
+  if _coach_embeddings is None:
+    raise HTTPException(500, "Coach service not initialized")
+  try:
+    _coach_embeddings.load(force_download=True)
+    return {"success": True, "cards": _coach_embeddings.card_count,
+            "message": f"Loaded {_coach_embeddings.card_count} card embeddings"}
+  except Exception as e:
+    raise HTTPException(500, f"Failed to download embeddings: {e}")
 
 
 @router.get("/api/coach/embeddings/search")
 async def coach_search_similar(card: str, colors: str = None, top_n: int = 10):
-    """Search for similar cards by name."""
-    if _coach_embeddings is None or not _coach_embeddings.loaded:
-        raise HTTPException(503, "Embeddings not loaded")
-    color_filter = list(colors.upper()) if colors else None
-    matches = _coach_embeddings.search_similar(
-        query_card=card, color_filter=color_filter, top_n=top_n
-    )
-    return {"query": card, "matches": [m.to_dict() for m in matches]}
+  if _coach_embeddings is None or not _coach_embeddings.loaded:
+    raise HTTPException(503, "Embeddings not loaded")
+  color_filter = list(colors.upper()) if colors else None
+  matches = _coach_embeddings.search_similar(query_card=card, color_filter=color_filter, top_n=top_n)
+  return {"query": card, "matches": [m.to_dict() for m in matches]}
 
 
 @router.post("/api/coach/chat")
 async def coach_chat(body: CoachChatRequest):
-    """Multi-turn coaching chat. Sends conversation history to LLM and returns response."""
-    if _coach_service is None:
-        raise HTTPException(500, "Coach service not initialized")
-
-    report = _coach_service.load_deck_report(body.deck_id)
-
-    from coach.prompt_template import build_system_prompt
-    from coach.models import CoachGoals
-
-    goals = None
-    if body.goals:
-        try:
-            goals = CoachGoals(**body.goals)
-        except Exception:
-            goals = None
-
-    system_prompt = ""
-    if report:
-        system_prompt = build_system_prompt(report, goals)
-    else:
-        system_prompt = (
-            "You are an expert Magic: The Gathering Commander deck coach. "
-            "Answer questions about deck building, strategy, card choices, and game theory. "
-            "Be specific and actionable in your advice."
-        )
-
-    messages = [{"role": "system", "content": system_prompt}]
-    for msg in body.messages:
-        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
-
-    # ── Anthropic Claude provider path ─────────────────────────────────────────
-    if COACH_PROVIDER == 'Anthropic Claude':
-        if not CFG.anthropic_api_key:
-            raise HTTPException(400, 'Anthropic Claude API key not configured. Set anthropic_api_key env var.')
-        anthropic_payload = {
-            'model': ANTHROPIC_MODEL,
-            'messages': messages,
-            'max_tokens': 4096,
-            'temperature': 0.7,
-        }
-        anthropic_headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {CFG.anthropic_api_key}',
-        }
-        if body.stream:
-            async def anthropic_stream():
-                anthropic_payload['stream'] = True
-                async with httpx.AsyncClient(timeout=120.0) as client:
-                    async with client.stream('POST', 'https://api.Anthropic Claude.ai/chat/completions',
-                                             json=anthropic_payload, headers=anthropic_headers) as resp:
-                        async for line in resp.aiter_lines():
-                            if line.startswith('data: '):
-                                data = line[6:]
-                                if data == '[DONE]':
-                                    yield 'data: [DONE]\n\n'
-                                    break
-                                try:
-                                    chunk = json.loads(data)
-                                    content = chunk.get('choices', [{}])[0].get('delta', {}).get('content', '')
-                                    if content:
-                                        yield f'data: {json.dumps({"content": content})}\n\n'
-                                except json.JSONDecodeError:
-                                    continue
-            return StreamingResponse(anthropic_stream(), media_type='text/event-stream')
-        else:
-            try:
-                async with httpx.AsyncClient(timeout=120.0) as client:
-                    resp = await client.post(
-                        'https://api.Anthropic Claude.ai/chat/completions',
-                        json=anthropic_payload, headers=anthropic_headers,
-                    )
-                    resp.raise_for_status()
-                    raw = resp.json()
-                content = raw.get('choices', [{}])[0].get('message', {}).get('content', '')
-                usage = raw.get('usage', {})
-                return {
-                    'content': content,
-                    'model': raw.get('model', ''),
-                    'prompt_tokens': usage.get('prompt_tokens', 0),
-                    'completion_tokens': usage.get('completion_tokens', 0),
-                }
-            except httpx.HTTPStatusError as e:
-                raise HTTPException(502, f'Anthropic Claude API returned {e.response.status_code}')
-            except httpx.RequestError as e:
-                raise HTTPException(502, f'Anthropic Claude API call failed: {e}')
-
-    # ── Local Ollama provider path ───────────────────────────────────
+  """Multi-turn coaching chat. Fully async - no event loop blocking."""
+  if _coach_service is None:
+    raise HTTPException(500, "Coach service not initialized")
+  report = _coach_service.load_deck_report(body.deck_id)
+  from coach.prompt_template import build_system_prompt
+  from coach.models import CoachGoals
+  goals = None
+  if body.goals:
     try:
-        import json
-        from urllib.request import urlopen, Request as UrlRequest
-
-        model_name = _coach_llm._resolve_model()
-        llm_body = {
-            "model": model_name,
-            "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 4096,
+      goals = CoachGoals(**body.goals)
+    except Exception:
+      goals = None
+  system_prompt = ""
+  if report:
+    system_prompt = build_system_prompt(report, goals)
+  else:
+    system_prompt = (
+      "You are an expert Magic: The Gathering Commander deck coach. "
+      "Answer questions about deck building, strategy, card choices, and game theory. "
+      "Be specific and actionable in your advice."
+    )
+  messages = [{"role": "system", "content": system_prompt}]
+  for msg in body.messages:
+    messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+  # ── Anthropic Claude provider path (async httpx) ──
+  if COACH_PROVIDER == 'anthropic':
+    if not ANTHROPIC_API_KEY:
+      raise HTTPException(400, 'Anthropic API key not configured.')
+    import anthropic
+    aclient = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+    if body.stream:
+      async def anthropic_stream():
+        async with aclient.messages.stream(
+          model=ANTHROPIC_MODEL, system=system_prompt,
+          messages=[{"role": m["role"], "content": m["content"]} for m in messages if m["role"] != "system"],
+          max_tokens=4096, temperature=0.7,
+        ) as stream:
+          async for text in stream.text_stream:
+            yield f"data: {json.dumps({'content': text})}\n\n"
+        yield "data: [DONE]\n\n"
+      return StreamingResponse(anthropic_stream(), media_type="text/event-stream")
+    else:
+      try:
+        resp = await aclient.messages.create(
+          model=ANTHROPIC_MODEL, system=system_prompt,
+          messages=[{"role": m["role"], "content": m["content"]} for m in messages if m["role"] != "system"],
+          max_tokens=4096, temperature=0.7,
+        )
+        content = resp.content[0].text if resp.content else ""
+        usage = resp.usage
+        return {
+          "content": content, "model": resp.model,
+          "prompt_tokens": usage.input_tokens if usage else 0,
+          "completion_tokens": usage.output_tokens if usage else 0,
         }
-
-        if body.stream:
-            llm_body["stream"] = True
-
-            async def generate():
-                import asyncio
-                def _stream():
-                    import http.client
-                    import urllib.parse
-                    parsed = urllib.parse.urlparse(f"{_coach_llm.base_url}/chat/completions")
-                    conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=LLM_TIMEOUT)
-                    conn.request("POST", parsed.path, body=json.dumps(llm_body).encode("utf-8"),
-                                 headers={"Content-Type": "application/json"})
-                    resp = conn.getresponse()
-                    chunks = []
-                    while True:
-                        line = resp.readline()
-                        if not line:
-                            break
-                        line = line.decode("utf-8").strip()
-                        if line.startswith("data: "):
-                            data = line[6:]
-                            if data == "[DONE]":
-                                chunks.append("[DONE]")
-                                break
-                            chunks.append(data)
-                    conn.close()
-                    return chunks
-
-                loop = asyncio.get_event_loop()
-                chunks = await loop.run_in_executor(None, _stream)
-
-                for chunk_str in chunks:
-                    if chunk_str == "[DONE]":
-                        yield f"data: [DONE]\n\n"
-                        break
-                    try:
-                        chunk = json.loads(chunk_str)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
-                        content = delta.get("content", "")
-                        if content:
-                            yield f"data: {json.dumps({'content': content})}\n\n"
-                    except json.JSONDecodeError:
-                        continue
-
-            return StreamingResponse(generate(), media_type="text/event-stream")
-        else:
-            req = UrlRequest(
-                f"{_coach_llm.base_url}/chat/completions",
-                data=json.dumps(llm_body).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-
-            import asyncio
-            loop = asyncio.get_event_loop()
-            def _call():
-                with urlopen(req, timeout=LLM_TIMEOUT) as resp:
-                    return json.loads(resp.read().decode("utf-8"))
-
-            raw = await loop.run_in_executor(None, _call)
-
-            content = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
-            content = _coach_llm._strip_think_tags(content)
-            usage = raw.get("usage", {})
-
-            return {
-                "content": content,
-                "model": raw.get("model", ""),
-                "prompt_tokens": usage.get("prompt_tokens", 0),
-                "completion_tokens": usage.get("completion_tokens", 0),
-            }
-
-    except Exception as e:
-        raise HTTPException(500, f"Chat failed: {e}")
+      except Exception as e:
+        raise HTTPException(502, f"Anthropic API call failed: {e}")
+  # ── Local Ollama provider path (async httpx) ──
+  try:
+    model_name = await _coach_llm._resolve_model()
+    llm_body = {"model": model_name, "messages": messages, "temperature": 0.7, "max_tokens": 4096}
+    if body.stream:
+      llm_body["stream"] = True
+      async def generate():
+        async with httpx.AsyncClient(timeout=httpx.Timeout(float(LLM_TIMEOUT))) as client:
+          async with client.stream("POST", f"{_coach_llm.base_url}/chat/completions",
+                                   json=llm_body, headers={"Content-Type": "application/json"}) as resp:
+            async for line in resp.aiter_lines():
+              if line.startswith("data: "):
+                data = line[6:]
+                if data == "[DONE]":
+                  yield "data: [DONE]\n\n"
+                  break
+                try:
+                  chunk = json.loads(data)
+                  content = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                  if content:
+                    yield f"data: {json.dumps({'content': content})}\n\n"
+                except json.JSONDecodeError:
+                  continue
+      return StreamingResponse(generate(), media_type="text/event-stream")
+    else:
+      async with httpx.AsyncClient(timeout=httpx.Timeout(float(LLM_TIMEOUT))) as client:
+        resp = await client.post(
+          f"{_coach_llm.base_url}/chat/completions",
+          json=llm_body, headers={"Content-Type": "application/json"},
+        )
+        resp.raise_for_status()
+        raw = resp.json()
+      content = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
+      content = _coach_llm._strip_think_tags(content)
+      usage = raw.get("usage", {})
+      return {
+        "content": content, "model": raw.get("model", ""),
+        "prompt_tokens": usage.get("prompt_tokens", 0),
+        "completion_tokens": usage.get("completion_tokens", 0),
+      }
+  except Exception as e:
+    raise HTTPException(500, f"Chat failed: {e}")
 
 
 @router.post("/api/coach/apply")
 async def coach_apply_suggestions(body: CoachApplyRequest):
-    """Apply accepted coaching suggestions to a deck — remove cuts, add adds."""
-    conn = _get_db_conn()
-
-    deck = conn.execute("SELECT * FROM decks WHERE id = ?", (body.deck_id,)).fetchone()
-    if not deck:
-        raise HTTPException(404, f"Deck {body.deck_id} not found")
-
-    results = {"cuts": [], "adds": [], "errors": []}
-
-    for card_name in body.accepted_cuts:
-        row = conn.execute(
-            "SELECT id FROM deck_cards WHERE deck_id = ? AND card_name = ? LIMIT 1",
-            (body.deck_id, card_name)
-        ).fetchone()
-        if row:
-            conn.execute("DELETE FROM deck_cards WHERE id = ?", (row["id"],))
-            results["cuts"].append({"name": card_name, "status": "removed"})
-        else:
-            row = conn.execute(
-                "SELECT id, card_name FROM deck_cards WHERE deck_id = ? AND LOWER(card_name) = LOWER(?) LIMIT 1",
-                (body.deck_id, card_name)
-            ).fetchone()
-            if row:
-                conn.execute("DELETE FROM deck_cards WHERE id = ?", (row["id"],))
-                results["cuts"].append({"name": row["card_name"], "status": "removed"})
-            else:
-                results["errors"].append({"name": card_name, "error": "Card not found in deck"})
-
-    for card_name in body.accepted_adds:
-        ce = conn.execute(
-            "SELECT scryfall_id, name FROM collection_entries WHERE LOWER(name) = LOWER(?) LIMIT 1",
-            (card_name,)
-        ).fetchone()
-
-        scryfall_id = None
-        resolved_name = card_name
-
-        if ce:
-            scryfall_id = ce["scryfall_id"]
-            resolved_name = ce["name"]
-        else:
-            try:
-                import urllib.parse
-                from urllib.request import urlopen, Request as UrlRequest
-                encoded = urllib.parse.quote(card_name)
-                scry_req = UrlRequest(
-                    f"https://api.scryfall.com/cards/named?fuzzy={encoded}",
-                    headers={"User-Agent": "commander-ai-lab/1.0"}
-                )
-                with urlopen(scry_req, timeout=10) as resp:
-                    card_data = json.loads(resp.read().decode("utf-8"))
-                    scryfall_id = card_data.get("id")
-                    resolved_name = card_data.get("name", card_name)
-            except Exception:
-                pass
-
-        if scryfall_id:
-            existing = conn.execute(
-                "SELECT id FROM deck_cards WHERE deck_id = ? AND scryfall_id = ?",
-                (body.deck_id, scryfall_id)
-            ).fetchone()
-            if not existing:
-                conn.execute(
-                    "INSERT INTO deck_cards (deck_id, scryfall_id, card_name, quantity) VALUES (?, ?, ?, 1)",
-                    (body.deck_id, scryfall_id, resolved_name)
-                )
-                results["adds"].append({"name": resolved_name, "scryfall_id": scryfall_id, "status": "added"})
-            else:
-                results["adds"].append({"name": resolved_name, "status": "already_in_deck"})
-        else:
-            results["errors"].append({"name": card_name, "error": "Could not resolve card"})
-
-    conn.execute("UPDATE decks SET updated_at = datetime('now') WHERE id = ?", (body.deck_id,))
-    conn.commit()
-
-    results["total_cuts"] = len(results["cuts"])
-    results["total_adds"] = len([a for a in results["adds"] if a["status"] == "added"])
-    return results
+  """Apply accepted coaching suggestions to a deck (async DB + async HTTP)."""
+  db = await async_get_db()
+  deck = await async_fetchone("SELECT * FROM decks WHERE id = ?", (body.deck_id,))
+  if not deck:
+    raise HTTPException(404, f"Deck {body.deck_id} not found")
+  results = {"cuts": [], "adds": [], "errors": []}
+  for card_name in body.accepted_cuts:
+    row = await async_fetchone(
+      "SELECT id FROM deck_cards WHERE deck_id = ? AND card_name = ? LIMIT 1",
+      (body.deck_id, card_name)
+    )
+    if row:
+      await async_execute("DELETE FROM deck_cards WHERE id = ?", (row["id"],))
+      results["cuts"].append({"name": card_name, "status": "removed"})
+    else:
+      row = await async_fetchone(
+        "SELECT id, card_name FROM deck_cards WHERE deck_id = ? AND LOWER(card_name) = LOWER(?) LIMIT 1",
+        (body.deck_id, card_name)
+      )
+      if row:
+        await async_execute("DELETE FROM deck_cards WHERE id = ?", (row["id"],))
+        results["cuts"].append({"name": row["card_name"], "status": "removed"})
+      else:
+        results["errors"].append({"name": card_name, "error": "Card not found in deck"})
+  for card_name in body.accepted_adds:
+    ce = await async_fetchone(
+      "SELECT scryfall_id, name FROM collection_entries WHERE LOWER(name) = LOWER(?) LIMIT 1",
+      (card_name,)
+    )
+    scryfall_id = None
+    resolved_name = card_name
+    if ce:
+      scryfall_id = ce["scryfall_id"]
+      resolved_name = ce["name"]
+    else:
+      try:
+        import urllib.parse
+        encoded = urllib.parse.quote(card_name)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+          resp = await client.get(
+            f"https://api.scryfall.com/cards/named?fuzzy={encoded}",
+            headers={"User-Agent": "commander-ai-lab/1.0"}
+          )
+          resp.raise_for_status()
+          card_data = resp.json()
+        scryfall_id = card_data.get("id")
+        resolved_name = card_data.get("name", card_name)
+      except Exception:
+        pass
+    if scryfall_id:
+      existing = await async_fetchone(
+        "SELECT id FROM deck_cards WHERE deck_id = ? AND scryfall_id = ?",
+        (body.deck_id, scryfall_id)
+      )
+      if not existing:
+        await async_execute(
+          "INSERT INTO deck_cards (deck_id, scryfall_id, card_name, quantity) VALUES (?, ?, ?, 1)",
+          (body.deck_id, scryfall_id, resolved_name)
+        )
+        results["adds"].append({"name": resolved_name, "scryfall_id": scryfall_id, "status": "added"})
+      else:
+        results["adds"].append({"name": resolved_name, "status": "already_in_deck"})
+    else:
+      results["errors"].append({"name": card_name, "error": "Could not resolve card"})
+  await async_execute("UPDATE decks SET updated_at = datetime('now') WHERE id = ?", (body.deck_id,))
+  await async_commit()
+  results["total_cuts"] = len(results["cuts"])
+  results["total_adds"] = len([a for a in results["adds"] if a["status"] == "added"])
+  return results
 
 
 @router.get("/api/coach/cards-like")
 async def coach_cards_like(card: str, colors: str = None, top_n: int = 10):
-    """Find cards similar to a given card using embeddings. UI-friendly version."""
-    if _coach_embeddings is None or not _coach_embeddings.loaded:
-        raise HTTPException(503, "Embeddings not loaded")
-
-    color_filter = list(colors.upper()) if colors else None
-    matches = _coach_embeddings.search_similar(
-        query_card=card, color_filter=color_filter, top_n=top_n
+  """Find similar cards using embeddings (async DB for ownership check)."""
+  if _coach_embeddings is None or not _coach_embeddings.loaded:
+    raise HTTPException(503, "Embeddings not loaded")
+  color_filter = list(colors.upper()) if colors else None
+  matches = _coach_embeddings.search_similar(query_card=card, color_filter=color_filter, top_n=top_n)
+  results = []
+  for m in matches:
+    owned = await async_fetchone(
+      "SELECT SUM(quantity) as qty FROM collection_entries WHERE LOWER(name) = LOWER(?)",
+      (m.name,)
     )
-
-    conn = _get_db_conn()
-    results = []
-    for m in matches:
-        owned = conn.execute(
-            "SELECT SUM(quantity) as qty FROM collection_entries WHERE LOWER(name) = LOWER(?)",
-            (m.name,)
-        ).fetchone()
-        owned_qty = (owned["qty"] or 0) if owned else 0
-
-        ce = conn.execute(
-            "SELECT scryfall_id, tcg_price FROM collection_entries WHERE LOWER(name) = LOWER(?) LIMIT 1",
-            (m.name,)
-        ).fetchone()
-
-        results.append({
-            "name": m.name,
-            "similarity": round(m.similarity, 4),
-            "types": m.types,
-            "mana_value": m.mana_value,
-            "mana_cost": m.mana_cost,
-            "text": m.text[:200] if m.text else "",
-            "owned_qty": owned_qty,
-            "image_url": f"https://api.scryfall.com/cards/{ce['scryfall_id']}?format=image&version=normal" if ce and ce["scryfall_id"] else None,
-            "tcg_price": ce["tcg_price"] if ce else None,
-        })
-
-    return {"query": card, "results": results}
+    owned_qty = (owned["qty"] or 0) if owned else 0
+    ce = await async_fetchone(
+      "SELECT scryfall_id, tcg_price FROM collection_entries WHERE LOWER(name) = LOWER(?) LIMIT 1",
+      (m.name,)
+    )
+    results.append({
+      "name": m.name, "similarity": round(m.similarity, 4),
+      "types": m.types, "mana_value": m.mana_value,
+      "mana_cost": m.mana_cost, "text": m.text[:200] if m.text else "",
+      "owned_qty": owned_qty,
+      "image_url": f"https://api.scryfall.com/cards/{ce['scryfall_id']}?format=image&version=normal" if ce and ce["scryfall_id"] else None,
+      "tcg_price": ce["tcg_price"] if ce else None,
+    })
+  return {"query": card, "results": results}
 
 
 @router.post("/api/coach/reports/generate")
 async def coach_generate_reports():
-    """Rebuild all deck reports from batch result JSONs in results/."""
-    try:
-        from coach.report_generator import generate_deck_reports
-        lab_root = Path(__file__).parent.parent
-        results_dir = str(lab_root / CFG.results_dir)
-        reports_dir = str(lab_root / "deck-reports")
-        updated = generate_deck_reports(results_dir, reports_dir)
-        return {
-            "status": "ok",
-            "decksUpdated": updated,
-            "count": len(updated),
-            "message": f"Generated reports for {len(updated)} decks" if updated else "No batch results found",
-        }
-    except Exception as e:
-        raise HTTPException(500, f"Report generation failed: {e}")
+  try:
+    from coach.report_generator import generate_deck_reports
+    lab_root = Path(__file__).parent.parent
+    results_dir = str(lab_root / CFG.results_dir)
+    reports_dir = str(lab_root / "deck-reports")
+    updated = generate_deck_reports(results_dir, reports_dir)
+    return {
+      "status": "ok", "decksUpdated": updated, "count": len(updated),
+      "message": f"Generated reports for {len(updated)} decks" if updated else "No batch results found",
+    }
+  except Exception as e:
+    raise HTTPException(500, f"Report generation failed: {e}")
