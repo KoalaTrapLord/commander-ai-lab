@@ -1,1 +1,1 @@
-# Coach clients — Perplexity, LM Studio
+# Coach clients — Anthropic Claude, LM Studio
