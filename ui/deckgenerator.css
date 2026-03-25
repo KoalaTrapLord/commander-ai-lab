@@ -1298,3 +1298,41 @@
 .dg-log-error {
     color: #f59e0b;
 }
+
+/* ── Progress Bar (Deck Generation) ──────────────────── */
+.dg-progress-wrap {
+    width: 100%;
+    max-width: 400px;
+    margin-top: 16px;
+}
+
+.dg-progress-bar {
+    height: 6px;
+    background: var(--surface-2, #2a2a3a);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.dg-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent, #7c6ff7), #a78bfa);
+    border-radius: 3px;
+    transition: width 1s ease;
+}
+
+.dg-progress-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    font-size: 0.78rem;
+}
+
+.dg-progress-phase {
+    color: var(--text-muted, #999);
+}
+
+.dg-progress-elapsed {
+    color: var(--text-muted, #999);
+    font-variant-numeric: tabular-nums;
+}

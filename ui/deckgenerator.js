@@ -53,6 +53,65 @@ const DeckGenerator = (() => {
 
     let searchTimeout = null;
 
+    // ── Progress bar state ──────────────────────────────
+    const PROGRESS_PHASES = [
+        { at: 0,  pct: 5,   msg: 'Connecting to AI model...' },
+        { at: 3,  pct: 10,  msg: 'Resolving commander on Scryfall...' },
+        { at: 6,  pct: 18,  msg: 'Building collection summary...' },
+        { at: 10, pct: 25,  msg: 'Sending prompt to LLM...' },
+        { at: 20, pct: 40,  msg: 'AI is building the 99...' },
+        { at: 35, pct: 55,  msg: 'Selecting cards and filling slots...' },
+        { at: 50, pct: 65,  msg: 'Running smart substitution...' },
+        { at: 70, pct: 78,  msg: 'Cross-referencing with collection...' },
+        { at: 90, pct: 88,  msg: 'Almost there — finalizing deck...' },
+        { at: 110, pct: 93, msg: 'Still working — large model can take a moment...' },
+    ];
+    let _progressInterval = null;
+    let _progressStart = 0;
+
+    function startProgress() {
+        _progressStart = Date.now();
+        const wrap = $('dg-progress-wrap');
+        const fill = $('dg-progress-fill');
+        const phase = $('dg-progress-phase');
+        const elapsed = $('dg-progress-elapsed');
+        if (!wrap) return;
+        wrap.style.display = 'block';
+        fill.style.width = '0%';
+        phase.textContent = '';
+        elapsed.textContent = '0s elapsed';
+        let lastPhaseIdx = -1;
+        _progressInterval = setInterval(() => {
+            const secs = Math.floor((Date.now() - _progressStart) / 1000);
+            elapsed.textContent = secs + 's elapsed';
+            for (let i = PROGRESS_PHASES.length - 1; i >= 0; i--) {
+                if (secs >= PROGRESS_PHASES[i].at) {
+                    fill.style.width = PROGRESS_PHASES[i].pct + '%';
+                    if (i !== lastPhaseIdx) {
+                        phase.textContent = PROGRESS_PHASES[i].msg;
+                        logMessage(PROGRESS_PHASES[i].msg, 'info');
+                        lastPhaseIdx = i;
+                    }
+                    break;
+                }
+            }
+        }, 1000);
+    }
+
+    function stopProgress(success) {
+        if (_progressInterval) {
+            clearInterval(_progressInterval);
+            _progressInterval = null;
+        }
+        const fill = $('dg-progress-fill');
+        const phase = $('dg-progress-phase');
+        const elapsed = $('dg-progress-elapsed');
+        if (fill) fill.style.width = success ? '100%' : '0%';
+        if (phase) phase.textContent = success ? 'Done!' : 'Failed';
+        const secs = Math.floor((Date.now() - _progressStart) / 1000);
+        if (elapsed) elapsed.textContent = secs + 's total';
+    }
+
     const $ = (id) => document.getElementById(id);
 
     // ── Init ────────────────────────────────────────────────
@@ -284,6 +343,7 @@ const DeckGenerator = (() => {
         logMessage('Building request body with commander: <b>' + state.commander.name + '</b>', 'info');
 
         setLoading(true, 'Generating deck via Local AI...');
+        startProgress();
 
         const body = buildRequestBody();
         logMessage('Sending request to AI model... this may take a moment.', 'info');
@@ -307,10 +367,12 @@ const DeckGenerator = (() => {
             const stats = state.previewResult.stats || {};
             const cardCount = (stats.total_cards || 0);
             logMessage('Deck generated: <b>' + cardCount + ' cards</b> | $' + (stats.total_price_usd || 0).toFixed(2) + ' estimated', 'success');
+                        stopProgress(true);
             renderResults(state.previewResult);
 
             toast('Deck generated: ' + (stats.total_cards || 0) + ' cards | $' + (stats.total_price_usd || 0), 'success');
         } catch (e) {
+                    stopProgress(false);
             toast(e.message || 'Generation failed', 'error');
             logMessage('Error: ' + (e.message || 'Unknown error'), 'error');
             setLoading(false);
