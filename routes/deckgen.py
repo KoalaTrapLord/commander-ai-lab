@@ -49,7 +49,7 @@ from services.deck_service import _write_dck_file, _build_dck_lines
 
 router = APIRouter(tags=["deckgen"])
 
-# ── V3 Result Cache (avoids re-generating on export) ──────────
+# ── V3 Result Cache (avoids re-generating on export) ─────────────
 import hashlib
 _v3_result_cache: dict[str, tuple[float, dict]] = {}  # key -> (timestamp, result)
 _V3_CACHE_TTL = 600  # 10 minutes
@@ -119,7 +119,7 @@ def _resolve_commander(req: DeckGenerationRequest) -> dict:
                 "color_identity": ci,
                 "type_line": row["type_line"],
                 "mana_cost": row["mana_cost"] or "",
-                                    "oracle_text": row["oracle_text"] or "",
+                "oracle_text": row["oracle_text"] or "",
                 "image_url": f"https://api.scryfall.com/cards/{row['scryfall_id']}?format=image&version=normal",
             }
         # Fallback to Scryfall API
@@ -153,7 +153,7 @@ def _resolve_commander(req: DeckGenerationRequest) -> dict:
                 "color_identity": ci,
                 "type_line": row["type_line"],
                 "mana_cost": row["mana_cost"] or "",
-                                    "oracle_text": row["oracle_text"] or "",
+                "oracle_text": row["oracle_text"] or "",
                 "image_url": f"https://api.scryfall.com/cards/{row['scryfall_id']}?format=image&version=normal",
             }
 
@@ -185,7 +185,7 @@ def _scryfall_to_commander(data: dict) -> dict:
         "color_identity": ci,
         "type_line": data.get("type_line", ""),
         "mana_cost": data.get("mana_cost", ""),
-                "oracle_text": data.get("oracle_text", ""),
+        "oracle_text": data.get("oracle_text", ""),
         "image_url": image_uris.get("normal", ""),
     }
 
@@ -236,7 +236,7 @@ def _get_collection_for_colors(color_identity: list) -> list:
     return valid
 
 
-# ── Oracle-text keyword extraction for scoring ────────────────────────
+# ── Oracle-text keyword extraction for scoring ────────────────────
 _ORACLE_STOP_WORDS = frozenset({
     'a', 'an', 'the', 'of', 'to', 'and', 'or', 'is', 'it', 'its',
     'in', 'on', 'at', 'for', 'by', 'with', 'from', 'as', 'if',
@@ -279,7 +279,7 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
 
     color_identity = req.color_identity or commander.get("color_identity", [])
     log_deckgen.info(f"  Commander: {commander['name']}, CI: {color_identity}")
-        commander_keywords = _extract_oracle_keywords(commander.get("oracle_text", ""))
+    commander_keywords = _extract_oracle_keywords(commander.get("oracle_text", ""))
     log_deckgen.info(f"  Commander keywords ({len(commander_keywords)}): {sorted(commander_keywords)[:15]}")
 
     # 2. Load collection
@@ -347,7 +347,7 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
             )
             candidate_map[key] = {
                 "scryfall_id": card.get("scryfall_id", ""),
-                                    "oracle_text": card.get("oracle_text", ""),
+                "oracle_text": card.get("oracle_text", ""),
                 "name": name,
                 "type_line": type_line,
                 "mana_cost": card.get("mana_cost", ""),
@@ -440,17 +440,17 @@ def _generate_deck(req: DeckGenerationRequest) -> dict:
                 score += 5
             elif cmc <= 4:
                 score += 3
-                                    # Oracle-text keyword overlap with commander
-                    card_oracle = card.get("oracle_text") or ""
-                    if commander_keywords and card_oracle:
-                        card_kw = _extract_oracle_keywords(card_oracle)
-                        overlap = len(commander_keywords & card_kw)
-                        if overlap >= 4:
-                            score += 12
-                        elif overlap >= 2:
-                            score += 7
-                        elif overlap >= 1:
-                            score += 3
+            # Oracle-text keyword overlap with commander
+            card_oracle = card.get("oracle_text") or ""
+            if commander_keywords and card_oracle:
+                card_kw = _extract_oracle_keywords(card_oracle)
+                overlap = len(commander_keywords & card_kw)
+                if overlap >= 4:
+                    score += 12
+                elif overlap >= 2:
+                    score += 7
+                elif overlap >= 1:
+                    score += 3
             card["_score"] = score
         cards.sort(key=lambda x: x["_score"], reverse=True)
 
@@ -879,7 +879,7 @@ async def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperatu
                 f'{base_url}/chat/completions',
                 json=payload,
                 headers=headers,
-                      )
+            )
             resp.raise_for_status()
             data = resp.json()
     except httpx.HTTPStatusError as e:
@@ -1028,7 +1028,7 @@ def _fill_basic_lands(cards: list[dict], color_identity: list[str] | None = None
     return non_basics
 
 
-# ── Research Endpoint ─────────────────────────────────────────
+# ── Research Endpoint ───────────────────────────────────────────────────
 
 @router.post('/api/deck-research')
 async def deck_research(req: DeckResearchRequest):
@@ -1183,7 +1183,7 @@ Analyze EVERYTHING: the deck's identity, strategy, archetype, bracket level (1-4
     return analysis
 
 
-# ── Generate Endpoint ─────────────────────────────────────────
+# ── Generate Endpoint ───────────────────────────────────────────────
 
 @router.post('/api/deck-generate')
 async def deck_generate_ai(req: DeckGenerateAIRequest):
@@ -1313,7 +1313,7 @@ async def deck_gen_v3_status():
         'initialized': _coach._deck_gen_v3 is not None,
         'pplx_configured': bool(CFG.pplx_api_key),
         'model': getattr(_coach._deck_gen_v3, 'model', getattr(getattr(_coach._deck_gen_v3, 'pplx', None), 'model', 'ollama/gpt-oss:20b')) if _coach._deck_gen_v3 else None,
-                'embeddings_loaded': False,
+        'embeddings_loaded': False,
         'embedding_cards': 0,
         'error': _coach._deck_gen_v3_error,
     }
@@ -1370,7 +1370,7 @@ async def deck_gen_v3_generate(req: DeckGenV3Request):
             from coach.services.deck_generator import DeckGeneratorV3
             result['stats'] = DeckGeneratorV3._compute_stats(sub_result.cards)
 
-                # Cache result for export endpoints
+        # Cache result for export endpoints
         _v3_cache_put(_v3_cache_key(req), result)
 
         return result
@@ -1656,5 +1656,3 @@ async def deck_gen_v3_export_shopping(req: DeckGenV3Request):
         'total_missing': len(shopping),
         'estimated_cost_usd': round(total, 2),
     }
-
-
