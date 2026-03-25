@@ -1,7 +1,7 @@
 """
 Commander AI Lab — Deck Generation JSON Schemas
 ═════════════════════════════════════════════════
-Pydantic models and JSON Schema dicts for Perplexity
+Pydantic models and JSON Schema dicts for Claude Opus
 structured output deck generation.
 """
 
@@ -58,7 +58,7 @@ class GeneratedDeckList(BaseModel):
 
 
 # ══════════════════════════════════════════════════════════════
-# JSON Schema dicts (for Perplexity response_format)
+# JSON Schema dicts (for Claude Opus response_format)
 # ══════════════════════════════════════════════════════════════
 
 DECK_CARD_SCHEMA = {
