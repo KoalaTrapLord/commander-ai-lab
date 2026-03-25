@@ -18,7 +18,7 @@ class CardAlternative(BaseModel):
     name: str = Field(description="Exact card name")
     similarity_score: float = Field(default=0.0, description="Cosine similarity score (0-1)")
     reason: str = Field(default="", description="Why this card is a good substitute")
-    source: str = Field(default="embedding", description="How it was found: 'embedding' or 'perplexity'")
+    source: str = Field(default="embedding", description="How it was found: 'embedding' or 'anthropic'")
     role_overlap: List[str] = Field(default_factory=list, description="Shared functional roles")
     cmc_delta: float = Field(default=0.0, description="CMC difference from original")
 
