@@ -9,6 +9,11 @@ Data source: https://huggingface.co/datasets/minimaxir/mtg-embeddings
 Format: Parquet with 768-dim float32 embeddings per card (~32K cards)
 Model: Alibaba-NLP/gte-modernbert-base
 
+Unknown cards (e.g. newly printed sets) are fetched from Scryfall,
+embedded on-the-fly using the same model, and persisted to a local
+custom cache (embeddings/mtg_embeddings_custom.npz) so they survive
+restarts without re-hitting Scryfall.
+
 Uses NumPy brute-force cosine similarity — fast enough for ~32K cards (<100ms).
 """
 
@@ -16,9 +21,11 @@ import json
 import logging
 import re
 import os
+import time
 from pathlib import Path
 from typing import List, Optional, Tuple
 from urllib.request import urlopen, Request
+from urllib.parse import quote
 
 import numpy as np
 
@@ -32,8 +39,16 @@ HF_PARQUET_URL = (
     "resolve/main/mtg_embeddings.parquet"
 )
 
+# ── Scryfall API ───────────────────────────────────────────
+SCRYFALL_NAMED_URL = "https://api.scryfall.com/cards/named?fuzzy={}"
+
+# ── Custom cache for on-the-fly embedded cards ─────────────
+CUSTOM_CACHE_PATH = EMBEDDINGS_DIR / "mtg_embeddings_custom.npz"
+
+# ── Embedding model (same as minimaxir/mtg-embeddings) ─────
+EMBEDDING_MODEL = "Alibaba-NLP/gte-modernbert-base"
+
 # ── Color identity parsing ─────────────────────────────────
-# Maps mana symbols like {W}, {U}, {B}, {R}, {G} to color letters
 MANA_SYMBOL_COLORS = {
     "W": "W", "U": "U", "B": "B", "R": "R", "G": "G"
 }
@@ -46,7 +61,6 @@ def _parse_color_identity(mana_cost: str) -> str:
     colors = set()
     for match in re.finditer(r'\{([WUBRG])\}', mana_cost or ""):
         colors.add(match.group(1))
-    # Sort in WUBRG order
     order = "WUBRG"
     return "".join(c for c in order if c in colors)
 
@@ -61,12 +75,11 @@ def _parse_mana_value(mana_cost: str) -> float:
         if symbol in MANA_SYMBOL_COLORS:
             total += 1.0
         elif symbol == "X":
-            pass  # X = 0 for CMC purposes
+            pass
         else:
             try:
                 total += float(symbol)
             except ValueError:
-                # Hybrid/phyrexian symbols count as 1
                 total += 1.0
     return total
 
@@ -75,7 +88,42 @@ def _is_color_subset(card_colors: str, deck_colors: List[str]) -> bool:
     """Check if card's color identity is within deck's color identity."""
     deck_set = set(deck_colors)
     card_set = set(card_colors)
-    return card_set.issubset(deck_set) or len(card_set) == 0  # colorless always allowed
+    return card_set.issubset(deck_set) or len(card_set) == 0
+
+
+def _fetch_scryfall_card(card_name: str) -> Optional[dict]:
+    """Fetch card data from Scryfall by fuzzy name match.
+
+    Returns a dict with keys: name, mana_cost, type_line, oracle_text,
+    color_identity. Returns None on any error.
+    """
+    url = SCRYFALL_NAMED_URL.format(quote(card_name))
+    try:
+        req = Request(url, headers={"User-Agent": "commander-ai-lab/1.0"})
+        with urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return {
+            "name": data.get("name", card_name),
+            "mana_cost": data.get("mana_cost", ""),
+            "type_line": data.get("type_line", ""),
+            "oracle_text": data.get("oracle_text", ""),
+            "color_identity": "".join(data.get("color_identity", [])),
+        }
+    except Exception as e:
+        logger.warning("Scryfall lookup failed for '%s': %s", card_name, e)
+        return None
+
+
+def _build_card_text(card: dict) -> str:
+    """Build the text string to embed, matching minimaxir/mtg-embeddings format."""
+    parts = [card["name"]]
+    if card.get("mana_cost"):
+        parts.append(card["mana_cost"])
+    if card.get("type_line"):
+        parts.append(card["type_line"])
+    if card.get("oracle_text"):
+        parts.append(card["oracle_text"])
+    return " | ".join(parts)
 
 
 class CardMatch:
@@ -114,15 +162,17 @@ class MTGEmbeddingIndex:
     """
 
     def __init__(self):
-        self.names: np.ndarray = None       # (N,) string array
-        self.colors: np.ndarray = None      # (N,) string array (e.g., "WU", "BRG")
-        self.mana_values: np.ndarray = None # (N,) float array
-        self.types: np.ndarray = None       # (N,) string array
-        self.mana_costs: np.ndarray = None  # (N,) string array
-        self.texts: np.ndarray = None       # (N,) string array
-        self.vectors: np.ndarray = None     # (N, 768) float32, L2-normalized
+        self.names: np.ndarray = None
+        self.colors: np.ndarray = None
+        self.mana_values: np.ndarray = None
+        self.types: np.ndarray = None
+        self.mana_costs: np.ndarray = None
+        self.texts: np.ndarray = None
+        self.vectors: np.ndarray = None
         self._name_to_idx: dict = {}
         self._loaded = False
+        self._sentence_model = None   # lazy-loaded only when needed
+        self._custom_dirty = False    # tracks whether custom cache needs saving
 
     @property
     def loaded(self) -> bool:
@@ -152,10 +202,7 @@ class MTGEmbeddingIndex:
         return EMBEDDINGS_PARQUET
 
     def convert_parquet_to_npz(self) -> Path:
-        """
-        Convert the Parquet file to a compact NPZ for fast loading.
-        Requires pandas and pyarrow.
-        """
+        """Convert the Parquet file to a compact NPZ for fast loading."""
         try:
             import pandas as pd
         except ImportError:
@@ -169,14 +216,11 @@ class MTGEmbeddingIndex:
         types = df["type"].fillna("").values.astype(str)
         texts = df["text"].fillna("").values.astype(str)
 
-        # Parse color identities from mana costs
         colors = np.array([_parse_color_identity(mc) for mc in mana_costs])
         mana_values = np.array([_parse_mana_value(mc) for mc in mana_costs], dtype=np.float32)
 
-        # Extract embedding vectors
         embeddings = np.vstack(df["embedding"].to_numpy()).astype(np.float32)
 
-        # L2 normalize for cosine similarity via dot product
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
         embeddings = embeddings / norms
@@ -198,25 +242,27 @@ class MTGEmbeddingIndex:
         return EMBEDDINGS_NPZ
 
     def load(self, force_download: bool = False) -> bool:
-        """
-        Load embeddings from NPZ (fast) or fall back to downloading
+        """Load embeddings from NPZ (fast) or fall back to downloading
         and converting from Parquet.
         """
         if self._loaded and not force_download:
             return True
 
-        # Try NPZ first (fast path)
         if EMBEDDINGS_NPZ.exists() and not force_download:
-            return self._load_npz()
+            ok = self._load_npz()
+        else:
+            try:
+                self.download_parquet(force=force_download)
+                self.convert_parquet_to_npz()
+                ok = self._load_npz()
+            except Exception as e:
+                logger.error("Failed to load embeddings: %s", e)
+                return False
 
-        # Download and convert
-        try:
-            self.download_parquet(force=force_download)
-            self.convert_parquet_to_npz()
-            return self._load_npz()
-        except Exception as e:
-            logger.error("Failed to load embeddings: %s", e)
-            return False
+        if ok:
+            self._load_custom_cache()
+
+        return ok
 
     def _load_npz(self) -> bool:
         """Load from pre-built NPZ file."""
@@ -230,7 +276,6 @@ class MTGEmbeddingIndex:
             self.texts = data.get("texts", np.array([""] * len(self.names)))
             self.vectors = data["vectors"]
 
-            # Build name lookup
             self._name_to_idx = {
                 name.lower(): i for i, name in enumerate(self.names)
             }
@@ -241,12 +286,169 @@ class MTGEmbeddingIndex:
             logger.error("Failed to load NPZ: %s", e)
             return False
 
+    # ── Custom cache ──────────────────────────────────────────
+
+    def _load_custom_cache(self) -> None:
+        """Merge on-the-fly embedded cards from the custom cache into the index."""
+        if not CUSTOM_CACHE_PATH.exists():
+            return
+        try:
+            data = np.load(str(CUSTOM_CACHE_PATH), allow_pickle=True)
+            c_names = data["names"]
+            # Only add cards that aren't already in the main index
+            new_mask = np.array(
+                [n.lower() not in self._name_to_idx for n in c_names]
+            )
+            if not new_mask.any():
+                return
+            self._append_cards(
+                c_names[new_mask],
+                data["colors"][new_mask],
+                data["mana_values"][new_mask],
+                data["types"][new_mask],
+                data["mana_costs"][new_mask],
+                data["texts"][new_mask],
+                data["vectors"][new_mask],
+            )
+            logger.info("Loaded %d custom-cached card embeddings", new_mask.sum())
+        except Exception as e:
+            logger.warning("Failed to load custom embedding cache: %s", e)
+
+    def _save_custom_cache(self) -> None:
+        """Persist the custom cache NPZ (only cards not in the base dataset)."""
+        if not self._custom_dirty:
+            return
+        try:
+            EMBEDDINGS_DIR.mkdir(parents=True, exist_ok=True)
+            # Collect indices that correspond to custom-added cards
+            # We track these by loading the base count at load time — simpler:
+            # just re-save the full custom cache from CUSTOM_CACHE_PATH if it
+            # exists, merging with any new cards we've added this session.
+            existing_names: set = set()
+            existing: dict = {}
+            if CUSTOM_CACHE_PATH.exists():
+                try:
+                    d = np.load(str(CUSTOM_CACHE_PATH), allow_pickle=True)
+                    for n in d["names"]:
+                        existing_names.add(n.lower())
+                    existing = dict(d)
+                except Exception:
+                    pass
+
+            # Find names in our live index that aren't in the base NPZ
+            base_data = np.load(str(EMBEDDINGS_NPZ), allow_pickle=True)
+            base_names = set(n.lower() for n in base_data["names"])
+            custom_mask = np.array(
+                [n.lower() not in base_names for n in self.names]
+            )
+            if not custom_mask.any():
+                return
+
+            np.savez_compressed(
+                str(CUSTOM_CACHE_PATH),
+                names=self.names[custom_mask],
+                colors=self.colors[custom_mask],
+                mana_values=self.mana_values[custom_mask],
+                types=self.types[custom_mask],
+                mana_costs=self.mana_costs[custom_mask],
+                texts=self.texts[custom_mask],
+                vectors=self.vectors[custom_mask],
+            )
+            self._custom_dirty = False
+            logger.info("Saved custom embedding cache: %d cards", custom_mask.sum())
+        except Exception as e:
+            logger.warning("Failed to save custom embedding cache: %s", e)
+
+    def _append_cards(
+        self,
+        names: np.ndarray,
+        colors: np.ndarray,
+        mana_values: np.ndarray,
+        types: np.ndarray,
+        mana_costs: np.ndarray,
+        texts: np.ndarray,
+        vectors: np.ndarray,
+    ) -> None:
+        """Append new card arrays to the live in-memory index."""
+        start_idx = len(self.names)
+        self.names = np.concatenate([self.names, names])
+        self.colors = np.concatenate([self.colors, colors])
+        self.mana_values = np.concatenate([self.mana_values, mana_values])
+        self.types = np.concatenate([self.types, types])
+        self.mana_costs = np.concatenate([self.mana_costs, mana_costs])
+        self.texts = np.concatenate([self.texts, texts])
+        self.vectors = np.concatenate([self.vectors, vectors], axis=0)
+        for i, name in enumerate(names):
+            self._name_to_idx[name.lower()] = start_idx + i
+
+    # ── Sentence model (lazy) ─────────────────────────────────
+
+    def _get_sentence_model(self):
+        """Lazy-load the sentence-transformers model on first cache miss."""
+        if self._sentence_model is None:
+            try:
+                from sentence_transformers import SentenceTransformer
+                logger.info("Loading embedding model %s (first cache miss)...", EMBEDDING_MODEL)
+                self._sentence_model = SentenceTransformer(EMBEDDING_MODEL)
+                logger.info("Embedding model loaded.")
+            except Exception as e:
+                logger.error("Failed to load SentenceTransformer: %s", e)
+                return None
+        return self._sentence_model
+
+    # ── On-the-fly Scryfall fallback ──────────────────────────
+
+    def _fetch_and_embed_card(self, card_name: str) -> Optional[np.ndarray]:
+        """Fetch card from Scryfall, embed it, append to index, persist to cache.
+
+        Returns the L2-normalized embedding vector on success, None on failure.
+        """
+        logger.info("Fetching unknown card from Scryfall: '%s'", card_name)
+        card_data = _fetch_scryfall_card(card_name)
+        if card_data is None:
+            return None
+
+        model = self._get_sentence_model()
+        if model is None:
+            return None
+
+        text = _build_card_text(card_data)
+        vec = model.encode(text, normalize_embeddings=True).astype(np.float32)
+        # Ensure shape (1, 768)
+        vec = vec.reshape(1, -1)
+
+        resolved_name = card_data["name"]
+        mana_cost = card_data.get("mana_cost", "")
+        color_identity = card_data.get("color_identity", "") or _parse_color_identity(mana_cost)
+
+        self._append_cards(
+            names=np.array([resolved_name]),
+            colors=np.array([color_identity]),
+            mana_values=np.array([_parse_mana_value(mana_cost)], dtype=np.float32),
+            types=np.array([card_data.get("type_line", "")]),
+            mana_costs=np.array([mana_cost]),
+            texts=np.array([card_data.get("oracle_text", "")]),
+            vectors=vec,
+        )
+
+        self._custom_dirty = True
+        self._save_custom_cache()
+        logger.info("Embedded and cached new card: '%s'", resolved_name)
+        return self.vectors[self._name_to_idx[resolved_name.lower()]]
+
+    # ── Public API ────────────────────────────────────────────
+
     def get_card_vector(self, card_name: str) -> Optional[np.ndarray]:
-        """Get the embedding vector for a card by name (case-insensitive)."""
+        """Get the embedding vector for a card by name (case-insensitive).
+
+        On a cache miss, fetches from Scryfall and embeds on the fly.
+        """
         idx = self._name_to_idx.get(card_name.lower())
         if idx is not None:
             return self.vectors[idx]
-        return None
+
+        # Cache miss — try Scryfall fallback
+        return self._fetch_and_embed_card(card_name)
 
     def search_similar(self, query_card: str,
                        color_filter: List[str] = None,
@@ -274,38 +476,32 @@ class MTGEmbeddingIndex:
 
         query_vec = self.get_card_vector(query_card)
         if query_vec is None:
-            logger.warning("Card not found in embeddings: %s", query_card)
+            logger.warning("Card not found in embeddings and Scryfall fallback failed: %s", query_card)
             return []
 
-        # Compute similarities (dot product on normalized vectors = cosine similarity)
         similarities = self.vectors @ query_vec
 
-        # Build exclusion set
         exclude_set = set()
         exclude_set.add(query_card.lower())
         if exclude_cards:
             exclude_set.update(name.lower() for name in exclude_cards)
 
-        # Filter and collect results
         results = []
         for idx in np.argsort(similarities)[::-1]:
             name = str(self.names[idx])
             if name.lower() in exclude_set:
                 continue
 
-            # Color filter
             if color_filter:
                 card_colors = str(self.colors[idx])
                 if not _is_color_subset(card_colors, color_filter):
                     continue
 
-            # Type filter
             if type_filter:
                 card_type = str(self.types[idx])
                 if type_filter.lower() not in card_type.lower():
                     continue
 
-            # Mana value range filter
             if mana_range:
                 mv = float(self.mana_values[idx])
                 if mv < mana_range[0] or mv > mana_range[1]:
