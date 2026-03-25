@@ -1,14 +1,14 @@
 """
 routes/deckgen.py
 =================
-Deck generation endpoints (classic, Perplexity V1, V3):
+Deck generation endpoints (classic, Anthropic Claude V1, V3):
   GET  /api/deck-generator/config
   POST /api/deck-generator/preview
   POST /api/deck-generator/commit
   GET  /api/deck-generator/commander-search
   POST /api/deck-research
   POST /api/deck-generate
-  GET  /api/pplx/status
+  GET  /api/anthropic/status
   GET  /api/deck/v3/status
   POST /api/deck/v3/generate
   POST /api/deck/v3/commit
@@ -724,7 +724,7 @@ async def deck_generator_commander_search(q: str = ""):
 
 
 # ══════════════════════════════════════════════════════════════
-# Perplexity API — AI Deck Research & Generation
+# Anthropic Claude API — AI Deck Research & Generation
 # ══════════════════════════════════════════════════════════════
 
 
@@ -847,54 +847,62 @@ def _build_collection_summary(color_identity: list[str] | None = None) -> dict:
     }
 
 
-async def _call_pplx_api(messages: list[dict], max_tokens: int = 4096, temperature: float = 0.2) -> str:
-    """Call Perplexity API chat/completions endpoint (non-blocking).
+async def _call_anthropic_api(messages: list[dict], max_tokens: int = 4096, temperature: float = 0.2) -> str:
+    """Call Anthropic Claude API messages endpoint (non-blocking).
     Uses httpx.AsyncClient so the uvicorn event loop is never stalled.
     Returns the assistant message content.
     """
-    from coach.config import DECK_GEN_PROVIDER, DECK_GEN_BASE_URL, DECK_GEN_MODEL, PPLX_MODEL
+    from coach.config import DECK_GEN_PROVIDER, DECK_GEN_BASE_URL, DECK_GEN_MODEL, ANTHROPIC_MODEL
 
     if DECK_GEN_PROVIDER == 'local':
         base_url = DECK_GEN_BASE_URL
         model = DECK_GEN_MODEL
         headers = {'Content-Type': 'application/json'}
     else:
-        if not CFG.pplx_api_key:
-            raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var or --pplx-key.')
-        base_url = 'https://api.perplexity.ai'
-        model = PPLX_MODEL
+        if not CFG.anthropic_api_key:
+            raise HTTPException(400, 'Anthropic Claude API key not configured. Set anthropic_api_key env var or --anthropic-key.')
+        base_url = 'https://api.anthropic.com'
+        model = ANTHROPIC_MODEL
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {CFG.pplx_api_key}',
+            'x-api-key': CFG.anthropic_api_key, 'anthropic-version': '2023-06-01',
         }
-    payload = {
+    # Separate system messages for Anthropic API format
+    system_msgs = [m['content'] for m in messages if m.get('role') == 'system']
+    user_msgs = [m for m in messages if m.get('role') != 'system']
+    system_text = '\n'.join(system_msgs) if system_msgs else None
+
+  
+payload = {
         'model': model,
-        'messages': messages,
+        'messages': user_msgs,
         'max_tokens': max_tokens,
         'temperature': temperature,
     }
+    if system_text:
+        payload['system'] = system_text
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(
-                f'{base_url}/chat/completions',
+                f'{base_url}/v1/messages',
                 json=payload,
                 headers=headers,
             )
             resp.raise_for_status()
             data = resp.json()
     except httpx.HTTPStatusError as e:
-        raise HTTPException(502, f'Perplexity API returned {e.response.status_code}: {e.response.text[:200]}')
+        raise HTTPException(502, f'Anthropic Claude API returned {e.response.status_code}: {e.response.text[:200]}')
     except httpx.RequestError as e:
-        raise HTTPException(502, f'Perplexity API call failed: {e}')
+        raise HTTPException(502, f'Anthropic Claude API call failed: {e}')
 
-    choices = data.get('choices', [])
-    if not choices:
-        raise HTTPException(502, 'Empty response from Perplexity API')
-    content = choices[0].get('message', {}).get('content', '')
+    content_blocks = data.get('content', [])
+    if not content_blocks:
+        raise HTTPException(502, 'Empty response from Anthropic Claude API')
+    content = content_blocks[0].get('text', '')
     usage = data.get('usage', {})
     log_pplx.debug(
-        f'tokens: prompt={usage.get("prompt_tokens", "?")}, '
-        f'completion={usage.get("completion_tokens", "?")}, '
+        f'tokens: prompt={usage.get("input_tokens", "?")}, '
+        f'completion={usage.get("output_tokens", "?")}, '
         f'model={data.get("model", "?")}'
     )
     return content
@@ -1032,7 +1040,7 @@ def _fill_basic_lands(cards: list[dict], color_identity: list[str] | None = None
 
 @router.post('/api/deck-research')
 async def deck_research(req: DeckResearchRequest):
-    """Analyze an existing deck using Perplexity AI and suggest improvements."""
+    """Analyze an existing deck using Anthropic Claude and suggest improvements."""
     conn = _get_db_conn()
 
     # Load deck info
@@ -1157,7 +1165,7 @@ DECKLIST ({len(card_rows)} cards):
 
 Analyze EVERYTHING: the deck's identity, strategy, archetype, bracket level (1-4 per Commander Rules Committee), ALL synergy packages between cards, ALL win conditions, game plan by phase (early/mid/late), mana base health, every role gap. Suggest specific cuts with severity and specific adds with priority and synergy tags. For adds, prioritize cards from the COLLECTION SUMMARY when available."""
 
-    content = await _call_pplx_api([
+    content = await _call_anthropic_api([
         {'role': 'system', 'content': system_msg},
         {'role': 'user', 'content': user_msg},
     ], max_tokens=8192)
@@ -1187,7 +1195,7 @@ Analyze EVERYTHING: the deck's identity, strategy, archetype, bracket level (1-4
 
 @router.post('/api/deck-generate')
 async def deck_generate_ai(req: DeckGenerateAIRequest):
-    """Generate a full 100-card Commander deck using Perplexity AI."""
+    """Generate a full 100-card Commander deck using Anthropic Claude."""
     commander = req.commander.strip()
     if not commander:
         raise HTTPException(400, 'Commander name is required')
@@ -1267,7 +1275,7 @@ COLOR IDENTITY: {', '.join(color_identity) if color_identity else 'Unknown'}
 
 Build the deck as JSON. Prioritize collection cards when they fit the strategy."""
 
-    content = await _call_pplx_api([
+    content = await _call_anthropic_api([
         {'role': 'system', 'content': system_msg},
         {'role': 'user', 'content': user_msg},
     ], max_tokens=8192, temperature=0.3)
@@ -1294,16 +1302,16 @@ Build the deck as JSON. Prioritize collection cards when they fit the strategy."
     return result
 
 
-@router.get('/api/pplx/status')
-async def pplx_status():
-    """Check if Perplexity API is configured."""
+@router.get('/api/anthropic/status')
+async def anthropic_status():
+    """Check if Anthropic Claude API is configured."""
     return {
-        'configured': bool(CFG.pplx_api_key),
+        'configured': bool(CFG.anthropic_api_key),
     }
 
 
 # ══════════════════════════════════════════════════════════════
-# V3 Deck Generator (Perplexity Structured Output)
+# V3 Deck Generator (Anthropic Claude Structured Output)
 # ══════════════════════════════════════════════════════════════
 
 @router.get('/api/deck/v3/status')
@@ -1311,8 +1319,8 @@ async def deck_gen_v3_status():
     """Check V3 deck generator status."""
     return {
         'initialized': _coach._deck_gen_v3 is not None,
-        'pplx_configured': bool(CFG.pplx_api_key),
-        'model': getattr(_coach._deck_gen_v3, 'model', getattr(getattr(_coach._deck_gen_v3, 'pplx', None), 'model', 'ollama/gpt-oss:20b')) if _coach._deck_gen_v3 else None,
+        'anthropic_configured': bool(CFG.anthropic_api_key),
+        'model': getattr(_coach._deck_gen_v3, 'model', getattr(getattr(_coach._deck_gen_v3, 'anthropic_client', None), 'model', 'ollama/gpt-oss:20b')) if _coach._deck_gen_v3 else None,
         'embeddings_loaded': False,
         'embedding_cards': 0,
         'error': _coach._deck_gen_v3_error,
@@ -1322,14 +1330,14 @@ async def deck_gen_v3_status():
 @router.post('/api/deck/v3/generate')
 async def deck_gen_v3_generate(req: DeckGenV3Request):
     """
-    V3 Deck Generation — Perplexity structured output with Smart Substitution.
+    V3 Deck Generation — Anthropic Claude Structured Output with Smart Substitution.
 
     Pipeline:
       1. Resolve commander via Scryfall
       2. Build collection summary from DB
-      3. Call Perplexity Sonar with JSON schema enforcement
+      3. Call Anthropic Claude with JSON schema enforcement
       4. Cross-reference cards with collection for ownership
-      5. Run Smart Substitution (embedding + Perplexity fallback)
+      5. Run Smart Substitution (embedding + Anthropic fallback)
       6. Return complete deck with substitution data
     """
     if _coach._deck_gen_v3 is None:
