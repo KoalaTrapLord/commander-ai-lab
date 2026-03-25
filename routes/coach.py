@@ -40,6 +40,8 @@ from services.logging import log_coach, log_deckgen
 import httpx
 from coach.config import COACH_PROVIDER, PPLX_MODEL
 
+LLM_TIMEOUT = 120  # seconds
+
 router = APIRouter(tags=["coach"])
 
 
