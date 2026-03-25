@@ -14,7 +14,7 @@ REM ═════════════════════════�
 
 REM ── Your Forge paths (EDIT THESE) ──────────────────────────
 set FORGE_JAR=D:\ForgeCommander\forge-repo\forge-gui-desktop\target\forge-gui-desktop-2.0.12-SNAPSHOT-jar-with-dependencies.jar
-set FORGE_DIR=D:\ForgeCommander\forge-repo\forge-gui
+set FORGE_DIR=D:\ForgeCommander\forge-repo
 set FORGE_DECKS_DIR=%APPDATA%\Forge\decks\commander
 
 REM ── Lab JAR (auto-detected from target/) ───────────────────
