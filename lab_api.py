@@ -36,11 +36,11 @@ from routes.deepseek import router as deepseek_router
 from routes.deckgen import router as deckgen_router
 from routes.coach import router as coach_router, init_coach_service
 from routes.ml import router as ml_router
+from routes.ws_game import router as ws_game_router
 
 log = logging.getLogger("commander_ai_lab.api")
 
 # ── CORS origins (env-configurable) ────────────────────────────
-_DEFAULT_ORIGINS = "http://localhost:5173,http://localhost:8080"
 _allowed = os.environ.get("ALLOWED_ORIGINS", _DEFAULT_ORIGINS)
 allowed_origins = [o.strip() for o in _allowed.split(",") if o.strip()]
 
@@ -63,6 +63,7 @@ app.include_router(scanner_router)
 app.include_router(deepseek_router)
 app.include_router(deckgen_router)
 app.include_router(coach_router)
+app.include_router(ws_game_router)
 app.include_router(ml_router)
 
 
