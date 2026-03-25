@@ -345,6 +345,12 @@ const DeckGenerator = (() => {
         }
 
         $('dg-preview-btn').disabled = false;
+
+                // Auto-fill deck name if empty
+        const deckNameInput = $('dg-deck-name');
+        if (deckNameInput && !deckNameInput.value.trim()) {
+            deckNameInput.value = 'Auto - ' + cmdr.name;
+        }
     }
 
     function clearCommander() {
