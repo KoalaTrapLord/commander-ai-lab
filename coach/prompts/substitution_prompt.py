@@ -1,7 +1,7 @@
 """
 Commander AI Lab — Substitution Prompt Templates
 ═════════════════════════════════════════════════
-Prompts for the Perplexity fallback substitution pass.
+Prompts for the Claude Opus substitution pass.
 """
 
 
