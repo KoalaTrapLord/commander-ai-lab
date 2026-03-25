@@ -49,9 +49,9 @@ def _make_conn() -> sqlite3.Connection:
 
 
 def _make_generator(conn: sqlite3.Connection) -> DeckGeneratorV3:
-    """Build a DeckGeneratorV3 with a mock Perplexity client."""
+    """Build a DeckGeneratorV3 with a mock Anthropic Claude Opus client."""
     return DeckGeneratorV3(
-        pplx_client=MagicMock(),
+        anthropic_client=MagicMock(),
         db_conn_factory=lambda: conn,
     )
 
