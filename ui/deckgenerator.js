@@ -112,6 +112,36 @@ const DeckGenerator = (() => {
         if (elapsed) elapsed.textContent = secs + 's total';
     }
 
+        // ── Omit Cards (chips) ─────────────────────────────
+    let omitCards = [];
+
+    function addOmitCard(name) {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        if (omitCards.some(c => c.toLowerCase() === trimmed.toLowerCase())) return;
+        omitCards.push(trimmed);
+        renderOmitChips();
+    }
+
+    function removeOmitCard(idx) {
+        omitCards.splice(idx, 1);
+        renderOmitChips();
+    }
+
+    function renderOmitChips() {
+        const container = $('dg-omit-chips');
+        if (!container) return;
+        container.innerHTML = omitCards.map((name, i) =>
+            '<span class="dg-chip">' +
+                escHtml(name) +
+                '<span class="dg-chip-x" data-idx="' + i + '">&times;</span>' +
+            '</span>'
+        ).join('');
+        container.querySelectorAll('.dg-chip-x').forEach(el => {
+            el.addEventListener('click', () => removeOmitCard(parseInt(el.dataset.idx, 10)));
+        });
+    }
+
     const $ = (id) => document.getElementById(id);
 
     // ── Init ────────────────────────────────────────────────
@@ -177,6 +207,22 @@ const DeckGenerator = (() => {
         $('dg-export-dck').addEventListener('click', () => exportDeck('dck'));
         $('dg-export-moxfield').addEventListener('click', () => exportMoxfield());
         $('dg-export-shopping').addEventListener('click', () => exportShopping());
+
+                // Omit cards chips input
+        const omitInput = $('dg-omit-input');
+        if (omitInput) {
+            omitInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addOmitCard(omitInput.value);
+                    omitInput.value = '';
+                }
+            });
+        }
+        const omitWrap = $('dg-omit-wrap');
+        if (omitWrap) {
+            omitWrap.addEventListener('click', () => omitInput && omitInput.focus());
+        }
     }
 
     function checkQueryParams() {
@@ -197,7 +243,7 @@ const DeckGenerator = (() => {
             target_bracket: state.targetBracket,
             budget_usd: budget,
             budget_mode: $('dg-budget-mode').value,
-            omit_cards: [],
+            omit_cards: omitCards.slice(),
             use_collection: $('dg-use-collection').checked,
             run_substitution: $('dg-substitution').checked,
             model: $('dg-model').value,
