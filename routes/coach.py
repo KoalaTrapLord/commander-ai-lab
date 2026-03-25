@@ -38,7 +38,7 @@ from services.database import _get_db_conn
 from services.deck_service import _compute_deck_analysis
 from services.logging import log_coach, log_deckgen
 import httpx
-from coach.config import COACH_PROVIDER, PPLX_MODEL, DECK_GEN_PROVIDER, DECK_GEN_MODEL
+from coach.config import COACH_PROVIDER, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, DECK_GEN_PROVIDER, DECK_GEN_MODEL
 
 LLM_TIMEOUT = 120  # seconds
 
@@ -53,7 +53,7 @@ router = APIRouter(tags=["coach"])
 _coach_service = None
 _coach_embeddings = None
 _coach_llm = None
-_deck_gen_v3 = None  # V3 Deck Generator (Perplexity structured output)
+_deck_gen_v3 = None  # V3 Deck Generator (Anthropic Claude structured output)
 _deck_gen_v3_error = None  # Error message if V3 init failed
 
 
@@ -85,8 +85,8 @@ def init_coach_service():
         _coach_service = CoachService(_coach_llm, _coach_embeddings)
 
         # Log coach LLM provider
-        if COACH_PROVIDER == "perplexity":
-            log_coach.info(f"  Coach LLM:    Perplexity ({PPLX_MODEL})")
+        if COACH_PROVIDER == "anthropic":
+            log_coach.info(f"  Coach LLM:    Anthropic Claude ({ANTHROPIC_MODEL})")
         else:
             # Only probe Ollama when actually using it
             llm_status = _coach_llm.check_connection()
@@ -99,12 +99,12 @@ def init_coach_service():
         _deck_gen_v3_error = None
         try:
             from src.commander_ai_lab.deck_builder.adapter import DeckBuilderAdapter
-            if DECK_GEN_PROVIDER == "perplexity":
+            if DECK_GEN_PROVIDER == "anthropic":
                 _deck_gen_v3 = DeckBuilderAdapter(
                     db_conn_factory=_get_db_conn,
                     model=DECK_GEN_MODEL,
                 )
-                log_deckgen.info(f"  Deck Gen V3:  Initialized (Perplexity {DECK_GEN_MODEL})")
+                log_deckgen.info(f"  Deck Gen V3:  Initialized (Anthropic Claude {DECK_GEN_MODEL})")
             else:
                 from coach.config import LLM_MODEL
                 _deck_gen_v3 = DeckBuilderAdapter(
@@ -419,26 +419,26 @@ async def coach_chat(body: CoachChatRequest):
     for msg in body.messages:
         messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
 
-    # ── Perplexity provider path ─────────────────────────────────────────
-    if COACH_PROVIDER == 'perplexity':
-        if not CFG.pplx_api_key:
-            raise HTTPException(400, 'Perplexity API key not configured. Set PPLX_API_KEY env var.')
-        pplx_payload = {
-            'model': PPLX_MODEL,
+    # ── Anthropic Claude provider path ─────────────────────────────────────────
+    if COACH_PROVIDER == 'Anthropic Claude':
+        if not CFG.anthropic_api_key:
+            raise HTTPException(400, 'Anthropic Claude API key not configured. Set anthropic_api_key env var.')
+        anthropic_payload = {
+            'model': ANTHROPIC_MODEL,
             'messages': messages,
             'max_tokens': 4096,
             'temperature': 0.7,
         }
-        pplx_headers = {
+        anthropic_headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {CFG.pplx_api_key}',
+            'Authorization': f'Bearer {CFG.anthropic_api_key}',
         }
         if body.stream:
-            async def pplx_stream():
-                pplx_payload['stream'] = True
+            async def anthropic_stream():
+                anthropic_payload['stream'] = True
                 async with httpx.AsyncClient(timeout=120.0) as client:
-                    async with client.stream('POST', 'https://api.perplexity.ai/chat/completions',
-                                             json=pplx_payload, headers=pplx_headers) as resp:
+                    async with client.stream('POST', 'https://api.Anthropic Claude.ai/chat/completions',
+                                             json=anthropic_payload, headers=anthropic_headers) as resp:
                         async for line in resp.aiter_lines():
                             if line.startswith('data: '):
                                 data = line[6:]
@@ -452,13 +452,13 @@ async def coach_chat(body: CoachChatRequest):
                                         yield f'data: {json.dumps({"content": content})}\n\n'
                                 except json.JSONDecodeError:
                                     continue
-            return StreamingResponse(pplx_stream(), media_type='text/event-stream')
+            return StreamingResponse(anthropic_stream(), media_type='text/event-stream')
         else:
             try:
                 async with httpx.AsyncClient(timeout=120.0) as client:
                     resp = await client.post(
-                        'https://api.perplexity.ai/chat/completions',
-                        json=pplx_payload, headers=pplx_headers,
+                        'https://api.Anthropic Claude.ai/chat/completions',
+                        json=anthropic_payload, headers=anthropic_headers,
                     )
                     resp.raise_for_status()
                     raw = resp.json()
@@ -471,9 +471,9 @@ async def coach_chat(body: CoachChatRequest):
                     'completion_tokens': usage.get('completion_tokens', 0),
                 }
             except httpx.HTTPStatusError as e:
-                raise HTTPException(502, f'Perplexity API returned {e.response.status_code}')
+                raise HTTPException(502, f'Anthropic Claude API returned {e.response.status_code}')
             except httpx.RequestError as e:
-                raise HTTPException(502, f'Perplexity API call failed: {e}')
+                raise HTTPException(502, f'Anthropic Claude API call failed: {e}')
 
     # ── Local Ollama provider path ───────────────────────────────────
     try:
