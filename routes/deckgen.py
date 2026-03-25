@@ -49,6 +49,44 @@ from services.deck_service import _write_dck_file, _build_dck_lines
 
 router = APIRouter(tags=["deckgen"])
 
+# ── V3 Result Cache (avoids re-generating on export) ──────────
+import hashlib
+_v3_result_cache: dict[str, tuple[float, dict]] = {}  # key -> (timestamp, result)
+_V3_CACHE_TTL = 600  # 10 minutes
+
+def _v3_cache_key(req) -> str:
+    """Deterministic cache key from a DeckGenV3Request."""
+    blob = json.dumps({
+        'commander': req.commander_name.strip().lower(),
+        'strategy': req.strategy or '',
+        'bracket': req.target_bracket,
+        'budget': req.budget_usd,
+        'budget_mode': req.budget_mode,
+        'omit': sorted(req.omit_cards or []),
+        'collection': req.use_collection,
+        'model': req.model or '',
+    }, sort_keys=True)
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+def _v3_cache_get(key: str) -> dict | None:
+    """Return cached result if within TTL, else None."""
+    entry = _v3_result_cache.get(key)
+    if entry and (time.time() - entry[0]) < _V3_CACHE_TTL:
+        return entry[1]
+    if entry:
+        del _v3_result_cache[key]
+    return None
+
+def _v3_cache_put(key: str, result: dict):
+    """Store result in cache with current timestamp."""
+    # Evict stale entries if cache grows large
+    if len(_v3_result_cache) > 50:
+        cutoff = time.time() - _V3_CACHE_TTL
+        stale = [k for k, (ts, _) in _v3_result_cache.items() if ts < cutoff]
+        for k in stale:
+            del _v3_result_cache[k]
+    _v3_result_cache[key] = (time.time(), result)
+
 
 # ══════════════════════════════════════════════════════════════
 # Auto Deck Generator
@@ -1290,6 +1328,9 @@ async def deck_gen_v3_generate(req: DeckGenV3Request):
             from coach.services.deck_generator import DeckGeneratorV3
             result['stats'] = DeckGeneratorV3._compute_stats(sub_result.cards)
 
+                # Cache result for export endpoints
+        _v3_cache_put(_v3_cache_key(req), result)
+
         return result
 
     except ValueError as e:
@@ -1407,17 +1448,20 @@ async def deck_gen_v3_export_csv(req: DeckGenV3Request):
     if _coach._deck_gen_v3 is None:
         raise HTTPException(503, 'V3 Deck Generator not initialized.')
 
-    result = _coach._deck_gen_v3.generate_deck(
-        commander_name=req.commander_name.strip(),
-        strategy=req.strategy,
-        target_bracket=req.target_bracket,
-        budget_usd=req.budget_usd,
-        budget_mode=req.budget_mode,
-        omit_cards=req.omit_cards,
-        use_collection=req.use_collection,
-        model=req.model,
-    )
-
+    _ck = _v3_cache_key(req)
+    result = _v3_cache_get(_ck)
+    if result is None:
+        result = _coach._deck_gen_v3.generate_deck(
+            commander_name=req.commander_name.strip(),
+            strategy=req.strategy,
+            target_bracket=req.target_bracket,
+            budget_usd=req.budget_usd,
+            budget_mode=req.budget_mode,
+            omit_cards=req.omit_cards,
+            use_collection=req.use_collection,
+            model=req.model,
+        )
+        _v3_cache_put(_ck, result)
     cards = result.get('cards', [])
     commander = result.get('commander', {})
 
@@ -1454,16 +1498,20 @@ async def deck_gen_v3_export_dck(req: DeckGenV3Request):
     if _coach._deck_gen_v3 is None:
         raise HTTPException(503, 'V3 Deck Generator not initialized.')
 
-    result = _coach._deck_gen_v3.generate_deck(
-        commander_name=req.commander_name.strip(),
-        strategy=req.strategy,
-        target_bracket=req.target_bracket,
-        budget_usd=req.budget_usd,
-        budget_mode=req.budget_mode,
-        omit_cards=req.omit_cards,
-        use_collection=req.use_collection,
-        model=req.model,
-    )
+    _ck = _v3_cache_key(req)
+    result = _v3_cache_get(_ck)
+    if result is None:
+        result = _coach._deck_gen_v3.generate_deck(
+            commander_name=req.commander_name.strip(),
+            strategy=req.strategy,
+            target_bracket=req.target_bracket,
+            budget_usd=req.budget_usd,
+            budget_mode=req.budget_mode,
+            omit_cards=req.omit_cards,
+            use_collection=req.use_collection,
+            model=req.model,
+        )
+        _v3_cache_put(_ck, result)
 
     cards = result.get('cards', [])
     commander = result.get('commander', {})
@@ -1489,16 +1537,20 @@ async def deck_gen_v3_export_moxfield(req: DeckGenV3Request):
     if _coach._deck_gen_v3 is None:
         raise HTTPException(503, 'V3 Deck Generator not initialized.')
 
-    result = _coach._deck_gen_v3.generate_deck(
-        commander_name=req.commander_name.strip(),
-        strategy=req.strategy,
-        target_bracket=req.target_bracket,
-        budget_usd=req.budget_usd,
-        budget_mode=req.budget_mode,
-        omit_cards=req.omit_cards,
-        use_collection=req.use_collection,
-        model=req.model,
-    )
+    _ck = _v3_cache_key(req)
+    result = _v3_cache_get(_ck)
+    if result is None:
+        result = _coach._deck_gen_v3.generate_deck(
+            commander_name=req.commander_name.strip(),
+            strategy=req.strategy,
+            target_bracket=req.target_bracket,
+            budget_usd=req.budget_usd,
+            budget_mode=req.budget_mode,
+            omit_cards=req.omit_cards,
+            use_collection=req.use_collection,
+            model=req.model,
+        )
+        _v3_cache_put(_ck, result)
 
     cards = result.get('cards', [])
     commander = result.get('commander', {})
@@ -1526,16 +1578,20 @@ async def deck_gen_v3_export_shopping(req: DeckGenV3Request):
     if _coach._deck_gen_v3 is None:
         raise HTTPException(503, 'V3 Deck Generator not initialized.')
 
-    result = _coach._deck_gen_v3.generate_deck(
-        commander_name=req.commander_name.strip(),
-        strategy=req.strategy,
-        target_bracket=req.target_bracket,
-        budget_usd=req.budget_usd,
-        budget_mode=req.budget_mode,
-        omit_cards=req.omit_cards,
-        use_collection=req.use_collection,
-        model=req.model,
-    )
+    _ck = _v3_cache_key(req)
+    result = _v3_cache_get(_ck)
+    if result is None:
+        result = _coach._deck_gen_v3.generate_deck(
+            commander_name=req.commander_name.strip(),
+            strategy=req.strategy,
+            target_bracket=req.target_bracket,
+            budget_usd=req.budget_usd,
+            budget_mode=req.budget_mode,
+            omit_cards=req.omit_cards,
+            use_collection=req.use_collection,
+            model=req.model,
+        )
+        _v3_cache_put(_ck, result)
 
     cards = result.get('cards', [])
     shopping = []
