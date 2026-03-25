@@ -1,7 +1,7 @@
 """
 Commander AI Lab — Deck Generation User Prompt Builder
 ═══════════════════════════════════════════════════════
-Constructs the user message for Perplexity deck generation
+Constructs the user message for Claude Opus deck generation
 from a DeckGenV3Request.
 """
 
