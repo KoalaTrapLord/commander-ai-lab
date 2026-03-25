@@ -18,7 +18,7 @@ from typing import Optional, List, Dict
 from .config import (
     DECK_REPORTS_DIR, COACH_SESSIONS_DIR,
     MAX_UNDERPERFORMERS, MAX_CANDIDATES_PER_UNDERPERFORMER,
-    COACH_PROVIDER, PPLX_MODEL,
+    COACH_PROVIDER, ANTHROPIC_API_KEY, ANTHROPIC_MODEL,
     UNDERPERFORMER_IMPACT_THRESHOLD, ensure_dirs,
 )
 from .models import (
@@ -273,50 +273,33 @@ class CoachService:
         system_prompt = build_system_prompt(report, goals)
         user_prompt = build_user_prompt(report, candidates)
 
-        # 5. Call LLM (Perplexity or local Ollama)
+        # 5. Call LLM (Anthropic or local Ollama)
         logger.info("Calling LLM for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
-        if COACH_PROVIDER == "perplexity":
-            import httpx
-            pplx_key = os.environ.get("PPLX_API_KEY", "")
-            if not pplx_key:
-                raise ConnectionError("Perplexity API key not configured. Set PPLX_API_KEY env var.")
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ]
-            pplx_payload = {
-                "model": PPLX_MODEL,
-                "messages": messages,
-                "max_tokens": 8192,
-                "temperature": 0.7,
-            }
-            pplx_headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {pplx_key}",
-            }
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await client.post(
-                    "https://api.perplexity.ai/chat/completions",
-                    json=pplx_payload,
-                    headers=pplx_headers,
+        if COACH_PROVIDER == "anthropic":
+            import anthropic
+            anthropic_key = ANTHROPIC_API_KEY
+            if not anthropic_key:
+                                raise ConnectionError("Anthropic API key not configured. Set ANTHROPIC_API_KEY env var.")
+            aclient = anthropic.AsyncAnthropic(api_key=anthropic_key)
+                 = await aclient.messages.create(
+                    model=ANTHROPIC_MODEL,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_prompt}],
+                    max_tokens=8192,
+                    temperature=0.7,
                 )
-                resp.raise_for_status()
-                raw = resp.json()
-            content = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
-            usage = raw.get("usage", {})
-            # Build an LLMResponse-compatible object
-            from types import SimpleNamespace
-            llm_response = SimpleNamespace(
-                content=content,
-                model=raw.get("model", PPLX_MODEL),
-                prompt_tokens=usage.get("prompt_tokens", 0),
-                completion_tokens=usage.get("completion_tokens", 0),
-                parsed_json=None,
-            )
-            # Try to parse JSON from the response
-            try:
-                import re as _re
-                cleaned = _re.sub(r'^```(?:json)?\s*', '', content.strip())
+                content = resp.content[0].text if resp.content else ""
+                usage = resp.usage
+
+                # Build an LLMResponse-compatible object
+                from types import SimpleNamespace
+                llm_response = SimpleNamespace(
+                    content=content,
+                    model=resp.model,
+                    prompt_tokens=usage.input_tokens if usage else 0,
+                    completion_tokens=usage.output_tokens if usage else 0,
+                    parsed_json=None,
+                )
                 cleaned = _re.sub(r'\s*```$', '', cleaned.strip())
                 llm_response.parsed_json = json.loads(cleaned)
             except (json.JSONDecodeError, ValueError):
@@ -391,18 +374,18 @@ class CoachService:
         """Check the health of all coach subsystems."""
         status = CoachStatus()
 
-        # Check LLM / Perplexity provider
-        if COACH_PROVIDER == "perplexity":
-            pplx_key = os.environ.get("PPLX_API_KEY", "")
-            if pplx_key:
+        # Check LLM / Anthropic provider
+        if COACH_PROVIDER == "anthropic":
+            anthropic_key = ANTHROPIC_API_KEY
+            if anthropic_key:
                 status.llmConnected = True
-                status.llmModel = f"Perplexity ({PPLX_MODEL})"
-                status.llmModels = [PPLX_MODEL]
+                status.llmModel = f"Claude Opus ({ANTHROPIC_MODEL})"
+                status.llmModels = [ANTHROPIC_MODEL]
             else:
                 status.llmConnected = False
                 status.llmModel = None
                 status.llmModels = []
-                status.error = "Perplexity API key not configured. Set PPLX_API_KEY env var."
+                status.error = "Anthropic API key not configured. Set ANTHROPIC_API_KEY env var."
         else:
             llm_status = self.llm.check_connection()
             status.llmConnected = llm_status.get("connected", False)
