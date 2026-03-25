@@ -134,7 +134,7 @@ def _run_game_loop(engine, deck_a, deck_b, deck_name, opponent_name,
                             name_b=opponent_name, **kw)
         game_data = result.to_dict()
         game_data['gameNumber'] = i + 1
-              # Phase 8: Surface player_explanation from validation in turn log
+        # Phase 8: Surface player_explanation from validation in turn log
         for turn_entry in game_data.get('log', []):
             v = turn_entry.get('validation')
             if isinstance(v, dict) and v.get('player_explanation'):
@@ -208,7 +208,7 @@ def _finish_sim(sim_id, summary, game_results, engine=None):
         _sim_runs[sim_id]['status'] = 'complete'
         _sim_runs[sim_id]['result'] = {'summary': summary, 'games': game_results}
 
-          # --- Persist ml-decision-*.json for coach / training dashboard ---
+    # --- Persist ml-decision-*.json for coach / training dashboard ---
     try:
         deck_name = summary.get('deckName', 'Unknown')
         opponent_name = summary.get('opponentName', 'Training Deck')
@@ -266,7 +266,8 @@ def _finish_sim(sim_id, summary, game_results, engine=None):
                 for dec in ml_decisions:
                     mf.write(json.dumps(dec) + '\n')
             logger.info(f'Wrote {len(ml_decisions)} ML decisions to {ml_path}')
-        
+
+
 def _fail_sim(sim_id, error):
     """Mark a sim run as errored."""
     with _sim_lock:
@@ -373,15 +374,14 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
                 for dec in ml_decisions:
                     mf.write(json.dumps(dec) + '\n')
             logger.info(f'[ML Data] Wrote {len(ml_decisions)} decision snapshots to {ml_path}')
-                elif ml_decisions and (not brain or not brain._connected):
-                              logger.warning(
+        elif ml_decisions and (not brain or not brain._connected):
+            logger.warning(
                 f'[ML Data] Skipping {len(ml_decisions)} snapshots for sim {sim_id} — '
                 f'brain not connected, all actions are heuristic fallback '
                 f'(not useful for supervised training)'
             )
-                          else:
+        else:
             logger.warning(f'[ML Data] No decision snapshots captured for sim {sim_id} (0 decisions)')
-                              
 
         ds_stats = brain.get_stats() if brain else {}
         summary = _build_summary(
@@ -795,7 +795,7 @@ async def deepseek_logs():
         'flushedPath': flushed_path,
         'logFiles': log_files[-20:],
     })
-  
+
 
 @router.get("/api/validator/status")
 async def validator_status():
