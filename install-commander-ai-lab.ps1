@@ -137,7 +137,7 @@ if (-not (Test-Path $envFile)) {
 # Uncomment and fill in the values you need:
 
 # XIMILAR_API_KEY=your_ximilar_key_here
-# PPLX_API_KEY=your_perplexity_key_here
+# ANTHROPIC_API_KEY=your_anthropic_api_key_here
 # FORGE_JAR=C:\Path\To\forge-gui-desktop.jar
 # FORGE_DIR=C:\Path\To\Forge
 # LAB_PORT=8080
