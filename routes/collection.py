@@ -406,6 +406,11 @@ async def update_collection_card(cardId: int, body: dict):
         if finish_val not in ("NORMAL", "FOIL", "ETCHED"):
             raise HTTPException(400, "finish must be NORMAL, FOIL, or ETCHED")
         updates["finish"] = finish_val
+    if "quantity" in body:
+        qty_val = int(body["quantity"])
+        if qty_val < 0:
+            raise HTTPException(400, "quantity must be >= 0")
+        updates["quantity"] = qty_val
 
     if not updates:
         return _add_image_url(_row_to_dict(row))

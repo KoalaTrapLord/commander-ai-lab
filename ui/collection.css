@@ -3147,3 +3147,88 @@
 .coll-col-reset:hover {
     background: rgba(99,102,241,0.25);
 }
+
+
+/* ── Bulk Action Bar ──────────────────────────────────────────── */
+.coll-bulk-bar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-card, #1e1e1e);
+    border-top: 1px solid var(--border, #30363d);
+    border-radius: 0 0 8px 8px;
+    z-index: 50;
+    flex-wrap: wrap;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.3);
+}
+.coll-bulk-count {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent, #6366f1);
+    min-width: 80px;
+}
+.coll-bulk-sep {
+    color: var(--text-secondary, #8b949e);
+    padding: 0 2px;
+}
+.coll-bulk-label {
+    font-size: 0.82rem;
+    color: var(--text-secondary, #8b949e);
+}
+.coll-bulk-btn {
+    background: rgba(99,102,241,0.15);
+    border: 1px solid rgba(99,102,241,0.35);
+    color: var(--text, #e6edf3);
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.coll-bulk-btn:hover:not(:disabled) {
+    background: rgba(99,102,241,0.3);
+}
+.coll-bulk-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.coll-bulk-set-btn {
+    background: rgba(99,102,241,0.25);
+    font-weight: 600;
+}
+.coll-bulk-qty-input {
+    width: 56px;
+    background: var(--bg, #0d1117);
+    border: 1px solid var(--border, #30363d);
+    color: var(--text, #e6edf3);
+    border-radius: 5px;
+    padding: 3px 6px;
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+/* ── Select Checkbox Column ─────────────────────────────────── */
+.coll-th-select {
+    width: 32px;
+    min-width: 32px;
+    text-align: center;
+    padding: 4px;
+}
+.coll-td-select {
+    width: 32px;
+    min-width: 32px;
+    text-align: center;
+    padding: 4px;
+}
+.coll-row-check {
+    cursor: pointer;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent, #6366f1);
+}
+.coll-row.selected-row {
+    background: rgba(99,102,241,0.08);
+}

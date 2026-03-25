@@ -164,6 +164,7 @@ const Collection = (() => {
         importHeaders: [],
         importMissingFinishNormal: true,
         exportOpen: false,
+    selectedRows: new Set(),
         preferences: {
             pageSize: 50,
             sortField: 'name',
@@ -662,6 +663,18 @@ const Collection = (() => {
                         </table>
                     </div>
                     <div class="coll-pagination" id="coll-pagination"></div>
+        <!-- Bulk Action Bar -->
+                    <div id="coll-bulk-bar" class="coll-bulk-bar" style="display:none">
+                        <span id="coll-bulk-count" class="coll-bulk-count">0 selected</span>
+                        <button class="coll-bulk-btn" onclick="Collection.selectAllRows()">Select All</button>
+                        <button class="coll-bulk-btn" onclick="Collection.clearSelection()">Clear</button>
+                        <span class="coll-bulk-sep">|</span>
+                        <span class="coll-bulk-label">Qty:</span>
+                        <button class="coll-bulk-btn" onclick="Collection.bulkAdjustQuantity(-1)" title="Subtract 1">−</button>
+                        <button class="coll-bulk-btn" onclick="Collection.bulkAdjustQuantity(1)" title="Add 1">+</button>
+                        <input type="number" id="coll-bulk-qty-input" class="coll-bulk-qty-input" min="0" value="1" placeholder="n">
+                        <button class="coll-bulk-btn coll-bulk-set-btn" onclick="Collection.bulkSetQuantity()">Set</button>
+                    </div>
                 </div>
 
             </div>
@@ -1077,7 +1090,7 @@ const Collection = (() => {
             return `<th class="coll-th coll-th-${col.key} coll-th-sortable${activeClass}"
                         onclick="Collection.setSort('${col.key}')">${col.label}${arrow}</th>`;
         }).join('');
-        return `<thead><tr>${headers}</tr></thead>`;
+        return `<thead><tr>$<th class="coll-th-select"><input type="checkbox" id="coll-select-all" onclick="Collection.toggleSelectAll(this.checked)" title="Select all"></th>{headers}</tr></thead>`;
     }
 
     // ── Table Body ──────────────────────────────────────────
@@ -1127,6 +1140,7 @@ const Collection = (() => {
             const edhrecRank = (card.edhrecRank || card.edhrec_rank) ? `#${card.edhrecRank || card.edhrec_rank}` : '—';
 
             return `<tr class="coll-row" onclick="Collection.openDrawer(${card.id})" data-id="${card.id}" data-img-url="${card.imageUrl || ''}">
+                    <td class="coll-td coll-td-select" onclick="event.stopPropagation()"><input type="checkbox" class="coll-row-check" data-id="${card.id}" ${state.selectedRows.has(card.id) ? 'checked' : ''} onchange="Collection.toggleRowSelect(${card.id}, this.checked)"></td>
                 <td class="coll-td coll-td-quantity">${escapeHtml(card.quantity ?? 1)}</td>
                 <td class="coll-td coll-td-name">
                     <span class="coll-card-name">${escapeHtml(card.name)}</span>
@@ -2477,6 +2491,98 @@ const Collection = (() => {
         window.location.href = '/index.html';
     }
 
+    // ── Bulk Row Selection & Quantity Edit ─────────────────────
+    function toggleRowSelect(cardId, checked) {
+        if (checked) {
+            state.selectedRows.add(cardId);
+        } else {
+            state.selectedRows.delete(cardId);
+        }
+        updateBulkBar();
+    }
+
+    function toggleSelectAll(checked) {
+        if (checked) {
+            state.items.forEach(c => state.selectedRows.add(c.id));
+        } else {
+            state.selectedRows.clear();
+        }
+        // Update all checkboxes
+        document.querySelectorAll('.coll-row-check').forEach(cb => {
+            cb.checked = checked;
+        });
+        updateBulkBar();
+    }
+
+    function selectAllRows() {
+        state.items.forEach(c => state.selectedRows.add(c.id));
+        document.querySelectorAll('.coll-row-check').forEach(cb => cb.checked = true);
+        const selectAllCb = document.getElementById('coll-select-all');
+        if (selectAllCb) selectAllCb.checked = true;
+        updateBulkBar();
+    }
+
+    function clearSelection() {
+        state.selectedRows.clear();
+        document.querySelectorAll('.coll-row-check').forEach(cb => cb.checked = false);
+        const selectAllCb = document.getElementById('coll-select-all');
+        if (selectAllCb) selectAllCb.checked = false;
+        updateBulkBar();
+    }
+
+    function updateBulkBar() {
+        const bar = document.getElementById('coll-bulk-bar');
+        const countEl = document.getElementById('coll-bulk-count');
+        const n = state.selectedRows.size;
+        if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
+        if (countEl) countEl.textContent = `${n} selected`;
+    }
+
+    async function bulkAdjustQuantity(delta) {
+        if (state.selectedRows.size === 0) return;
+        const ids = [...state.selectedRows];
+        const btn = event.target;
+        if (btn) btn.disabled = true;
+        let successCount = 0;
+        for (const id of ids) {
+            const card = state.items.find(c => c.id === id);
+            if (!card) continue;
+            const newQty = Math.max(0, (card.quantity ?? 1) + delta);
+            try {
+                await patchCard(id, { quantity: newQty });
+                card.quantity = newQty;
+                successCount++;
+            } catch (e) {
+                console.warn('[Bulk] Failed to update card', id, e);
+            }
+        }
+        if (btn) btn.disabled = false;
+        renderTable();
+        applyColumnVisibility();
+    }
+
+    async function bulkSetQuantity() {
+        if (state.selectedRows.size === 0) return;
+        const input = document.getElementById('coll-bulk-qty-input');
+        const newQty = input ? Math.max(0, parseInt(input.value, 10) || 0) : 0;
+        const ids = [...state.selectedRows];
+        const btn = document.querySelector('.coll-bulk-set-btn');
+        if (btn) btn.disabled = true;
+        for (const id of ids) {
+            const card = state.items.find(c => c.id === id);
+            if (!card) continue;
+            try {
+                await patchCard(id, { quantity: newQty });
+                card.quantity = newQty;
+            } catch (e) {
+                console.warn('[Bulk] Failed to set card', id, e);
+            }
+        }
+        if (btn) btn.disabled = false;
+        renderTable();
+        applyColumnVisibility();
+    }
+
     // ── Event Binding ────────────────────────────────────────
 
     function bindEvents() {
@@ -3081,5 +3187,12 @@ const Collection = (() => {
         openColumnPanel,
         closeColumnPanel,
         resetColumns,
+        // Bulk selection & quantity
+        toggleRowSelect,
+        toggleSelectAll,
+        selectAllRows,
+        clearSelection,
+        bulkAdjustQuantity,
+        bulkSetQuantity,
     };
 })();
