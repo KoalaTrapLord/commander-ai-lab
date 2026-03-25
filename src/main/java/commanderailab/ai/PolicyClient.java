@@ -276,6 +276,22 @@ public class PolicyClient {
     public String getLastError() { return lastError; }
     public int getTotalDecisions() { return totalDecisions; }
     public int getPolicyDecisions() { return policyDecisions; }
+        public String getBaseUrl() { return baseUrl; }
+
+    /** Decision result record for GameSession integration. */
+    public record PolicyDecision(String action, double confidence) {}
+
+        /**
+     * Decide from a JSON string + seat index. Used by GameSession.
+     * Converts to JsonObject and delegates to decide(JsonObject).
+     */
+    public PolicyDecision decide(String stateJson, int seat) {
+        JsonObject state = GSON.fromJson(stateJson, JsonObject.class);
+        state.addProperty("seat", seat);
+        String action = decide(state);
+        return new PolicyDecision(action, 1.0);
+    }
+    
     public int getFallbackDecisions() { return fallbackDecisions; }
     public int getPendingTuples() { return tupleBuffer.size(); }
 
