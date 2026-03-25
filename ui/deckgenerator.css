@@ -1336,3 +1336,67 @@
     color: var(--text-muted, #999);
     font-variant-numeric: tabular-nums;
 }
+
+/* — Omit Cards Chips ————————————————————————— */
+.dg-omit-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  background: var(--bg-input, #1a1a2e);
+  min-height: 38px;
+  cursor: text;
+}
+
+.dg-omit-wrap:focus-within {
+  border-color: var(--accent, #6c5ce7);
+  box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.25);
+}
+
+.dg-omit-chips {
+  display: contents;
+}
+
+.dg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--accent, #6c5ce7);
+  color: #fff;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+
+.dg-chip-x {
+  cursor: pointer;
+  font-size: 0.9rem;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+.dg-chip-x:hover {
+  opacity: 1;
+}
+
+.dg-omit-input {
+  flex: 1 1 120px;
+  border: none !important;
+  background: transparent !important;
+  padding: 2px 4px !important;
+  min-width: 120px;
+  outline: none;
+  box-shadow: none !important;
+}
+
+.dg-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted, #999);
+  font-size: 0.75rem;
+}
