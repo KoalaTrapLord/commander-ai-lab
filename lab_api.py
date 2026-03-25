@@ -112,7 +112,7 @@ def _parse_args():
     p.add_argument("--precon-dir", default=os.environ.get("PRECON_DIR", ""))
     p.add_argument("--port", type=int, default=int(os.environ.get("LAB_PORT", "8080")))
     p.add_argument("--ximilar-key", default=os.environ.get("XIMILAR_API_KEY", ""))
-    p.add_argument("--pplx-key", default=os.environ.get("PPLX_API_KEY", ""))
+    p.add_argument("--anthropic-key", default=os.environ.get("ANTHROPIC_API_KEY", ""))
     p.add_argument("--verbose", "-v", action="store_true")
     return p.parse_args()
 
@@ -280,7 +280,7 @@ def main():
     CFG.precon_dir = args.precon_dir or _resolve_precon_dir()
     CFG.port = args.port
     CFG.ximilar_api_key = args.ximilar_key
-    CFG.pplx_api_key = args.pplx_key
+    CFG.anthropic_api_key = args.anthropic_key
 
     from services.forge_runner import get_java17
     j17 = get_java17()
@@ -294,7 +294,7 @@ def main():
     log.info(f"  Lab JAR:     {CFG.lab_jar or 'NOT SET'}")
     log.info(f"  Results:     {CFG.results_dir}")
     log.info(f"  Ximilar:     {'configured' if CFG.ximilar_api_key else 'NOT SET'}")
-    log.info(f"  Perplexity:  {'configured' if CFG.pplx_api_key else 'NOT SET'}")
+    log.info(f"  Anthropic:  {'configured' if CFG.anthropic_api_key else 'NOT SET'}")
     log.info(f"  Java 17:     {j17}")
 
     load_commander_meta()
