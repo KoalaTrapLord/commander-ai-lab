@@ -1,7 +1,7 @@
 """
 Commander AI Lab — V3 Deck Generator Service
 ═════════════════════════════════════════════
-Generates Commander decks using Perplexity Sonar
+Generates Commander decks using Anthropic Claude
 structured JSON output, then runs ownership check
 and smart substitution.
 """
@@ -13,7 +13,7 @@ import sqlite3
 from typing import List, Optional, Tuple
 from urllib.request import urlopen, Request
 
-from ..clients.perplexity_client import PerplexityClient
+from ..clients.anthropic_client import AnthropicClient
 from ..schemas.deck_schema import DECK_LIST_SCHEMA, GeneratedDeckList
 from ..schemas.substitution_schema import (
     CardAlternative, DeckCardWithStatus, SubstitutionBatchResult,
@@ -26,7 +26,7 @@ from ..prompts.substitution_prompt import (
 from ..config import (
     DECK_GEN_MODEL, DECK_GEN_TEMPERATURE, DECK_GEN_MAX_TOKENS,
     SUBSTITUTION_MIN_SIMILARITY, SUBSTITUTION_MAX_ALTERNATIVES,
-    SUBSTITUTION_MODEL, SUBSTITUTION_USE_PPLX_FALLBACK,
+    SUBSTITUTION_MODEL, SUBSTITUTION_USE_ANTHROPIC_FALLBACK,
 )
 
 logger = logging.getLogger("coach.deckgen")
@@ -34,27 +34,27 @@ logger = logging.getLogger("coach.deckgen")
 
 class DeckGeneratorV3:
     """
-    V3 Deck Generator using Perplexity structured output.
+    V3 Deck Generator using Anthropic Claude structured output.
 
     Pipeline:
       1. Resolve commander via Scryfall
       2. Build collection summary
-      3. Call Perplexity with structured JSON schema
+      3. Call Anthropic Claude with structured JSON schema
       4. Validate card names via Scryfall
       5. Check ownership against collection DB
-      6. Run Smart Substitution (embedding + Perplexity fallback)
+      6. Run Smart Substitution (embedding + Anthropic Claude fallback)
       7. Return finalized deck with substitution data
     """
 
-    def __init__(self, pplx_client: PerplexityClient, db_conn_factory,
+    def __init__(self, anthropic_client: AnthropicClient, db_conn_factory,
                  embedding_index=None):
         """
         Args:
-            pplx_client: Configured PerplexityClient instance
+            anthropic_client: Configured AnthropicClient instance
             db_conn_factory: Callable that returns sqlite3.Connection
             embedding_index: Optional MTGEmbeddingIndex for substitution
         """
-        self.pplx = pplx_client
+        self.anthropic = anthropic_client
         self.db_conn_factory = db_conn_factory
         self.embedding_index = embedding_index
 
@@ -176,7 +176,7 @@ class DeckGeneratorV3:
 
         return "\n".join(lines)
 
-    # ── Step 3: Generate Deck via Perplexity ─────────────────
+    # ── Step 3: Generate Deck via Anthropic Claude ─────────────────
     def generate_deck(
         self,
         commander_name: str,
@@ -193,7 +193,7 @@ class DeckGeneratorV3:
 
         Returns dict with:
           - commander: dict with Scryfall data
-          - raw_deck: parsed GeneratedDeckList from Perplexity
+          - raw_deck: parsed GeneratedDeckList from Anthropic Claude
           - cards: list of DeckCardWithStatus (after ownership check)
           - stats: deck statistics
           - tokens_used: {prompt, completion}
@@ -223,11 +223,11 @@ class DeckGeneratorV3:
             collection_summary=collection_block,
         )
 
-        # Step 4: Call Perplexity with structured output
+        # Step 4: Call Anthropic Claude with structured output
         use_model = model or DECK_GEN_MODEL
-        logger.info("Calling Perplexity (%s) for deck generation...", use_model)
+        logger.info("Calling Anthropic Claude (%s) for deck generation...", use_model)
 
-        response = self.pplx.chat_structured(
+        response = self.anthropic.chat_structured(
             system_prompt=SYSTEM_PROMPT,
             user_prompt=user_prompt,
             json_schema=DECK_LIST_SCHEMA,
@@ -239,7 +239,7 @@ class DeckGeneratorV3:
 
         if not response.ok:
             raise ValueError(
-                f"Perplexity returned invalid response: {response.content[:300]}"
+                f"Anthropic Claude returned invalid response: {response.content[:300]}"
             )
 
         raw_deck = response.parsed_json
@@ -411,7 +411,7 @@ class DeckGeneratorV3:
         Pipeline:
           a) Identify missing cards
           b) For each: try embedding similarity (free, fast)
-          c) For low-confidence matches: batch Perplexity fallback
+          c) For low-confidence matches: batch Anthropic Claude fallback
           d) Auto-select best substitute per card
 
         Returns SubstitutionBatchResult with all cards updated.
@@ -443,7 +443,7 @@ class DeckGeneratorV3:
         available_pool = [n for n in owned_pool if n.lower() not in deck_names]
 
         # a) Embedding pass
-        needs_pplx_fallback = []
+        needs_anthropic_fallback = []
         for card in missing:
             embedding_alts = self._embedding_substitution(
                 card, color_identity, available_pool
@@ -459,12 +459,12 @@ class DeckGeneratorV3:
                     available_pool = [n for n in available_pool
                                      if n.lower() != card.selected_substitute.lower()]
             else:
-                needs_pplx_fallback.append(card)
+                needs_anthropic_fallback.append(card)
 
-        # b) Perplexity fallback for low-confidence matches
-        if needs_pplx_fallback and SUBSTITUTION_USE_PPLX_FALLBACK:
-            self._pplx_substitution(
-                needs_pplx_fallback, available_pool,
+        # b) Anthropic Claude fallback for low-confidence matches
+        if needs_anthropic_fallback and SUBSTITUTION_USE_ANTHROPIC_FALLBACK:
+            self._anthropic_substitution(
+                needs_anthropic_fallback, available_pool,
                 commander, strategy
             )
 
@@ -522,7 +522,7 @@ class DeckGeneratorV3:
 
         return alternatives
 
-    def _pplx_substitution(
+    def _anthropic_substitution(
         self,
         missing_cards: List[DeckCardWithStatus],
         available_pool: List[str],
@@ -530,7 +530,7 @@ class DeckGeneratorV3:
         strategy: str,
     ):
         """
-        Batch Perplexity fallback for cards with low embedding confidence.
+        Batch Anthropic Claude fallback for cards with low embedding confidence.
         Mutates the cards in-place with substitution data.
         """
         if not available_pool:
@@ -557,7 +557,7 @@ class DeckGeneratorV3:
 
         try:
             from ..schemas.substitution_schema import SUBSTITUTION_RESPONSE_SCHEMA
-            response = self.pplx.chat_structured(
+            response = self.anthropic.chat_structured(
                 system_prompt=SUBSTITUTION_SYSTEM,
                 user_prompt=user_prompt,
                 json_schema=SUBSTITUTION_RESPONSE_SCHEMA,
@@ -568,11 +568,11 @@ class DeckGeneratorV3:
             )
 
             if not response.ok:
-                logger.warning("Perplexity substitution fallback failed — non-JSON response")
+                logger.warning("Anthropic Claude substitution fallback failed — non-JSON response")
                 return
 
             subs = response.parsed_json.get("substitutions", [])
-            logger.info("Perplexity suggested %d substitutions", len(subs))
+            logger.info("Anthropic Claude suggested %d substitutions", len(subs))
 
             # Apply substitutions
             card_by_name = {c.name.lower(): c for c in missing_cards}
@@ -584,20 +584,20 @@ class DeckGeneratorV3:
                 if orig in card_by_name and substitute:
                     card = card_by_name[orig]
                     # Add as top alternative
-                    pplx_alt = CardAlternative(
+                    anthropic_alt = CardAlternative(
                         name=substitute,
-                        similarity_score=0.80,  # Nominal score for Perplexity suggestions
+                        similarity_score=0.80,  # Nominal score for Anthropic Claude suggestions
                         reason=reason,
-                        source="perplexity",
+                        source="Anthropic Claude",
                         role_overlap=sub.get("role_overlap", []),
                     )
                     # Insert at front
-                    card.alternatives.insert(0, pplx_alt)
+                    card.alternatives.insert(0, anthropic_alt)
                     card.selected_substitute = substitute
                     card.status = "substituted"
 
         except Exception as e:
-            logger.error("Perplexity substitution fallback error: %s", e)
+            logger.error("Anthropic Claude substitution fallback error: %s", e)
 
     # ── Stats ────────────────────────────────────────────────
     @staticmethod
