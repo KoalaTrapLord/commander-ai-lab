@@ -586,7 +586,8 @@ const Collection = (() => {
         // Pre-load set/keyword caches for filter autocomplete
         loadSetsCache();
         loadKeywordsCache();
-        await fetchCollection();
+        applyColumnVisibility();
+    await fetchCollection();
     }
 
     /** Adjust table container height based on actual topbar height */
@@ -632,7 +633,11 @@ const Collection = (() => {
                     <button class="coll-autoclassify-btn" onclick="Collection.autoClassify()" title="Auto-detect categories (Ramp, Draw, Removal, etc.) for uncategorized cards">Auto-Classify</button>
                     <button class="coll-reenrich-btn" onclick="Collection.reEnrich()" title="Re-fetch all card data from Scryfall">Refresh Data</button>
           <button class="coll-stats-btn" onclick="Collection.toggleStats()" title="Show collection statistics dashboard">📊 Stats</button>
-                    <a href="deckbuilder.html" class="coll-nav-link" style="color:var(--lab-purple);border-color:var(--lab-purple)">⚔ Deck Builder</a>
+          <div style="position:relative">
+          <button class="coll-col-toggle-btn" onclick="Collection.openColumnPanel()" title="Show/hide table columns">☰ Columns</button>
+          <div id="coll-col-panel" class="coll-col-panel" style="display:none"></div>
+                  </div>
+          <a href="deckbuilder.html" class="coll-nav-link" style="color:var(--lab-purple);border-color:var(--lab-purple)">⚔ Deck Builder</a>
                     <a href="deckgenerator.html" class="coll-nav-link" style="color:var(--lab-warning);border-color:var(--lab-warning)">⚡ Auto Gen</a>
                 </div>
             </div>
@@ -966,6 +971,79 @@ const Collection = (() => {
         </div>`;
     }
 
+    // ── Column Visibility ──────────────────────────────────────
+    function colVis(key) {
+        return state.preferences.visibleColumns.includes(key) ? '' : 'display:none;';
+    }
+
+    function toggleColumn(key) {
+        const cols = state.preferences.visibleColumns;
+        const idx = cols.indexOf(key);
+        if (idx >= 0) {
+            if (cols.length <= 1) return; // keep at least 1 column
+            cols.splice(idx, 1);
+        } else {
+            cols.push(key);
+        }
+        savePreferences();
+        renderTable();
+        applyColumnVisibility();
+    }
+
+    function renderColumnPanel() {
+        const panel = document.getElementById('coll-col-panel');
+        if (!panel) return;
+        const cols = COLUMNS.map(col => {
+            const checked = state.preferences.visibleColumns.includes(col.key) ? 'checked' : '';
+            return `<label class="coll-col-toggle-item">
+                <input type="checkbox" ${checked} onchange="Collection.toggleColumn('${col.key}')">
+                ${escapeHtml(col.label)}
+            </label>`;
+        }).join('');
+        panel.innerHTML = `
+            <div class="coll-col-panel-inner">
+                <div class="coll-col-panel-hdr">Columns <button class="coll-col-close" onclick="Collection.closeColumnPanel()">×</button></div>
+                ${cols}
+                <button class="coll-col-reset" onclick="Collection.resetColumns()">Reset Defaults</button>
+            </div>`;
+        panel.style.display = 'block';
+    }
+
+    function openColumnPanel() {
+        const panel = document.getElementById('coll-col-panel');
+        if (!panel) return;
+        if (panel.style.display === 'block') {
+            panel.style.display = 'none';
+        } else {
+            renderColumnPanel();
+        }
+    }
+
+    function closeColumnPanel() {
+        const panel = document.getElementById('coll-col-panel');
+        if (panel) panel.style.display = 'none';
+    }
+
+    function resetColumns() {
+        state.preferences.visibleColumns = ['quantity','name','mana_cost','type_line','color_identity','cmc','power_toughness','rarity','set_name','tcg_price','edhrec_rank','salt_score','category','finish'];
+        savePreferences();
+        renderTable();
+        renderColumnPanel();
+    }
+    function applyColumnVisibility() {
+        let styleEl = document.getElementById('coll-col-vis-style');
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'coll-col-vis-style';
+            document.head.appendChild(styleEl);
+        }
+        const hidden = COLUMNS.filter(col => !state.preferences.visibleColumns.includes(col.key));
+        styleEl.textContent = hidden.map(col =>
+            `.coll-th-${col.key}, .coll-td-${col.key} { display: none !important; }`
+        ).join('\n');
+    }
+
+
     // ── Table Header ────────────────────────────────────────
 
     const COLUMNS = [
@@ -988,8 +1066,8 @@ const Collection = (() => {
     ];
 
     function renderTableHeaderHtml() {
-        const headers = COLUMNS.map(col => {
-            if (!col.sortable) {
+        const visibleCols = COLUMNS.filter(col => state.preferences.visibleColumns.includes(col.key));
+        const headers = visibleCols.map(col => {            if (!col.sortable) {
                 return `<th class="coll-th coll-th-${col.key}">${col.label}</th>`;
             }
             const isActive = state.sortField === col.key;
@@ -1018,12 +1096,12 @@ const Collection = (() => {
         }
 
         if (state.loading) {
-            tbody.innerHTML = `<tr><td colspan="${COLUMNS.length}" class="coll-empty">Loading…</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${state.preferences.visibleColumns.length}" class="coll-empty">Loading…</td></tr>`;
             return;
         }
 
         if (state.items.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="${COLUMNS.length}" class="coll-empty">
+            tbody.innerHTML = `<tr><td colspan="${state.preferences.visibleColumns.length}" class="coll-empty">
                 <div class="coll-empty-state">
                     <div class="coll-empty-icon">🃏</div>
                     <div>No cards in collection</div>
@@ -2244,7 +2322,8 @@ const Collection = (() => {
             if (footer) footer.style.display = 'none';
 
             // Refresh collection
-            await fetchCollection();
+            applyColumnVisibility();
+    await fetchCollection();
 
         } catch (err) {
             if (statusEl) {
@@ -2997,5 +3076,10 @@ const Collection = (() => {
         reEnrich,
         autoClassify,
         toggleStats,
+        // Column visibility
+        toggleColumn,
+        openColumnPanel,
+        closeColumnPanel,
+        resetColumns,
     };
 })();

@@ -3052,3 +3052,98 @@
     }
 }
 
+
+
+/* ── 18. Column Visibility Panel ───────────────────────────── */
+
+.coll-col-toggle-btn {
+    background: rgba(139,148,158,0.1);
+    border: 1px solid var(--border, #30363d);
+    color: var(--text-secondary, #8b949e);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+.coll-col-toggle-btn:hover {
+    background: rgba(139,148,158,0.2);
+    color: var(--text, #e6edf3);
+}
+
+.coll-col-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 500;
+    background: var(--surface, #161b22);
+    border: 1px solid var(--border, #30363d);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    min-width: 180px;
+    animation: coll-fade-in 0.15s ease;
+}
+
+.coll-col-panel-inner {
+    padding: 10px 12px 12px;
+}
+
+.coll-col-panel-hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary, #8b949e);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border, #30363d);
+}
+
+.coll-col-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 4px;
+    line-height: 1;
+}
+.coll-col-close:hover { color: var(--text, #e6edf3); }
+
+.coll-col-toggle-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 0.8rem;
+    color: var(--text, #e6edf3);
+    cursor: pointer;
+    user-select: none;
+}
+.coll-col-toggle-item input[type="checkbox"] {
+    accent-color: var(--accent, #6366f1);
+    cursor: pointer;
+}
+.coll-col-toggle-item:hover {
+    color: var(--accent, #6366f1);
+}
+
+.coll-col-reset {
+    margin-top: 10px;
+    width: 100%;
+    background: rgba(99,102,241,0.1);
+    border: 1px solid rgba(99,102,241,0.3);
+    color: var(--accent, #6366f1);
+    border-radius: 5px;
+    padding: 5px 8px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.coll-col-reset:hover {
+    background: rgba(99,102,241,0.25);
+}
