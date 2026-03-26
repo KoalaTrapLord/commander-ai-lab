@@ -112,7 +112,7 @@ def init_coach_service():
     log_coach.error(f"  Coach: Failed to initialize: {e}\n")
     _coach_service = None
       
-"\n"
+
 
 
 @router.get("/api/coach/status")
