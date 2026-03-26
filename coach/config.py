@@ -40,11 +40,11 @@ DEFAULT_MAX_TOKENS = 8192
 # Provider for deck generation: "anthropic" (Claude) or "local" (Ollama)
 DECK_GEN_PROVIDER = os.environ.get("DECK_GEN_PROVIDER", "anthropic")
 # Model used when DECK_GEN_PROVIDER="anthropic"
-DECK_GEN_MODEL = os.environ.get("DECK_GEN_MODEL", """,claude-opus-4-20250514")
+DECK_GEN_MODEL = os.environ.get("DECK_GEN_MODEL", "claude-opus-4-20250514")
 # Anthropic API key
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 # Anthropic model for deck generation and coaching
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", """,claude-opus-4-20250514")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-20250514")
 # Coach chat provider: "anthropic" (Claude API) or "local" (Ollama)
 COACH_PROVIDER = os.environ.get("COACH_PROVIDER", "anthropic")
 DECK_GEN_BASE_URL = os.environ.get("DECK_GEN_BASE_URL", "http://localhost:11434/v1")
