@@ -21,7 +21,6 @@ import json
 import logging
 import re
 import os
-import time
 from pathlib import Path
 from typing import List, Optional, Tuple
 from urllib.request import urlopen, Request
@@ -331,7 +330,6 @@ class MTGEmbeddingIndex:
                     d = np.load(str(CUSTOM_CACHE_PATH), allow_pickle=True)
                     for n in d["names"]:
                         existing_names.add(n.lower())
-                    existing = dict(d)
                 except Exception:
                     pass
 

@@ -279,32 +279,32 @@ class CoachService:
             import anthropic
             anthropic_key = ANTHROPIC_API_KEY
             if not anthropic_key:
-                                raise ConnectionError("Anthropic API key not configured. Set ANTHROPIC_API_KEY env var.")
+                raise ConnectionError("Anthropic API key not configured. Set ANTHROPIC_API_KEY env var.")
             aclient = anthropic.AsyncAnthropic(api_key=anthropic_key)
-                 resp = await aclient.messages.create(
-                    model=ANTHROPIC_MODEL,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_prompt}],
-                    max_tokens=8192,
-                    temperature=0.7,
-                )
-                content = resp.content[0].text if resp.content else ""
-                usage = resp.usage
+            resp = await aclient.messages.create(
+                model=ANTHROPIC_MODEL,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+                max_tokens=8192,
+                temperature=0.7,
+            )
+            content = resp.content[0].text if resp.content else ""
+            usage = resp.usage
 
-                # Build an LLMResponse-compatible object
-                from types import SimpleNamespace
-                llm_response = SimpleNamespace(
-                    content=content,
-                    model=resp.model,
-                    prompt_tokens=usage.input_tokens if usage else 0,
-                    completion_tokens=usage.output_tokens if usage else 0,
-                    parsed_json=None,
-                )
-                            try:
-                                        cleaned = re.sub(r'^```(?:json)?\s*', '', content.strip())
-                                        cleaned = re.sub(r'\s*```$', '', cleaned.strip())
-                                llm_response.parsed_json = json.loads(cleaned)
-                        except (json.JSONDecodeError, ValueError):
+            # Build an LLMResponse-compatible object
+            from types import SimpleNamespace
+            llm_response = SimpleNamespace(
+                content=content,
+                model=resp.model,
+                prompt_tokens=usage.input_tokens if usage else 0,
+                completion_tokens=usage.output_tokens if usage else 0,
+                parsed_json=None,
+            )
+            try:
+                cleaned = re.sub(r'^```(?:json)?\s*', '', content.strip())
+                cleaned = re.sub(r'\s*```$', '', cleaned.strip())
+                llm_response.parsed_json = json.loads(cleaned)
+            except (json.JSONDecodeError, ValueError):
                 # Try to find JSON object in the text
                 match = re.search(r'\{[\s\S]*\}', content)
                 if match:
@@ -313,7 +313,7 @@ class CoachService:
                     except json.JSONDecodeError:
                         pass
         else:
-                    llm_response = await self.llm.chat(system_prompt, user_prompt)
+            llm_response = await self.llm.chat(system_prompt, user_prompt)
 
         # 6. Parse response into CoachSession
         session_id = f"sess-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"

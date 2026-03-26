@@ -6,7 +6,6 @@ Injects deck report data, underperformer analysis, and
 candidate replacement cards into a structured template.
 """
 
-import json
 from typing import List, Dict, Optional
 
 from .models import DeckReport, CoachGoals, CardPerformance

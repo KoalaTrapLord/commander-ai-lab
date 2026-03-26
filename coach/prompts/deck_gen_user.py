@@ -5,7 +5,7 @@ Constructs the user message for Claude Opus deck generation
 from a DeckGenV3Request.
 """
 
-from typing import List, Optional
+from typing import List
 
 
 def build_user_prompt(
@@ -36,8 +36,8 @@ def build_user_prompt(
     ci_str = ", ".join(color_identity) if color_identity else "Unknown"
 
     lines = [
-        f"Build a complete 100-card Commander deck.",
-        f"",
+        "Build a complete 100-card Commander deck.",
+        "",
         f"COMMANDER: {commander}",
     ]
 
