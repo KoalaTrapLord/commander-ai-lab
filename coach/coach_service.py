@@ -281,7 +281,7 @@ class CoachService:
             if not anthropic_key:
                                 raise ConnectionError("Anthropic API key not configured. Set ANTHROPIC_API_KEY env var.")
             aclient = anthropic.AsyncAnthropic(api_key=anthropic_key)
-                 = await aclient.messages.create(
+                 resp = await aclient.messages.create(
                     model=ANTHROPIC_MODEL,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_prompt}],
@@ -300,7 +300,7 @@ class CoachService:
                     completion_tokens=usage.output_tokens if usage else 0,
                     parsed_json=None,
                 )
-                cleaned = _re.sub(r'\s*```$', '', cleaned.strip())
+                try:                     cleaned = re.sub(r'^```(?:json)?\s*', '', content.strip())                     cleaned = re.sub(r'\s*```$', '', cleaned.strip())
                 llm_response.parsed_json = json.loads(cleaned)
             except (json.JSONDecodeError, ValueError):
                 # Try to find JSON object in the text
