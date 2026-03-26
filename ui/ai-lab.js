@@ -165,8 +165,9 @@ const AiLab = (() => {
                         <option value="2">2</option>
                         <option value="4" selected>4</option>
                         <option value="8">8</option>
-                                            <option value="12">12</option>
-                    <option value="16">16</option>
+                                                                        <option value="16">16</option>
+                            <option value="24">24</option>
+                            <option value="32">32</option>
                     </select>
                 </div>
                 <div class="lab-control-group">
