@@ -567,7 +567,7 @@ def collect_rollouts(
     total_losses = 0
     total_draws = 0
     warnings.warn(_TRAINING_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
-  total_steps = 0
+    total_steps = 0
     total_rewards = 0.0
 
     for ep in range(num_episodes):
