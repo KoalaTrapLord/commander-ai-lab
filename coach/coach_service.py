@@ -300,7 +300,9 @@ class CoachService:
                     completion_tokens=usage.output_tokens if usage else 0,
                     parsed_json=None,
                 )
-                try:                     cleaned = re.sub(r'^```(?:json)?\s*', '', content.strip())                     cleaned = re.sub(r'\s*```$', '', cleaned.strip())
+                            try:
+                                        cleaned = re.sub(r'^```(?:json)?\s*', '', content.strip())
+                                        cleaned = re.sub(r'\s*```$', '', cleaned.strip())
                 llm_response.parsed_json = json.loads(cleaned)
             except (json.JSONDecodeError, ValueError):
                 # Try to find JSON object in the text
