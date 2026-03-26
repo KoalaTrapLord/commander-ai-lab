@@ -66,8 +66,8 @@ async def start_batch(req: StartRequest, background_tasks: BackgroundTasks):
         raise HTTPException(400, f"All {len(req.decks)} deck slots must be filled")
     if req.numGames < 1 or req.numGames > 10000:
         raise HTTPException(400, "numGames must be 1-10000")
-    if req.threads < 1 or req.threads > 16:
-        raise HTTPException(400, "threads must be 1-16")
+    if req.threads < 1 or req.threads > 32:
+        raise HTTPException(400, "threads must be 1-32")
 
     if not os.path.exists(CFG.forge_jar):
         raise HTTPException(500, f"Forge JAR not found: {CFG.forge_jar}")
