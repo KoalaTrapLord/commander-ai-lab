@@ -111,7 +111,8 @@ def init_coach_service():
   except Exception as e:
     log_coach.error(f"  Coach: Failed to initialize: {e}\n{traceback.format_exc()}")
     _coach_service = None
-      _coach_init_error = f"{e}\n{traceback.format_exc()}"
+              _coach_init_error = f"{e}
+{traceback.format_exc()}"\n{traceback.format_exc()}"
 
 
 @router.get("/api/coach/status")
