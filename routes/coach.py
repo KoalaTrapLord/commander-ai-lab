@@ -57,11 +57,12 @@ _coach_embeddings = None
 _coach_llm = None
 _deck_gen_v3 = None
 _deck_gen_v3_error = None
+_coach_init_error = None
 
 
 def init_coach_service():
   """Initialize the coach service with LLM client and embeddings."""
-  global _coach_service, _coach_embeddings, _coach_llm, _deck_gen_v3, _deck_gen_v3_error
+  global _coach_service, _coach_embeddings, _coach_llm, _deck_gen_v3, _deck_gen_v3_error, _coach_init_error
   try:
     from coach.llm_client import LLMClient
     from coach.embeddings import MTGEmbeddingIndex
@@ -110,12 +111,13 @@ def init_coach_service():
   except Exception as e:
     log_coach.error(f"  Coach: Failed to initialize: {e}\n{traceback.format_exc()}")
     _coach_service = None
+      _coach_init_error = f"{e}\n{traceback.format_exc()}"
 
 
 @router.get("/api/coach/status")
 async def coach_status():
   if _coach_service is None:
-    return {"llmConnected": False, "embeddingsLoaded": False, "embeddingCards": 0, "deckReportsAvailable": 0, "error": "Coach service not initialized"}
+        return {"llmConnected": False, "embeddingsLoaded": False, "embeddingCards": 0, "deckReportsAvailable": 0, "error": f"Coach service not initialized: {_coach_init_error}"}
   status = _coach_service.get_status()
   return status.model_dump()
 
