@@ -118,7 +118,7 @@ def init_coach_service():
 @router.get("/api/coach/status")
 async def coach_status():
   if _coach_service is None:
-        return {"llmConnected": False, "embeddingsLoaded": False, "embeddingCards": 0, "deckReportsAvailable": 0, "error": f"Coach service not initialized: {Coach service not initialized""}
+        return {"llmConnected": False, "embeddingsLoaded": False, "embeddingCards": 0, "deckReportsAvailable": 0, "error": "Coach service not initialized"
   status = _coach_service.get_status()
   return status.model_dump()
 
