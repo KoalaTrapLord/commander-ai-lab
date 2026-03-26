@@ -40,6 +40,7 @@ from routes.ws_game import router as ws_game_router
 
 log = logging.getLogger("commander_ai_lab.api")
 
+_DEFAULT_ORIGINS = "http://localhost:5173,http://localhost:3000,http://localhost:8080"
 # ── CORS origins (env-configurable) ────────────────────────────
 _allowed = os.environ.get("ALLOWED_ORIGINS", _DEFAULT_ORIGINS)
 allowed_origins = [o.strip() for o in _allowed.split(",") if o.strip()]
