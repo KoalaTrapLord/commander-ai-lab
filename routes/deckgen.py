@@ -861,19 +861,19 @@ async def _call_anthropic_api(messages: list[dict], max_tokens: int = 4096, temp
     else:
         if not CFG.anthropic_api_key:
             raise HTTPException(400, 'Anthropic Claude API key not configured. Set anthropic_api_key env var or --anthropic-key.')
-        base_url = 'https://api.anthropic.com'
-        model = ANTHROPIC_MODEL
-        headers = {
+            base_url = 'https://api.anthropic.com'
+            model = ANTHROPIC_MODEL
+            headers = {
             'Content-Type': 'application/json',
             'x-api-key': CFG.anthropic_api_key, 'anthropic-version': '2023-06-01',
-        }
+            }
     # Separate system messages for Anthropic API format
     system_msgs = [m['content'] for m in messages if m.get('role') == 'system']
     user_msgs = [m for m in messages if m.get('role') != 'system']
     system_text = '\n'.join(system_msgs) if system_msgs else None
 
   
-payload = {
+    payload = {
         'model': model,
         'messages': user_msgs,
         'max_tokens': max_tokens,
