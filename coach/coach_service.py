@@ -281,7 +281,7 @@ class CoachService:
             if not anthropic_key:
                                 raise ConnectionError("Anthropic API key not configured. Set ANTHROPIC_API_KEY env var.")
             aclient = anthropic.AsyncAnthropic(api_key=anthropic_key)
-                 resp resp = await aclient.messages.create(
+                 resp = await aclient.messages.create(
                     model=ANTHROPIC_MODEL,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_prompt}],
