@@ -303,8 +303,8 @@ class CoachService:
                             try:
                                         cleaned = re.sub(r'^```(?:json)?\s*', '', content.strip())
                                         cleaned = re.sub(r'\s*```$', '', cleaned.strip())
-                llm_response.parsed_json = json.loads(cleaned)
-            except (json.JSONDecodeError, ValueError):
+                                llm_response.parsed_json = json.loads(cleaned)
+                        except (json.JSONDecodeError, ValueError):
                 # Try to find JSON object in the text
                 match = re.search(r'\{[\s\S]*\}', content)
                 if match:
@@ -313,7 +313,7 @@ class CoachService:
                     except json.JSONDecodeError:
                         pass
         else:
-            llm_response = await self.llm.chat(system_prompt, user_prompt)
+                    llm_response = await self.llm.chat(system_prompt, user_prompt)
 
         # 6. Parse response into CoachSession
         session_id = f"sess-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
