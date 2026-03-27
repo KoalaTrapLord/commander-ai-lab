@@ -16,16 +16,16 @@ from pydantic import BaseModel, Field
 class CardPerformance(BaseModel):
     """Per-card aggregated stats from simulation data."""
     name: str
-    drawnRate: float = 0.0          # Fraction of games where card was drawn
-    castRate: float = 0.0           # Fraction of games where drawn AND cast
+    drawnRate: float = 0.0
+    castRate: float = 0.0
     keptInOpeningHandRate: float = 0.0
-    deadCardRate: float = 0.0       # Drawn but never cast/used
-    impactScore: float = 0.0        # (winRateWhenCast - overallWinRate) * castRate
-    synergyScore: float = 0.0       # Co-occurrence uplift with other deck cards
-    clunkinessScore: float = 0.0    # deadCardRate * (1 - castRate)
+    deadCardRate: float = 0.0
+    impactScore: float = 0.0
+    synergyScore: float = 0.0
+    clunkinessScore: float = 0.0
     avgTurnCast: Optional[float] = None
     avgDamageDealt: float = 0.0
-    tags: List[str] = Field(default_factory=list)  # ramp, draw, removal, etc.
+    tags: List[str] = Field(default_factory=list)
 
 
 class MatchupRecord(BaseModel):
@@ -47,7 +47,7 @@ class DeckMeta(BaseModel):
 class DeckStructure(BaseModel):
     """Deck composition breakdown."""
     landCount: int = 0
-    curveBuckets: List[int] = Field(default_factory=lambda: [0]*8)  # CMC 0-7+
+    curveBuckets: List[int] = Field(default_factory=lambda: [0]*8)
     cardTypeCounts: Dict[str, int] = Field(default_factory=dict)
     functionalCounts: Dict[str, int] = Field(default_factory=dict)
 
@@ -56,7 +56,7 @@ class ComboRecord(BaseModel):
     """Known combo with performance data."""
     cardNames: List[str]
     winRateWhenAssembled: float = 0.0
-    assemblyRate: float = 0.0       # Fraction of games where all pieces drawn
+    assemblyRate: float = 0.0
 
 
 class DeckReport(BaseModel):
@@ -83,10 +83,10 @@ class DeckReport(BaseModel):
 
 class CoachGoals(BaseModel):
     """User-specified coaching goals."""
-    targetPowerLevel: Optional[int] = None   # 1-10
-    metaFocus: Optional[str] = None          # aggro, control, combo, midrange, stax
-    budget: Optional[str] = None             # budget, medium, no-limit
-    focusAreas: List[str] = Field(default_factory=list)  # e.g., ["ramp", "card draw"]
+    targetPowerLevel: Optional[int] = None
+    metaFocus: Optional[str] = None
+    budget: Optional[str] = None
+    focusAreas: List[str] = Field(default_factory=list)
 
 
 class CoachRequest(BaseModel):
@@ -106,37 +106,85 @@ class SuggestedCut(BaseModel):
 class SuggestedAdd(BaseModel):
     """A card the coach suggests adding."""
     cardName: str
-    role: str = ""                # ramp, draw, removal, finisher, etc.
+    role: str = ""
     reason: str = ""
     synergyWith: List[str] = Field(default_factory=list)
     estimatedManaValue: Optional[float] = None
 
 
 # ══════════════════════════════════════════════════════════════
-# Phase 2: New Structured Analysis Models
+# Phase 2: Structured Analysis Models
 # ══════════════════════════════════════════════════════════════
 
 class UpgradePriorityItem(BaseModel):
     """A single prioritized cut/add swap ranked by expected impact."""
-    rank: int                                # 1 = highest priority
-    cut: str                                 # Card name to remove
-    add: str                                 # Card name to add
-    reasoning: str = ""                      # Why this swap matters most
-    expectedImpact: str = ""                 # e.g., "high", "medium", "low"
+    rank: int
+    cut: str
+    add: str
+    reasoning: str = ""
+    expectedImpact: str = ""
 
 
 class CommanderDependency(BaseModel):
     """How reliant the deck is on having the commander in play."""
-    score: int = 5                           # 1-10 (10 = totally dependent)
-    dependentCards: List[str] = Field(default_factory=list)  # Cards nearly dead without commander
-    recoveryPlan: str = ""                   # Strategy if commander gets removed/tucked repeatedly
+    score: int = 5
+    dependentCards: List[str] = Field(default_factory=list)
+    recoveryPlan: str = ""
 
 
 class MulliganAnalysis(BaseModel):
     """Opening hand keepability assessment."""
-    estimatedKeepRate: str = ""              # e.g., "~70% of 7-card hands are keepable"
-    worstOffenders: List[str] = Field(default_factory=list)  # Cards most responsible for bad hands
-    recommendation: str = ""                 # What to change to improve opening hands
+    estimatedKeepRate: str = ""
+    worstOffenders: List[str] = Field(default_factory=list)
+    recommendation: str = ""
+
+
+# ══════════════════════════════════════════════════════════════
+# Phase 3: Qualitative Analysis Models
+# ══════════════════════════════════════════════════════════════
+
+class RemovalCoverage(BaseModel):
+    """Categorized removal package by permanent type."""
+    creatures: str = ""             # Assessment of creature removal
+    artifacts: str = ""             # Assessment of artifact removal
+    enchantments: str = ""          # Assessment of enchantment removal
+    planeswalkers: str = ""         # Assessment of planeswalker removal
+    lands: str = ""                 # Assessment of land destruction
+    massRemoval: str = ""           # Assessment of board wipes / sweepers
+    gaps: List[str] = Field(default_factory=list)  # Permanent types with zero coverage
+
+
+class RampQuality(BaseModel):
+    """Ramp package breakdown by subtype and fragility."""
+    manaRocks: str = ""             # 2-mana rocks, signets, etc.
+    landFetch: str = ""             # Cultivate, Kodama's Reach, etc.
+    manaDorks: str = ""             # Llanowar Elves, Birds of Paradise, etc.
+    costReducers: str = ""          # Medallions, Helm of Awakening, etc.
+    fragility: str = ""             # Overall fragility assessment (creature-heavy = fragile)
+    canReachFourByTurnThree: str = ""  # Whether the deck reliably hits 4 mana by turn 3
+
+
+class DrawEngineProfile(BaseModel):
+    """Card draw sustainability analysis."""
+    burstDraw: List[str] = Field(default_factory=list)     # One-time draw spells
+    repeatableEngines: List[str] = Field(default_factory=list)  # Sustained draw engines
+    assessment: str = ""            # Overall draw engine quality evaluation
+    sustainability: str = ""        # Whether draw is sustainable or burst-only
+
+
+class WinCondition(BaseModel):
+    """A named win condition with independence rating."""
+    name: str                       # e.g., "Craterhoof Behemoth + wide board"
+    cards: List[str] = Field(default_factory=list)  # Key cards involved
+    independence: str = ""          # How well it works without other combos (high/medium/low)
+    description: str = ""           # How this win con functions
+
+
+class AntiSynergyFlag(BaseModel):
+    """An internal conflict between cards in the deck."""
+    cards: List[str] = Field(default_factory=list)  # Cards that conflict
+    conflict: str = ""              # Description of the conflict
+    severity: str = ""              # high, medium, low
 
 
 class CoachSession(BaseModel):
@@ -157,10 +205,16 @@ class CoachSession(BaseModel):
     promptTokens: int = 0
     completionTokens: int = 0
     goals: Optional[CoachGoals] = None
-    # Phase 2: New structured analysis fields
+    # Phase 2: Structured analysis fields
     upgradePriority: List[UpgradePriorityItem] = Field(default_factory=list)
     commanderDependency: Optional[CommanderDependency] = None
     mulliganAnalysis: Optional[MulliganAnalysis] = None
+    # Phase 3: Qualitative analysis fields
+    removalCoverage: Optional[RemovalCoverage] = None
+    rampQuality: Optional[RampQuality] = None
+    drawEngineProfile: Optional[DrawEngineProfile] = None
+    winConditions: List[WinCondition] = Field(default_factory=list)
+    antiSynergyFlags: List[AntiSynergyFlag] = Field(default_factory=list)
 
 
 class ApplyRequest(BaseModel):
