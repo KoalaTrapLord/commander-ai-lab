@@ -56,7 +56,7 @@ class ComboRecord(BaseModel):
     """Known combo with performance data."""
     cardNames: List[str]
     winRateWhenAssembled: float = 0.0
-    assemblyRate: float = 0.0  # Fraction of games where all pieces drawn
+    assemblyRate: float = 0.0       # Fraction of games where all pieces drawn
 
 
 class DeckReport(BaseModel):
@@ -83,9 +83,9 @@ class DeckReport(BaseModel):
 
 class CoachGoals(BaseModel):
     """User-specified coaching goals."""
-    targetPowerLevel: Optional[int] = None          # 1-10
-    metaFocus: Optional[str] = None                 # aggro, control, combo, midrange, stax
-    budget: Optional[str] = None                    # budget, medium, no-limit
+    targetPowerLevel: Optional[int] = None   # 1-10
+    metaFocus: Optional[str] = None          # aggro, control, combo, midrange, stax
+    budget: Optional[str] = None             # budget, medium, no-limit
     focusAreas: List[str] = Field(default_factory=list)  # e.g., ["ramp", "card draw"]
 
 
@@ -106,10 +106,37 @@ class SuggestedCut(BaseModel):
 class SuggestedAdd(BaseModel):
     """A card the coach suggests adding."""
     cardName: str
-    role: str = ""          # ramp, draw, removal, finisher, etc.
+    role: str = ""                # ramp, draw, removal, finisher, etc.
     reason: str = ""
     synergyWith: List[str] = Field(default_factory=list)
     estimatedManaValue: Optional[float] = None
+
+
+# ══════════════════════════════════════════════════════════════
+# Phase 2: New Structured Analysis Models
+# ══════════════════════════════════════════════════════════════
+
+class UpgradePriorityItem(BaseModel):
+    """A single prioritized cut/add swap ranked by expected impact."""
+    rank: int                                # 1 = highest priority
+    cut: str                                 # Card name to remove
+    add: str                                 # Card name to add
+    reasoning: str = ""                      # Why this swap matters most
+    expectedImpact: str = ""                 # e.g., "high", "medium", "low"
+
+
+class CommanderDependency(BaseModel):
+    """How reliant the deck is on having the commander in play."""
+    score: int = 5                           # 1-10 (10 = totally dependent)
+    dependentCards: List[str] = Field(default_factory=list)  # Cards nearly dead without commander
+    recoveryPlan: str = ""                   # Strategy if commander gets removed/tucked repeatedly
+
+
+class MulliganAnalysis(BaseModel):
+    """Opening hand keepability assessment."""
+    estimatedKeepRate: str = ""              # e.g., "~70% of 7-card hands are keepable"
+    worstOffenders: List[str] = Field(default_factory=list)  # Cards most responsible for bad hands
+    recommendation: str = ""                 # What to change to improve opening hands
 
 
 class CoachSession(BaseModel):
@@ -130,6 +157,10 @@ class CoachSession(BaseModel):
     promptTokens: int = 0
     completionTokens: int = 0
     goals: Optional[CoachGoals] = None
+    # Phase 2: New structured analysis fields
+    upgradePriority: List[UpgradePriorityItem] = Field(default_factory=list)
+    commanderDependency: Optional[CommanderDependency] = None
+    mulliganAnalysis: Optional[MulliganAnalysis] = None
 
 
 class ApplyRequest(BaseModel):
