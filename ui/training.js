@@ -19,6 +19,8 @@ let isTraining = false;
 document.addEventListener('DOMContentLoaded', () => {
     refreshDataStatus();
     refreshTrainingStatus();
+    initIntroBanner();
+    initTooltipFlip();
 });
 
 async function refreshAll() {
@@ -34,6 +36,51 @@ async function refreshAll() {
         btn.disabled = false;
         icon.style.animation = '';
     }
+}
+
+// ═══════════════════════════════════════════
+// Intro Banner
+// ═══════════════════════════════════════════
+
+const INTRO_STORAGE_KEY = 'trainingIntroSeen';
+
+function initIntroBanner() {
+    const seen = localStorage.getItem(INTRO_STORAGE_KEY);
+    if (!seen) {
+        showIntroBanner();
+    }
+}
+
+function showIntroBanner() {
+    const banner = document.getElementById('training-intro-banner');
+    if (banner) banner.classList.remove('hidden');
+}
+
+function dismissIntroBanner() {
+    const banner = document.getElementById('training-intro-banner');
+    const dontShow = document.getElementById('intro-dont-show');
+    if (banner) banner.classList.add('hidden');
+    if (dontShow && dontShow.checked) {
+        localStorage.setItem(INTRO_STORAGE_KEY, '1');
+    }
+}
+
+// ═══════════════════════════════════════════
+// Tooltip flip — prevent overflow at top
+// ═══════════════════════════════════════════
+
+function initTooltipFlip() {
+    document.querySelectorAll('.tip-icon').forEach(el => {
+        el.addEventListener('mouseenter', () => {
+            const rect = el.getBoundingClientRect();
+            // If less than 120px above the element, flip tooltip below
+            if (rect.top < 120) {
+                el.classList.add('tip-below');
+            } else {
+                el.classList.remove('tip-below');
+            }
+        });
+    });
 }
 
 // ═══════════════════════════════════════════

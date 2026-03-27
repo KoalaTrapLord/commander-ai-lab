@@ -358,3 +358,182 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Intro / Getting Started Banner
+   ══════════════════════════════════════════════════════════════ */
+
+.intro-banner {
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface-1));
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+    border-radius: var(--radius-lg);
+    padding: var(--sp-4) var(--sp-5);
+    margin-bottom: var(--sp-5);
+}
+
+.intro-banner.hidden {
+    display: none;
+}
+
+.intro-banner-header {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-3);
+    font-size: 15px;
+    color: var(--text);
+}
+
+.intro-banner-icon {
+    font-size: 18px;
+}
+
+.intro-banner-header strong {
+    flex: 1;
+    color: var(--accent);
+}
+
+.intro-banner-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    line-height: 1;
+    transition: color 0.15s, background 0.15s;
+}
+
+.intro-banner-close:hover {
+    color: var(--text);
+    background: var(--surface-3);
+}
+
+.intro-banner-lead {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 var(--sp-3) 0;
+}
+
+.intro-banner-steps {
+    margin: 0 0 var(--sp-4) 0;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.intro-banner-steps li {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+}
+
+.intro-banner-steps li strong {
+    color: var(--text);
+}
+
+.intro-banner-steps li em {
+    color: var(--text-secondary);
+}
+
+.intro-banner-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--border);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Tooltip System  (.tip-icon + data-tip)
+   ══════════════════════════════════════════════════════════════ */
+
+.tip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 700;
+    font-style: normal;
+    cursor: default;
+    position: relative;
+    vertical-align: middle;
+    margin-left: 4px;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+    /* prevent tooltip from triggering form-label hover states */
+    user-select: none;
+}
+
+.tip-icon:hover {
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+
+/* The tooltip bubble itself */
+.tip-icon::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface-0, #1a1a2e);
+    color: var(--text, #e0e0e0);
+    border: 1px solid var(--border, #333);
+    border-radius: var(--radius-md, 6px);
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    white-space: normal;
+    width: 240px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 1000;
+    text-align: left;
+    /* reset inherited label styles */
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* Arrow pointing down */
+.tip-icon::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 3px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--border, #333);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 1001;
+}
+
+.tip-icon:hover::after,
+.tip-icon:hover::before {
+    opacity: 1;
+}
+
+/* Flip tooltip below when near the top of the viewport */
+.tip-icon.tip-below::after {
+    bottom: auto;
+    top: calc(100% + 8px);
+}
+
+.tip-icon.tip-below::before {
+    bottom: auto;
+    top: calc(100% + 3px);
+    border-top-color: transparent;
+    border-bottom-color: var(--border, #333);
+}

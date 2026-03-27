@@ -18,9 +18,35 @@
                 <h1>ML Training Dashboard</h1>
                 <p>Train, evaluate, and deploy the AI opponent policy network</p>
             </div>
-            <button id="btn-refresh-data" class="btn btn-secondary" onclick="refreshAll()" title="Refresh training data status">
-                <span class="btn-icon" id="refresh-icon">&#8635;</span> Refresh
-            </button>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button class="btn btn-ghost btn-sm" onclick="showIntroBanner()" title="Show getting started guide">&#10067; Help</button>
+                <button id="btn-refresh-data" class="btn btn-secondary" onclick="refreshAll()" title="Refresh training data status">
+                    <span class="btn-icon" id="refresh-icon">&#8635;</span> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Intro / Getting Started Banner -->
+        <div id="training-intro-banner" class="intro-banner hidden">
+            <div class="intro-banner-header">
+                <span class="intro-banner-icon">&#127891;</span>
+                <strong>Getting Started with ML Training</strong>
+                <button class="intro-banner-close" onclick="dismissIntroBanner()" title="Dismiss">&#10005;</button>
+            </div>
+            <p class="intro-banner-lead">This page trains a neural network to play Commander decisions. Follow these steps in order on your first run:</p>
+            <ol class="intro-banner-steps">
+                <li><strong>Run batch simulations</strong> with ML logging enabled (from the Simulator page) to generate decision log files.</li>
+                <li><strong>Start Training</strong> below &mdash; leave &ldquo;Rebuild dataset&rdquo; checked so it parses your logs into a dataset automatically.</li>
+                <li>Check <strong>Evaluation Results</strong> after training. Aim for &gt;60% test accuracy before moving on.</li>
+                <li><em>(Optional)</em> Run <strong>PPO reinforcement learning</strong> to fine-tune the policy via self-play. Only recommended after a solid supervised baseline.</li>
+                <li>Run a <strong>Tournament</strong> to benchmark your model against heuristic and random agents and get a win-rate score.</li>
+            </ol>
+            <div class="intro-banner-footer">
+                <label class="form-checkbox" style="font-size:12px;">
+                    <input type="checkbox" id="intro-dont-show" /> Don&rsquo;t show this again
+                </label>
+                <button class="btn btn-primary btn-sm" onclick="dismissIntroBanner()">Got it</button>
+            </div>
         </div>
 
         <!-- Status Overview Cards -->
@@ -59,19 +85,31 @@
             <div class="train-controls">
                 <div class="param-grid form-row">
                     <div class="form-group">
-                        <label class="form-label" for="param-epochs">Epochs</label>
+                        <label class="form-label" for="param-epochs">
+                            Epochs
+                            <span class="tip-icon" data-tip="Number of full passes over the training dataset. More epochs improve fit but risk overfitting. 50 is a safe starting point.">?</span>
+                        </label>
                         <input type="number" id="param-epochs" class="form-input" value="50" min="1" max="500" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="param-lr">Learning Rate</label>
+                        <label class="form-label" for="param-lr">
+                            Learning Rate
+                            <span class="tip-icon" data-tip="Controls how large each weight update is. Too high causes instability; too low is very slow. 0.001 is a reliable default.">?</span>
+                        </label>
                         <input type="number" id="param-lr" class="form-input" value="0.001" step="0.0001" min="0.00001" max="0.1" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="param-batch">Batch Size</label>
+                        <label class="form-label" for="param-batch">
+                            Batch Size
+                            <span class="tip-icon" data-tip="Samples processed per gradient update. Larger batches are faster on GPU but use more VRAM. 256 is recommended for most setups.">?</span>
+                        </label>
                         <input type="number" id="param-batch" class="form-input" value="256" min="16" max="2048" step="16" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="param-patience">Early Stop Patience</label>
+                        <label class="form-label" for="param-patience">
+                            Early Stop Patience
+                            <span class="tip-icon" data-tip="Stops training if validation loss doesn't improve for this many epochs in a row. Prevents wasted compute. 10 is a sensible default.">?</span>
+                        </label>
                         <input type="number" id="param-patience" class="form-input" value="10" min="3" max="100" />
                     </div>
                 </div>
@@ -79,6 +117,7 @@
                     <label class="form-checkbox checkbox-label">
                         <input type="checkbox" id="param-rebuild" checked />
                         Rebuild dataset from decision logs
+                        <span class="tip-icon" data-tip="Re-parses all .jsonl decision log files into a fresh dataset. Uncheck to reuse the last built dataset and save time on re-runs.">?</span>
                     </label>
                 </div>
                 <div class="train-actions">
@@ -132,19 +171,31 @@
             <div class="train-controls">
                 <div class="param-grid form-row">
                     <div class="form-group">
-                        <label class="form-label" for="ppo-iterations">Iterations</label>
+                        <label class="form-label" for="ppo-iterations">
+                            Iterations
+                            <span class="tip-icon" data-tip="Each iteration runs N episodes, computes returns, and updates the policy. 100 iterations is a typical starting point.">?</span>
+                        </label>
                         <input type="number" id="ppo-iterations" class="form-input" value="100" min="1" max="1000" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="ppo-episodes">Episodes/Iter</label>
+                        <label class="form-label" for="ppo-episodes">
+                            Episodes/Iter
+                            <span class="tip-icon" data-tip="Number of full game simulations per PPO update step. More episodes produce more stable gradients but slow down each iteration.">?</span>
+                        </label>
                         <input type="number" id="ppo-episodes" class="form-input" value="64" min="8" max="512" step="8" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="ppo-lr">Learning Rate</label>
+                        <label class="form-label" for="ppo-lr">
+                            Learning Rate
+                            <span class="tip-icon" data-tip="PPO learning rate. Lower than supervised training is usually better — 0.0003 is a standard RL starting value.">?</span>
+                        </label>
                         <input type="number" id="ppo-lr" class="form-input" value="0.0003" step="0.0001" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="ppo-opponent">Opponent</label>
+                        <label class="form-label" for="ppo-opponent">
+                            Opponent
+                            <span class="tip-icon" data-tip="Who the agent plays against during training. Heuristic is the best first opponent. Self-Play is more advanced and can be unstable early on.">?</span>
+                        </label>
                         <select id="ppo-opponent" class="form-select">
                             <option value="heuristic">Heuristic</option>
                             <option value="random">Random</option>
@@ -156,6 +207,7 @@
                     <label class="form-checkbox checkbox-label">
                         <input type="checkbox" id="ppo-load-supervised" />
                         Initialize from supervised checkpoint (warm start)
+                        <span class="tip-icon" data-tip="Strongly recommended. Starts PPO from your best supervised model instead of random weights. PPO from scratch is very slow and unstable.">?</span>
                     </label>
                 </div>
                 <div class="train-actions">
@@ -184,11 +236,17 @@
             <div class="train-controls">
                 <div class="param-grid form-row tourney-param-grid">
                     <div class="form-group">
-                        <label class="form-label" for="tourney-episodes">Games per Matchup</label>
+                        <label class="form-label" for="tourney-episodes">
+                            Games per Matchup
+                            <span class="tip-icon" data-tip="Number of games played per policy pair. Use at least 50–100 games for a statistically reliable win rate.">?</span>
+                        </label>
                         <input type="number" id="tourney-episodes" class="form-input" value="50" min="10" max="500" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="tourney-style">Playstyle</label>
+                        <label class="form-label" for="tourney-style">
+                            Playstyle
+                            <span class="tip-icon" data-tip="The deck archetype used during tournament games. Try Midrange first — it's the most balanced and representative of typical Commander gameplay.">?</span>
+                        </label>
                         <select id="tourney-style" class="form-select">
                             <option value="midrange">Midrange</option>
                             <option value="aggro">Aggro</option>
