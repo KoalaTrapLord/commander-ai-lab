@@ -26,6 +26,7 @@ import logging
 import os
 import time
 import threading
+from services.card_text import build_card_text
 from pathlib import Path
 from typing import Optional
 
@@ -49,23 +50,8 @@ _chroma_collection = None
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 def _build_document(card: dict) -> str:
-    """Build the text document to embed for a single card.
-
-    Format: Name | Mana Cost | Type | Oracle Text
-    Matches the structure used by coach/embeddings._build_card_text() so
-    vector similarity is consistent across both embedding systems.
-    """
-    parts = [card.get("name", "")]
-    mana_cost = card.get("mana_cost", "")
-    if mana_cost:
-        parts.append(mana_cost)
-    type_line = card.get("type_line", "")
-    if type_line:
-        parts.append(type_line)
-    oracle = card.get("oracle_text", "")
-    if oracle:
-        parts.append(oracle)
-    return " | ".join(parts)
+    """Delegate to shared build_card_text() -- see services/card_text.py."""
+    return build_card_text(card)
 
 
 def _build_metadata(card: dict) -> dict:
@@ -516,3 +502,57 @@ def get_rag_stats() -> dict:
             pass
 
     return result
+
+
+def is_chroma_available() -> bool:
+    """Check whether ChromaDB + Ollama are reachable without side effects."""
+    try:
+        _get_chromadb_client()
+    except Exception:
+        return False
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            f"{OLLAMA_BASE_URL}/api/tags",
+            headers={"User-Agent": "commander-ai-lab/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=3):
+            pass
+    except Exception:
+        return False
+    return True
+
+
+def check_staleness() -> dict:
+    """Return staleness info so a background scheduler can trigger rebuilds.
+
+    Returns dict with keys:
+        stale (bool): True if the index should be rebuilt.
+        reason (str): Human-readable explanation.
+        age_days (float | None): Age of the current build in days.
+    """
+    meta = _read_build_meta()
+    built_at = meta.get("built_at")
+    if not built_at:
+        return {"stale": True, "reason": "no build metadata found", "age_days": None}
+    try:
+        age_days = (time.time() - float(built_at)) / 86400
+    except (ValueError, TypeError):
+        return {"stale": True, "reason": "corrupt build timestamp", "age_days": None}
+    if age_days > 14:
+        return {"stale": True, "reason": f"index is {age_days:.1f} days old (>14)", "age_days": round(age_days, 1)}
+    try:
+        from services.scryfall_bulk import get_stats as bulk_stats
+        bulk_count = bulk_stats().get("card_count", 0)
+        collection = _get_collection()
+        chroma_count = collection.count()
+        ratio = chroma_count / max(bulk_count, 1)
+        if ratio < 0.95 or ratio > 1.05:
+            return {
+                "stale": True,
+                "reason": f"card count drift: chroma={chroma_count}, bulk={bulk_count}",
+                "age_days": round(age_days, 1),
+            }
+    except Exception as exc:
+        logger.warning("check_staleness card count check failed: %s", exc)
+    return {"stale": False, "reason": "index is current", "age_days": round(age_days, 1)}
