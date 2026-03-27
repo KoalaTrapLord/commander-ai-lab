@@ -120,9 +120,8 @@
 
             <!-- Action Buttons Row -->
             <div class="coach-run-row">
-                <button id="coach-run-btn" class="btn btn-primary btn-lg" disabled>
-                    <span class="coach-run-icon">&#9889;</span> Run Coach
-                </button>
+                <button id="coach-quick-btn" class="btn btn-secondary" disabled>&#9889; Quick Digest</button>
+                <button id="coach-run-btn" class="btn btn-primary" disabled>&#128300; Full Analysis</button>
                 <span class="coach-run-hint" id="coach-run-hint">Select a deck to begin</span>
             </div>
 
@@ -204,6 +203,12 @@
                         Apply Suggestions
                     </button>
                 </div>
+            </div>
+
+            <!-- Top Priority Swap (Phase 2 UI) -->
+            <div id="coach-top-priority" class="coach-card" style="display:none; border-left: 4px solid var(--accent);">
+                <h3>&#9889; Top Priority Swap</h3>
+                <div id="coach-top-priority-content"></div>
             </div>
 
             <!-- Summary Card -->
