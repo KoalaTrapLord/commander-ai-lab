@@ -1097,7 +1097,7 @@ _elo_tournament_state = _EloTournamentState()
 _elo_tournament_lock  = threading.Lock()
 
 
-def _run_elo_tournament_pipeline(episodes: int, playstyle: str):
+def _run_elo_tournament_pipeline(episodes: int, playstyle: str, top_n: int):
     """Run ELO tournament in a background thread."""
     try:
         import sys
@@ -1108,7 +1108,7 @@ def _run_elo_tournament_pipeline(episodes: int, playstyle: str):
         with _elo_tournament_lock:
             _elo_tournament_state.running = True
             _elo_tournament_state.phase = "running"
-            _elo_tournament_state.message = "Running ELO tournament..."
+            _elo_tournament_state.message = f"Running ELO tournament (top {top_n} generations)..."
             _elo_tournament_state.error = None
             _elo_tournament_state.result = None
 
@@ -1121,6 +1121,7 @@ def _run_elo_tournament_pipeline(episodes: int, playstyle: str):
             checkpoint_dir=ckpt_dir,
             episodes_per_matchup=episodes,
             playstyle=playstyle,
+            top_n=top_n,
         )
 
         # Save to ELO history
@@ -1155,29 +1156,37 @@ def _run_elo_tournament_pipeline(episodes: int, playstyle: str):
 
 @router.post("/api/ml/elo/tournament")
 async def ml_start_elo_tournament(request: FastAPIRequest):
-    """Start an ELO-rated tournament across all generation checkpoints."""
+    """Start an ELO-rated tournament across generation checkpoints.
+
+    Body params:
+        episodes (int): Games per matchup pair (default 50)
+        playstyle (str): Game playstyle (default midrange)
+        topN (int): Max number of most-recent gen checkpoints to include
+                    (default 10, 0 = unlimited)
+    """
     if _elo_tournament_state.running:
         raise HTTPException(409, "ELO tournament already in progress")
 
     body = await request.json() if await request.body() else {}
     episodes = body.get("episodes", 50)
     playstyle = body.get("playstyle", "midrange")
+    top_n = body.get("topN", 10)
 
     with _elo_tournament_lock:
         _elo_tournament_state.running = True
         _elo_tournament_state.phase = "starting"
-        _elo_tournament_state.message = "Initializing ELO tournament..."
+        _elo_tournament_state.message = f"Initializing ELO tournament (top {top_n} generations)..."
         _elo_tournament_state.result = None
         _elo_tournament_state.error = None
 
     thread = threading.Thread(
         target=_run_elo_tournament_pipeline,
-        args=(episodes, playstyle),
+        args=(episodes, playstyle, top_n),
         daemon=True,
     )
     thread.start()
 
-    return {"status": "started", "episodes": episodes}
+    return {"status": "started", "episodes": episodes, "top_n": top_n}
 
 
 @router.get("/api/ml/elo/tournament/status")

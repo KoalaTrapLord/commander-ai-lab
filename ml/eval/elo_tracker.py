@@ -16,6 +16,7 @@ Reuses `run_match`, `LearnedPolicy`, `HeuristicPolicy`,
 Usage:
     python -m ml.eval.elo_tracker
     python -m ml.eval.elo_tracker --episodes 50 --output data/elo_history.json
+    python -m ml.eval.elo_tracker --top-n 10
 """
 
 import json
@@ -285,12 +286,17 @@ def run_generation_tournament(
     episodes_per_matchup: int = 50,
     playstyle: str = "midrange",
     k_factor: float = DEFAULT_K,
+    top_n: int = 10,
 ) -> EloResult:
     """
     Discover generation checkpoints and run an ELO tournament.
 
     Looks for `gen-*/best_policy.pt` under checkpoint_dir.
     Also includes heuristic and random baselines.
+
+    Args:
+        top_n: Only include the N most recent gen-* checkpoints.
+               0 means include all (unbounded). Default is 10.
     """
     policies: Dict[str, object] = {
         "heuristic": HeuristicPolicy(),
@@ -299,7 +305,20 @@ def run_generation_tournament(
 
     ckpt_path = Path(checkpoint_dir)
     if ckpt_path.exists():
-        for gen_dir in sorted(ckpt_path.glob("gen-*")):
+        gen_dirs = sorted(ckpt_path.glob("gen-*"))
+
+        # Apply top_n cutoff — keep only the latest N generation dirs
+        if top_n > 0 and len(gen_dirs) > top_n:
+            skipped = len(gen_dirs) - top_n
+            logger.info(
+                "top_n=%d: skipping %d older generation(s), using %s … %s",
+                top_n, skipped,
+                gen_dirs[-top_n].name,
+                gen_dirs[-1].name,
+            )
+            gen_dirs = gen_dirs[-top_n:]
+
+        for gen_dir in gen_dirs:
             model_path = gen_dir / "best_policy.pt"
             if model_path.exists():
                 name = gen_dir.name  # e.g., "gen-001"
@@ -363,6 +382,10 @@ def main():
         "--k-factor", type=float, default=32,
         help="ELO K-factor (default: 32)",
     )
+    parser.add_argument(
+        "--top-n", type=int, default=10,
+        help="Only include the N most recent gen checkpoints (0 = all, default: 10)",
+    )
 
     args = parser.parse_args()
 
@@ -373,6 +396,7 @@ def main():
         episodes_per_matchup=args.episodes,
         playstyle=args.playstyle,
         k_factor=args.k_factor,
+        top_n=args.top_n,
     )
 
     # Print results
