@@ -24,6 +24,7 @@ from .config import (
 from .models import (
     DeckReport, CoachGoals, CoachSession,
     SuggestedCut, SuggestedAdd, CoachStatus,
+    UpgradePriorityItem, CommanderDependency, MulliganAnalysis,
 )
 from .llm_client import LLMClient
 from .embeddings import MTGEmbeddingIndex
@@ -71,11 +72,9 @@ class CoachService:
                 if re.sub(r'[^a-z0-9]', '', f.stem.lower()) == re.sub(r'[^a-z0-9]', '', deck_id.lower()):
                     report_path = f
                     break
-
         if not report_path.exists():
             logger.warning("Deck report not found: %s", deck_id)
             return None
-
         try:
             with open(report_path, "r") as f:
                 data = json.load(f)
@@ -185,7 +184,7 @@ class CoachService:
                 continue
         return sessions
 
-    # ── Main Coaching Pipeline ─────────────────────────────────
+    # ── Main Coaching Pipeline ───────────────────────────────────
 
     async def run_coaching_session(
         self,
@@ -261,6 +260,7 @@ class CoachService:
 
         # 5. Call LLM
         logger.info("Calling LLM for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
+
         if COACH_PROVIDER == "anthropic":
             import anthropic as _anthropic
             anthropic_key = ANTHROPIC_API_KEY
@@ -278,7 +278,6 @@ class CoachService:
             ) as stream:
                 content = await stream.get_final_text()
                 final_msg = await stream.get_final_message()
-
             usage = getattr(final_msg, "usage", None)
 
             # Build an LLMResponse-compatible object
@@ -353,6 +352,35 @@ class CoachService:
                     synergyWith=add_data.get("synergyWith", []),
                 ))
 
+        # Phase 2: Parse upgrade priority
+        for item in data.get("upgradePriority", []):
+            if isinstance(item, dict):
+                session.upgradePriority.append(UpgradePriorityItem(
+                    rank=item.get("rank", 0),
+                    cut=item.get("cut", ""),
+                    add=item.get("add", ""),
+                    reasoning=item.get("reasoning", ""),
+                    expectedImpact=item.get("expectedImpact", ""),
+                ))
+
+        # Phase 2: Parse commander dependency
+        cd = data.get("commanderDependency")
+        if isinstance(cd, dict):
+            session.commanderDependency = CommanderDependency(
+                score=cd.get("score", 5),
+                dependentCards=cd.get("dependentCards", []),
+                recoveryPlan=cd.get("recoveryPlan", ""),
+            )
+
+        # Phase 2: Parse mulligan analysis
+        ma = data.get("mulliganAnalysis")
+        if isinstance(ma, dict):
+            session.mulliganAnalysis = MulliganAnalysis(
+                estimatedKeepRate=ma.get("estimatedKeepRate", ""),
+                worstOffenders=ma.get("worstOffenders", []),
+                recommendation=ma.get("recommendation", ""),
+            )
+
     # ── Status Check ───────────────────────────────────────────
 
     def get_status(self) -> CoachStatus:
@@ -381,5 +409,4 @@ class CoachService:
         status.embeddingsLoaded = self.embeddings.loaded
         status.embeddingCards = self.embeddings.card_count
         status.deckReportsAvailable = len(self.list_deck_reports())
-
         return status
