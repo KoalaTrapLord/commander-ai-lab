@@ -19,7 +19,7 @@ from .config import (
     DECK_REPORTS_DIR, COACH_SESSIONS_DIR,
     MAX_UNDERPERFORMERS, MAX_CANDIDATES_PER_UNDERPERFORMER,
     COACH_PROVIDER, ANTHROPIC_API_KEY, ANTHROPIC_MODEL,
-    UNDERPERFORMER_IMPACT_THRESHOLD, ensure_dirs,
+    UNDERPERFORMER_IMPACT_THRESHOLD, DEFAULT_MAX_TOKENS, ensure_dirs,
 )
 from .models import (
     DeckReport, CoachGoals, CoachSession,
@@ -285,7 +285,7 @@ class CoachService:
                 model=ANTHROPIC_MODEL,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
-                max_tokens=8192,
+                max_tokens=DEFAULT_MAX_TOKENS,
                 temperature=0.7,
             )
             content = resp.content[0].text if resp.content else ""
