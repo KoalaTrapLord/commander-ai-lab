@@ -4,6 +4,9 @@ Commander AI Lab — Anthropic Claude Structured Output Client
 Uses the anthropic SDK to call Claude's messages endpoint
 with structured JSON output enforced via system prompt.
 Supports both sync and native async operation.
+
+All substantive calls use .messages.stream() to avoid the SDK's
+10-minute non-streaming timeout restriction on large max_tokens.
 """
 import json
 import logging
@@ -53,6 +56,8 @@ class AnthropicClient:
     Anthropic Claude API client.
 
     Drop-in replacement for PerplexityClient.
+    All substantive calls use .messages.stream() so the SDK never
+    enforces the 10-minute non-streaming timeout.
 
     Usage:
         client = AnthropicClient(api_key="sk-ant-...")
@@ -101,37 +106,24 @@ class AnthropicClient:
     ) -> AnthropicResponse:
         """
         Send a chat request expecting JSON output.
-
-        The system_prompt should instruct the model to return JSON matching
-        the expected schema. Claude Opus follows JSON instructions reliably.
-
-        Args:
-            system_prompt: System message (should instruct JSON output)
-            user_prompt: User message
-            json_schema: (optional) Kept for call-site compatibility; appended
-                         as a schema hint in the system prompt when provided
-            schema_name: (optional) Label used in the schema hint
-            model: Override model
-            temperature: Sampling temperature (0.0-1.0)
-            max_tokens: Max output tokens
-
-        Returns:
-            AnthropicResponse with parsed_json extracted from model output
+        Uses streaming to avoid the Anthropic SDK 10-minute timeout restriction.
         """
         use_model = model or self.model
         effective_system = self._build_system(system_prompt, json_schema, schema_name)
 
         try:
-            response = self._client.messages.create(
+            with self._client.messages.stream(
                 model=use_model,
                 system=effective_system,
                 messages=[{"role": "user", "content": user_prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
-            )
-            return self._parse_response(response, use_model)
+            ) as stream:
+                content = stream.get_final_text()
+                final_msg = stream.get_final_message()
+            return self._parse_streamed(content, final_msg, use_model)
         except Exception as e:
-            logger.error("[anthropic] API call failed: %s", e)
+            logger.error("[anthropic] chat_structured failed: %s", e)
             raise
 
     def chat_plain(
@@ -144,21 +136,23 @@ class AnthropicClient:
     ) -> AnthropicResponse:
         """
         Send a plain chat request without strict structured output.
-        Used for substitution fallback queries.
+        Uses streaming to avoid the Anthropic SDK 10-minute timeout restriction.
         """
         use_model = model or self.model
 
         try:
-            response = self._client.messages.create(
+            with self._client.messages.stream(
                 model=use_model,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
-            )
-            return self._parse_response(response, use_model)
+            ) as stream:
+                content = stream.get_final_text()
+                final_msg = stream.get_final_message()
+            return self._parse_streamed(content, final_msg, use_model)
         except Exception as e:
-            logger.error("[anthropic] Plain chat failed: %s", e)
+            logger.error("[anthropic] chat_plain failed: %s", e)
             raise
 
     async def achat_structured(
@@ -171,21 +165,23 @@ class AnthropicClient:
         temperature: float = 0.2,
         max_tokens: int = 8192,
     ) -> AnthropicResponse:
-        """Native async structured chat — no run_in_executor needed."""
+        """Native async structured chat using streaming."""
         use_model = model or self.model
         effective_system = self._build_system(system_prompt, json_schema, schema_name)
 
         try:
-            response = await self._async_client.messages.create(
+            async with self._async_client.messages.stream(
                 model=use_model,
                 system=effective_system,
                 messages=[{"role": "user", "content": user_prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
-            )
-            return self._parse_response(response, use_model)
+            ) as stream:
+                content = await stream.get_final_text()
+                final_msg = await stream.get_final_message()
+            return self._parse_streamed(content, final_msg, use_model)
         except Exception as e:
-            logger.error("[anthropic] Async structured chat failed: %s", e)
+            logger.error("[anthropic] achat_structured failed: %s", e)
             raise
 
     async def achat_plain(
@@ -196,24 +192,29 @@ class AnthropicClient:
         temperature: float = 0.2,
         max_tokens: int = 4096,
     ) -> AnthropicResponse:
-        """Native async plain chat."""
+        """Native async plain chat using streaming."""
         use_model = model or self.model
 
         try:
-            response = await self._async_client.messages.create(
+            async with self._async_client.messages.stream(
                 model=use_model,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
-            )
-            return self._parse_response(response, use_model)
+            ) as stream:
+                content = await stream.get_final_text()
+                final_msg = await stream.get_final_message()
+            return self._parse_streamed(content, final_msg, use_model)
         except Exception as e:
-            logger.error("[anthropic] Async plain chat failed: %s", e)
+            logger.error("[anthropic] achat_plain failed: %s", e)
             raise
 
     def check_status(self) -> dict:
-        """Quick health check — try a minimal API call."""
+        """
+        Quick health check — tiny max_tokens=10 call, safe to use non-streaming
+        since it will never approach the 10-minute threshold.
+        """
         try:
             response = self._client.messages.create(
                 model=self.model,
@@ -249,13 +250,9 @@ class AnthropicClient:
             f"{schema_str}"
         )
 
-    def _parse_response(self, response, use_model: str) -> AnthropicResponse:
-        """Extract content and attempt JSON parsing from an Anthropic response."""
-        content = ""
-        if response.content:
-            content = response.content[0].text or ""
-
-        usage = response.usage
+    def _parse_streamed(self, content: str, final_msg, use_model: str) -> AnthropicResponse:
+        """Build an AnthropicResponse from streamed text + final message metadata."""
+        usage = getattr(final_msg, "usage", None)
         prompt_tokens = usage.input_tokens if usage else 0
         completion_tokens = usage.output_tokens if usage else 0
 

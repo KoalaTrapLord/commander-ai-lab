@@ -65,10 +65,8 @@ class CoachService:
 
     def load_deck_report(self, deck_id: str) -> Optional[DeckReport]:
         """Load a deck report from disk."""
-        # Try exact filename first, then case-insensitive search
         report_path = DECK_REPORTS_DIR / f"{deck_id}.json"
         if not report_path.exists():
-            # Try case-insensitive match
             for f in DECK_REPORTS_DIR.glob("*.json"):
                 if re.sub(r'[^a-z0-9]', '', f.stem.lower()) == re.sub(r'[^a-z0-9]', '', deck_id.lower()):
                     report_path = f
@@ -96,12 +94,10 @@ class CoachService:
 
     def save_session(self, session: CoachSession) -> Path:
         """Persist a coaching session to disk and SQLite."""
-        # 1. Write JSON file (backward compat)
         COACH_SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
         path = COACH_SESSIONS_DIR / f"{session.sessionId}.json"
         with open(path, "w") as f:
             f.write(session.model_dump_json(indent=2))
-        # 2. Write to SQLite
         if _DB_AVAILABLE:
             try:
                 _db_save_session({
@@ -124,10 +120,8 @@ class CoachService:
                 logger.warning("Failed to persist session to SQLite: %s", e)
         return path
 
-
     def load_session(self, session_id: str) -> Optional[CoachSession]:
         """Load a coaching session from SQLite, falling back to disk."""
-        # Try SQLite first
         if _DB_AVAILABLE:
             try:
                 row = _db_load_session(session_id)
@@ -150,7 +144,6 @@ class CoachService:
                     )
             except Exception as e:
                 logger.warning("SQLite load failed for %s: %s", session_id, e)
-        # Fallback to disk
         path = COACH_SESSIONS_DIR / f"{session_id}.json"
         if not path.exists():
             return None
@@ -162,10 +155,8 @@ class CoachService:
             logger.error("Failed to load session %s: %s", session_id, e)
             return None
 
-
     def list_sessions(self, deck_id: str = None) -> List[dict]:
         """List coaching sessions from SQLite, falling back to disk."""
-        # Try SQLite first
         if _DB_AVAILABLE:
             try:
                 rows = _db_list_sessions(deck_id)
@@ -173,7 +164,6 @@ class CoachService:
                     return rows
             except Exception as e:
                 logger.warning("SQLite list_sessions failed: %s", e)
-        # Fallback to disk
         if not COACH_SESSIONS_DIR.exists():
             return []
         sessions = []
@@ -195,20 +185,21 @@ class CoachService:
                 continue
         return sessions
 
-
     # ── Main Coaching Pipeline ─────────────────────────────────
 
-    async def run_coaching_session(self, deck_id: str,
-                                    goals: Optional[CoachGoals] = None,
-                                    fallback_report: Optional[DeckReport] = None,
-                                    ) -> CoachSession:
+    async def run_coaching_session(
+        self,
+        deck_id: str,
+        goals: Optional[CoachGoals] = None,
+        fallback_report: Optional[DeckReport] = None,
+    ) -> CoachSession:
         """
         Full coaching pipeline:
         1. Load deck report (or use fallback from DB card list)
         2. Identify underperformers
         3. Find replacement candidates via embeddings
         4. Build prompt
-        5. Call LLM
+        5. Call LLM (streaming for Anthropic to avoid 10-min SDK timeout)
         6. Parse response
         7. Persist session
         """
@@ -224,7 +215,7 @@ class CoachService:
             except Exception as e:
                 logger.warning("Embeddings auto-load failed: %s", e)
 
-        # 1. Load deck report — try simulation report first, then fallback
+        # 1. Load deck report
         report = self.load_deck_report(deck_id)
         if report is None and fallback_report is not None:
             report = fallback_report
@@ -237,20 +228,15 @@ class CoachService:
 
         # 3. Find replacement candidates for underperformers
         candidates: Dict[str, List[dict]] = {}
-
         underperformers = report.underperformers[:MAX_UNDERPERFORMERS]
         if not underperformers:
-            # If no explicit underperformers, pick lowest impact cards
             sorted_cards = sorted(report.cards, key=lambda c: c.impactScore)
             underperformers = [
                 c.name for c in sorted_cards[:MAX_UNDERPERFORMERS]
                 if c.impactScore < UNDERPERFORMER_IMPACT_THRESHOLD
             ]
-
-        # If still no underperformers and we have cards, pick bottom N by impact
         if not underperformers and report.cards:
             sorted_cards = sorted(report.cards, key=lambda c: c.impactScore)
-            # Take the bottom 5 non-land cards as candidates for cuts
             underperformers = [
                 c.name for c in sorted_cards[:5]
                 if not any(t in (c.tags or []) for t in [])
@@ -273,29 +259,33 @@ class CoachService:
         system_prompt = build_system_prompt(report, goals)
         user_prompt = build_user_prompt(report, candidates)
 
-        # 5. Call LLM (Anthropic or local Ollama)
+        # 5. Call LLM
         logger.info("Calling LLM for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
         if COACH_PROVIDER == "anthropic":
-            import anthropic
+            import anthropic as _anthropic
             anthropic_key = ANTHROPIC_API_KEY
             if not anthropic_key:
                 raise ConnectionError("Anthropic API key not configured. Set ANTHROPIC_API_KEY env var.")
-            aclient = anthropic.AsyncAnthropic(api_key=anthropic_key)
-            resp = await aclient.messages.create(
+
+            # Use streaming to avoid the Anthropic SDK 10-minute non-streaming timeout.
+            aclient = _anthropic.AsyncAnthropic(api_key=anthropic_key)
+            async with aclient.messages.stream(
                 model=ANTHROPIC_MODEL,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
                 max_tokens=DEFAULT_MAX_TOKENS,
                 temperature=0.7,
-            )
-            content = resp.content[0].text if resp.content else ""
-            usage = resp.usage
+            ) as stream:
+                content = await stream.get_final_text()
+                final_msg = await stream.get_final_message()
+
+            usage = getattr(final_msg, "usage", None)
 
             # Build an LLMResponse-compatible object
             from types import SimpleNamespace
             llm_response = SimpleNamespace(
                 content=content,
-                model=resp.model,
+                model=final_msg.model,
                 prompt_tokens=usage.input_tokens if usage else 0,
                 completion_tokens=usage.output_tokens if usage else 0,
                 parsed_json=None,
@@ -305,7 +295,6 @@ class CoachService:
                 cleaned = re.sub(r'\s*```$', '', cleaned.strip())
                 llm_response.parsed_json = json.loads(cleaned)
             except (json.JSONDecodeError, ValueError):
-                # Try to find JSON object in the text
                 match = re.search(r'\{[\s\S]*\}', content)
                 if match:
                     try:
@@ -317,7 +306,6 @@ class CoachService:
 
         # 6. Parse response into CoachSession
         session_id = f"sess-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
-
         session = CoachSession(
             sessionId=session_id,
             deckId=deck_id,
@@ -331,14 +319,12 @@ class CoachService:
         if llm_response.parsed_json:
             self._populate_session_from_json(session, llm_response.parsed_json)
         else:
-            # Fallback: store raw text
             session.rawTextExplanation = llm_response.content
             session.summary = "LLM returned non-JSON response. See raw explanation."
 
         # 7. Persist
         self.save_session(session)
         logger.info("Coaching session saved: %s", session_id)
-
         return session
 
     def _populate_session_from_json(self, session: CoachSession, data: dict):
@@ -347,11 +333,9 @@ class CoachService:
         session.rawTextExplanation = data.get("rawTextExplanation", "")
         session.manaBaseAdvice = data.get("manaBaseAdvice")
 
-        # Heuristic hints
         hints = data.get("heuristicHints", [])
         session.heuristicHints = hints if isinstance(hints, list) else [str(hints)]
 
-        # Suggested cuts
         for cut_data in data.get("suggestedCuts", []):
             if isinstance(cut_data, dict):
                 session.suggestedCuts.append(SuggestedCut(
@@ -360,7 +344,6 @@ class CoachService:
                     replacementOptions=cut_data.get("replacementOptions", []),
                 ))
 
-        # Suggested adds
         for add_data in data.get("suggestedAdds", []):
             if isinstance(add_data, dict):
                 session.suggestedAdds.append(SuggestedAdd(
@@ -376,7 +359,6 @@ class CoachService:
         """Check the health of all coach subsystems."""
         status = CoachStatus()
 
-        # Check LLM / Anthropic provider
         if COACH_PROVIDER == "anthropic":
             anthropic_key = ANTHROPIC_API_KEY
             if anthropic_key:
@@ -396,11 +378,8 @@ class CoachService:
             if not status.llmConnected:
                 status.error = llm_status.get("error", "Local LLM not reachable")
 
-        # Check embeddings
         status.embeddingsLoaded = self.embeddings.loaded
         status.embeddingCards = self.embeddings.card_count
-
-        # Check deck reports
         status.deckReportsAvailable = len(self.list_deck_reports())
 
         return status
