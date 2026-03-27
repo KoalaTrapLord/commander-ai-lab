@@ -34,6 +34,30 @@ def _classify_card_type(type_line: str) -> str:
     return "Other"
 
 
+_CATEGORY_MAP = {
+    "Ramp":        ["search your library for a", "add one mana", "add {c}", "{t}: add"],
+    "Removal":     ["destroy target", "exile target", "counter target spell"],
+    "Draw":        ["draw a card", "draw two", "draw three", "draw cards"],
+    "Board Wipe":  ["destroy all", "exile all", "all creatures get -"],
+    "Protection":  ["hexproof", "indestructible", "shroud", "ward"],
+    "Tutor":       ["search your library"],
+}
+
+
+def _classify_card_category(type_line: str, oracle_text: str) -> str:
+    """Assign a functional category based on type_line and oracle text."""
+    card_type = _classify_card_type(type_line)
+    if card_type == "Land":
+        return "Land"
+    text = (oracle_text or "").lower()
+    for cat, phrases in _CATEGORY_MAP.items():
+        if any(p in text for p in phrases):
+            return cat
+    if card_type == "Creature":
+        return "Creature"
+    return card_type
+
+
 def _get_deck_or_404(deck_id: int):
     conn = _get_db_conn()
     row = conn.execute("SELECT * FROM decks WHERE id = ?", (deck_id,)).fetchone()
@@ -51,12 +75,20 @@ def _compute_deck_analysis(deck_id: int) -> dict:
     conn = _get_db_conn()
     rows = conn.execute("""
         SELECT dc.id, dc.scryfall_id, dc.card_name, dc.quantity, dc.is_commander, dc.role_tag,
-               ce.type_line, ce.oracle_text, ce.keywords, ce.cmc, ce.color_identity
+               COALESCE(ce.type_line, cr.type_line, '') as type_line,
+               COALESCE(ce.oracle_text, cr.oracle_text, '') as oracle_text,
+               COALESCE(ce.keywords, cr.keywords, '[]') as keywords,
+               COALESCE(ce.cmc, cr.cmc, 0) as cmc,
+               COALESCE(ce.color_identity, cr.color_identity, '[]') as color_identity
         FROM deck_cards dc
         LEFT JOIN (
             SELECT scryfall_id, type_line, oracle_text, keywords, cmc, color_identity
             FROM collection_entries GROUP BY scryfall_id
         ) ce ON ce.scryfall_id = dc.scryfall_id
+        LEFT JOIN (
+            SELECT name, type_line, oracle_text, keywords, cmc, color_identity
+            FROM card_records GROUP BY name
+        ) cr ON cr.name = dc.card_name
         WHERE dc.deck_id = ?
     """, (deck_id,)).fetchall()
     counts_by_type = {t: 0 for t in _TYPE_PRIORITY}
@@ -91,7 +123,6 @@ def _compute_deck_analysis(deck_id: int) -> dict:
         "counts_by_type": counts_by_type,
         "mana_curve": mana_curve,
         "color_pips": color_pips,
-        "total_cards": total_cards,
         "roles": roles_count,
     }
 

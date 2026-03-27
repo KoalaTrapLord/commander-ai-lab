@@ -45,7 +45,7 @@ from services.card_analysis import _detect_card_roles
 from services.database import _get_db_conn, _row_to_dict, _add_image_url
 from services.deck_service import (
     _get_deck_or_404, _compute_deck_analysis, _check_ratio_limit,
-    _classify_card_type, _to_edhrec_slug, _TYPE_TARGETS,
+    _classify_card_type, _classify_card_category, _to_edhrec_slug, _TYPE_TARGETS,
     _save_profile_to_dck,
 )
 from services.import_helpers import (
@@ -121,7 +121,6 @@ async def get_deck(deck_id: int):
     deck["cards"] = [dict(r) for r in card_rows]
     deck["total_cards"] = sum(r["quantity"] for r in card_rows)
     deck["card_slots"] = len(card_rows)
-    # Composition summary by type
     analysis = _compute_deck_analysis(deck_id)
     deck["composition"] = analysis["counts_by_type"]
     return deck
@@ -130,7 +129,7 @@ async def get_deck(deck_id: int):
 @router.put("/api/decks/{deck_id}")
 async def update_deck(deck_id: int, req: UpdateDeckRequest):
     """Update deck metadata."""
-    _get_deck_or_404(deck_id)  # ensure exists
+    _get_deck_or_404(deck_id)
     conn = _get_db_conn()
 
     updates = {}
@@ -158,7 +157,7 @@ async def update_deck(deck_id: int, req: UpdateDeckRequest):
 @router.delete("/api/decks/{deck_id}")
 async def delete_deck(deck_id: int):
     """Delete a deck and all its cards (cascade)."""
-    _get_deck_or_404(deck_id)  # ensure exists
+    _get_deck_or_404(deck_id)
     conn = _get_db_conn()
     conn.execute("DELETE FROM deck_cards WHERE deck_id = ?", (deck_id,))
     conn.execute("DELETE FROM decks WHERE id = ?", (deck_id,))
@@ -181,7 +180,7 @@ async def delete_all_decks():
 
 @router.get("/api/decks/{deck_id}/cards")
 async def get_deck_cards(deck_id: int):
-    """Get all cards in a deck with joined collection data."""
+    """Get all cards in a deck with joined collection and card_records data."""
     _get_deck_or_404(deck_id)
     conn = _get_db_conn()
     rows = conn.execute(
@@ -189,7 +188,12 @@ async def get_deck_cards(deck_id: int):
         SELECT
             dc.id, dc.deck_id, dc.scryfall_id, dc.card_name, dc.quantity,
             dc.is_commander, dc.role_tag,
-            ce.type_line, ce.cmc, ce.mana_cost, ce.color_identity, ce.oracle_text, ce.keywords,
+            COALESCE(ce.type_line, cr.type_line, '') as type_line,
+            COALESCE(ce.cmc, cr.cmc, 0) as cmc,
+            COALESCE(ce.mana_cost, '') as mana_cost,
+            COALESCE(ce.color_identity, cr.color_identity, '[]') as color_identity,
+            COALESCE(ce.oracle_text, cr.oracle_text, '') as oracle_text,
+            COALESCE(ce.keywords, cr.keywords, '[]') as keywords,
             ce.tcg_price, ce.quantity AS owned_qty, ce.is_legendary,
             ce.salt_score, ce.is_game_changer
         FROM deck_cards dc
@@ -200,6 +204,11 @@ async def get_deck_cards(deck_id: int):
             FROM collection_entries
             GROUP BY scryfall_id
         ) ce ON ce.scryfall_id = dc.scryfall_id
+        LEFT JOIN (
+            SELECT name, type_line, cmc, color_identity, oracle_text, keywords
+            FROM card_records
+            GROUP BY name
+        ) cr ON cr.name = dc.card_name
         WHERE dc.deck_id = ?
         ORDER BY dc.is_commander DESC, dc.card_name ASC
         """,
@@ -208,7 +217,6 @@ async def get_deck_cards(deck_id: int):
     cards = []
     for row in rows:
         d = dict(row)
-        # Parse JSON fields
         for f in ("color_identity", "keywords"):
             if isinstance(d.get(f), str):
                 try:
@@ -219,6 +227,8 @@ async def get_deck_cards(deck_id: int):
             f"https://api.scryfall.com/cards/{d['scryfall_id']}?format=image&version=normal"
             if d.get("scryfall_id") else None
         )
+        d["card_type"] = _classify_card_type(d.get("type_line", ""))
+        d["card_category"] = _classify_card_category(d.get("type_line", ""), d.get("oracle_text", ""))
         cards.append(d)
     return {"cards": cards, "total": len(cards)}
 
@@ -229,14 +239,12 @@ async def add_deck_card(deck_id: int, req: AddDeckCardRequest):
     _get_deck_or_404(deck_id)
     conn = _get_db_conn()
 
-    # Look up card_name from collection_entries by scryfall_id, fall back to request
     ce_row = conn.execute(
         "SELECT name FROM collection_entries WHERE scryfall_id = ? LIMIT 1",
         (req.scryfall_id,)
     ).fetchone()
     card_name = ce_row["name"] if ce_row else (req.card_name or "")
 
-    # Check if this scryfall_id is already in the deck
     existing = conn.execute(
         "SELECT id, quantity FROM deck_cards WHERE deck_id = ? AND scryfall_id = ?",
         (deck_id, req.scryfall_id)
@@ -266,7 +274,6 @@ async def add_deck_card(deck_id: int, req: AddDeckCardRequest):
         conn.commit()
         row = conn.execute("SELECT * FROM deck_cards WHERE id = ?", (cur.lastrowid,)).fetchone()
 
-    # Update deck updated_at
     conn.execute("UPDATE decks SET updated_at = datetime('now') WHERE id = ?", (deck_id,))
     conn.commit()
     return dict(row)
@@ -341,28 +348,23 @@ async def recommend_from_collection(deck_id: int, max_results: int = 20, roles: 
     deck_color_identity = deck.get("color_identity", [])
     conn = _get_db_conn()
 
-    # Run analysis to find shortfalls
     analysis = _compute_deck_analysis(deck_id)
-    deltas = analysis["deltas"]
+    deltas = analysis.get("deltas", {})
     counts_by_type = analysis["counts_by_type"]
 
-    # Find types that are below their target midpoint (shortfall)
     shortfall_types = set()
     for t, delta in deltas.items():
         lo, hi = _TYPE_TARGETS.get(t, [0, 0])
         if counts_by_type.get(t, 0) < lo:
             shortfall_types.add(t)
 
-    # Get scryfall_ids already in deck to exclude
     in_deck_ids = set(
         r["scryfall_id"] for r in
         conn.execute("SELECT scryfall_id FROM deck_cards WHERE deck_id = ?", (deck_id,)).fetchall()
     )
 
-    # Parse role filter
     role_filter = [r.strip() for r in roles.split(",") if r.strip()] if roles else []
 
-    # Query collection for candidate cards
     coll_rows = conn.execute(
         "SELECT * FROM collection_entries WHERE quantity > 0"
     ).fetchall()
@@ -372,11 +374,9 @@ async def recommend_from_collection(deck_id: int, max_results: int = 20, roles: 
         card = _row_to_dict(row)
         card_id = card.get("scryfall_id", "")
 
-        # Skip cards already in deck
         if card_id in in_deck_ids:
             continue
 
-        # Color identity check: all card colors must be in deck colors
         card_ci = card.get("color_identity", [])
         if isinstance(card_ci, str):
             try:
@@ -393,22 +393,17 @@ async def recommend_from_collection(deck_id: int, max_results: int = 20, roles: 
         card_type = _classify_card_type(type_line)
         card_roles = _detect_card_roles(oracle_text, type_line, keywords)
 
-        # Role filter
         if role_filter and not any(r in card_roles for r in role_filter):
             continue
 
-        # Scoring
         score = 0
-        # +3 if card type is in shortfall
         if card_type in shortfall_types:
             score += 3
-        # +2 per matching role
         for r in card_roles:
             if r in ("Ramp", "Draw", "Removal", "BoardWipe"):
                 score += 2
             else:
                 score += 1
-        # +1 for lower CMC (curve fit)
         cmc = float(card.get("cmc", 0))
         if cmc <= 3:
             score += 1
@@ -429,7 +424,6 @@ async def recommend_from_collection(deck_id: int, max_results: int = 20, roles: 
 
     scored.sort(key=lambda x: x["score"], reverse=True)
 
-    # Group by type
     grouped = {}
     for card in scored[:max_results]:
         ct = card["card_type"]
@@ -456,7 +450,6 @@ async def deck_edh_recs(deck_id: int, only_owned: bool = False, max_results: int
     if not commander_name:
         raise HTTPException(400, "Deck has no commander_name set. Update the deck first.")
 
-    # Cache check
     cache_key = f"edhrec:avg:{_to_edhrec_slug(commander_name)}"
     cached_profile = _edhrec_cache_get(cache_key)
     if cached_profile is None:
@@ -471,13 +464,11 @@ async def deck_edh_recs(deck_id: int, only_owned: bool = False, max_results: int
 
     conn = _get_db_conn()
 
-    # Get cards already in deck
     in_deck_names = set(
         r["card_name"].lower() for r in
         conn.execute("SELECT card_name FROM deck_cards WHERE deck_id = ?", (deck_id,)).fetchall()
     )
 
-    # Build collection lookup: name (lower) -> {owned, qty, scryfall_id}
     coll_rows = conn.execute(
         "SELECT name, quantity, scryfall_id FROM collection_entries"
     ).fetchall()
@@ -488,7 +479,6 @@ async def deck_edh_recs(deck_id: int, only_owned: bool = False, max_results: int
         if not existing or r["quantity"] > existing["qty"]:
             coll_map[key] = {"owned": True, "qty": r["quantity"], "scryfall_id": r["scryfall_id"]}
 
-    # Also look up card details from collection_entries for type/role
     coll_details = {}
     for r in conn.execute("SELECT name, type_line, oracle_text, keywords, scryfall_id FROM collection_entries").fetchall():
         key = r["name"].lower()
@@ -498,7 +488,6 @@ async def deck_edh_recs(deck_id: int, only_owned: bool = False, max_results: int
     results = []
     for card_name in mainboard:
         name_lower = card_name.lower()
-        # Skip cards already in deck
         if name_lower in in_deck_names:
             continue
 
@@ -507,7 +496,6 @@ async def deck_edh_recs(deck_id: int, only_owned: bool = False, max_results: int
         if only_owned and not owned_info["owned"]:
             continue
 
-        # Get type/role from collection if available
         details = coll_details.get(name_lower, {})
         type_line = details.get("type_line", "")
         oracle_text = details.get("oracle_text", "")
@@ -520,7 +508,7 @@ async def deck_edh_recs(deck_id: int, only_owned: bool = False, max_results: int
             "type_line": type_line,
             "role": card_roles[0] if card_roles else "Other",
             "roles": card_roles,
-            "inclusion_pct": None,  # EDHREC average doesn't expose % directly in this path
+            "inclusion_pct": None,
             "synergy_score": None,
             "owned": owned_info["owned"],
             "owned_qty": owned_info["qty"],
@@ -569,7 +557,6 @@ async def bulk_add_cards(deck_id: int, req: BulkAddRequest):
             details.append({"scryfall_id": scryfall_id, "status": "skipped", "reason": "missing scryfall_id"})
             continue
 
-        # Look up card name and type from collection
         ce_row = conn.execute(
             "SELECT name, type_line, oracle_text, keywords FROM collection_entries WHERE scryfall_id = ? LIMIT 1",
             (scryfall_id,)
@@ -589,7 +576,6 @@ async def bulk_add_cards(deck_id: int, req: BulkAddRequest):
             })
             continue
 
-        # Upsert
         existing = conn.execute(
             "SELECT id, quantity FROM deck_cards WHERE deck_id = ? AND scryfall_id = ?",
             (deck_id, scryfall_id)
@@ -631,7 +617,6 @@ async def bulk_add_recommended(deck_id: int, req: BulkAddRecommendedRequest):
     candidates = []
 
     if source == "collection":
-        # Reuse the recommend_from_collection logic
         deck = _get_deck_or_404(deck_id)
         deck_color_identity = deck.get("color_identity", [])
         analysis = _compute_deck_analysis(deck_id)
@@ -691,7 +676,7 @@ async def bulk_add_recommended(deck_id: int, req: BulkAddRecommendedRequest):
             if req.only_owned and not coll_info:
                 continue
             if not coll_info:
-                continue  # can't add without scryfall_id
+                continue
             scryfall_id = coll_info.get("scryfall_id", "")
             if not scryfall_id:
                 continue
@@ -706,7 +691,6 @@ async def bulk_add_recommended(deck_id: int, req: BulkAddRecommendedRequest):
     else:
         raise HTTPException(400, f"Unknown source '{source}'. Use 'collection' or 'edhrec'.")
 
-    # Now bulk-add candidates
     added = 0
     skipped = 0
     details = []
@@ -770,7 +754,6 @@ async def export_deck_to_sim(deck_id: int):
     if not card_rows:
         raise HTTPException(400, "Deck has no cards to export")
 
-    # Build .dck content
     lines = ["[metadata]"]
     deck_name = deck.get("name", f"Deck {deck_id}")
     lines.append(f"Name={deck_name}")
@@ -795,7 +778,6 @@ async def export_deck_to_sim(deck_id: int):
 
     content = "\n".join(lines)
 
-    # Determine save directory
     safe_name = re.sub(r"[^a-zA-Z0-9 _-]", "", deck_name).replace(" ", "_").strip()
     if not safe_name:
         safe_name = f"deck_{deck_id}"
@@ -835,14 +817,13 @@ def _parse_decklist_text(text: str) -> dict:
     """
     commanders = []
     cards = []
-    section = 'main'  # default section
+    section = 'main'
 
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line or line.startswith('//') or line.startswith('#'):
             continue
 
-        # Section headers
         low = line.lower()
         if low.startswith('[commander'):
             section = 'commander'
@@ -854,14 +835,12 @@ def _parse_decklist_text(text: str) -> dict:
             section = 'skip'
             continue
         if low.startswith('['):
-            # Unknown section, treat as main
             section = 'main'
             continue
 
         if section == 'skip':
             continue
 
-        # Parse quantity + name
         m = re.match(r'^(\d+)\s*[xX]?\s+(.+)$', line)
         if m:
             qty = int(m.group(1))
@@ -870,7 +849,6 @@ def _parse_decklist_text(text: str) -> dict:
             qty = 1
             name = line
 
-        # Strip set codes like "(M21)" or "(M21) 123" from MTGA exports
         name = re.sub(r'\s*\([A-Z0-9]+\)\s*\d*\s*$', '', name).strip()
 
         if not name:
@@ -912,7 +890,6 @@ async def import_decklist(deck_id: int, request: FastAPIRequest):
 
     conn = _get_db_conn()
 
-    # Optionally clear existing cards
     if clear_first:
         conn.execute('DELETE FROM deck_cards WHERE deck_id = ?', (deck_id,))
         conn.commit()
@@ -926,7 +903,6 @@ async def import_decklist(deck_id: int, request: FastAPIRequest):
         qty = entry['qty']
         is_cmd = entry['is_commander']
 
-        # Look up on Scryfall
         sf = _scryfall_fuzzy_lookup(name)
         if not sf:
             failed.append(name)
@@ -936,7 +912,6 @@ async def import_decklist(deck_id: int, request: FastAPIRequest):
         scryfall_id = sf.get('id', '')
         resolved_name = sf.get('name', name)
 
-        # Check if already in deck
         existing = conn.execute(
             'SELECT id, quantity FROM deck_cards WHERE deck_id = ? AND scryfall_id = ?',
             (deck_id, scryfall_id)
@@ -956,11 +931,9 @@ async def import_decklist(deck_id: int, request: FastAPIRequest):
         added += 1
         results.append({'name': resolved_name, 'qty': qty, 'status': 'added', 'isCommander': is_cmd})
 
-    # Update commander on deck record if we found one
     cmd_entries = [r for r in results if r.get('isCommander')]
     if cmd_entries:
         cmd_name = cmd_entries[0]['name']
-        # Look up scryfall_id from the deck_cards we just inserted
         cmd_row = conn.execute(
             'SELECT scryfall_id FROM deck_cards WHERE deck_id = ? AND is_commander = 1 LIMIT 1',
             (deck_id,)
@@ -1007,7 +980,6 @@ async def import_decklist_new(request: FastAPIRequest):
     if not all_entries:
         return JSONResponse({'error': 'No cards found in decklist'}, status_code=400)
 
-    # Auto-name from first commander if no name given
     if not deck_name:
         cmd = parsed['commanders'][0]['name'] if parsed['commanders'] else None
         deck_name = cmd or 'Imported Deck'
@@ -1020,7 +992,6 @@ async def import_decklist_new(request: FastAPIRequest):
     conn.commit()
     new_deck_id = cur.lastrowid
 
-    # Set commander on the deck if we have one
     first_cmd_scryfall = None
     first_cmd_name = None
 
@@ -1051,7 +1022,6 @@ async def import_decklist_new(request: FastAPIRequest):
         conn.commit()
         added += 1
 
-    # Update commander on deck record
     if first_cmd_scryfall:
         conn.execute(
             'UPDATE decks SET commander_name = ?, commander_scryfall_id = ? WHERE id = ?',

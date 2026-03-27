@@ -37,11 +37,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["deepseek"])
 
-# In-memory store for simulation runs
 _sim_runs = {}  # sim_id -> { status, result, error }
 _sim_lock = _threading.Lock()
 
-# ── Validator singleton ──
 _validator_brain: ValidatorBrain | None = None
 _validator_lock = _threading.Lock()
 
@@ -61,15 +59,11 @@ def _get_validator_brain() -> ValidatorBrain | None:
             _validator_brain = ValidatorBrain(cfg)
     return _validator_brain
 
-# ══════════════════════════════════════════════════════════════
-# Shared Helpers (extracted to deduplicate sim threads — #42)
-# ══════════════════════════════════════════════════════════════
 
 _SRC_PATH_ADDED = False
 
 
 def _ensure_src_path():
-    """Add project src/ to sys.path once."""
     global _SRC_PATH_ADDED
     if not _SRC_PATH_ADDED:
         src_dir = str(Path(__file__).resolve().parent.parent / 'src')
@@ -126,7 +120,6 @@ def _run_game_loop(engine, deck_a, deck_b, deck_name, opponent_name,
 
     for i in range(num_games):
         kw = dict(run_kwargs)
-        # DeepSeek engine needs per-game IDs
         if 'game_id_prefix' in kw:
             prefix = kw.pop('game_id_prefix')
             kw['game_id'] = f'{prefix}-g{i+1}'
@@ -134,7 +127,6 @@ def _run_game_loop(engine, deck_a, deck_b, deck_name, opponent_name,
                             name_b=opponent_name, **kw)
         game_data = result.to_dict()
         game_data['gameNumber'] = i + 1
-        # Phase 8: Surface player_explanation from validation in turn log
         for turn_entry in game_data.get('log', []):
             v = turn_entry.get('validation')
             if isinstance(v, dict) and v.get('player_explanation'):
@@ -178,7 +170,6 @@ def _run_game_loop(engine, deck_a, deck_b, deck_name, opponent_name,
 
 def _build_summary(stats: dict, deck_name: str, opponent_name: str,
                    num_games: int, elapsed: float, **extra) -> dict:
-    """Build the JSON-serialisable summary dict from accumulated stats."""
     n = num_games
     summary = {
         'deckName': deck_name,
@@ -208,7 +199,6 @@ def _finish_sim(sim_id, summary, game_results, engine=None):
         _sim_runs[sim_id]['status'] = 'complete'
         _sim_runs[sim_id]['result'] = {'summary': summary, 'games': game_results}
 
-    # --- Persist ml-decision-*.json for coach / training dashboard ---
     try:
         deck_name = summary.get('deckName', 'Unknown')
         opponent_name = summary.get('opponentName', 'Training Deck')
@@ -240,7 +230,6 @@ def _finish_sim(sim_id, summary, game_results, engine=None):
             json.dump(batch_data, f, indent=2, default=str)
         logger.info(f'Saved batch results to {batch_path}')
 
-        # Auto-generate deck report for training dashboard / coach
         try:
             from coach.report_generator import generate_deck_reports
             reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'deck-reports')
@@ -254,9 +243,6 @@ def _finish_sim(sim_id, summary, game_results, engine=None):
     except Exception as e:
         logger.error(f'Failed to persist sim results: {e}')
 
-    # --- Flush ML decisions JSONL for training pipeline ---
-    # NOTE: DeepSeek thread flushes manually before calling _finish_sim(engine=None)
-    # to avoid a double-flush that would produce an empty .jsonl file.
     if engine is not None and hasattr(engine, 'flush_ml_decisions'):
         ml_decisions = engine.flush_ml_decisions()
         if ml_decisions:
@@ -269,18 +255,13 @@ def _finish_sim(sim_id, summary, game_results, engine=None):
 
 
 def _fail_sim(sim_id, error):
-    """Mark a sim run as errored."""
     with _sim_lock:
         _sim_runs[sim_id]['status'] = 'error'
         _sim_runs[sim_id]['error'] = str(error)
 
-# ══════════════════════════════════════════════════════════════
-# Background Sim Threads (now thin wrappers around shared helpers)
-# ══════════════════════════════════════════════════════════════
 
 def _run_sim_thread(sim_id: str, decklist: list, num_games: int,
                     deck_name: str, record_logs: bool):
-    """Background thread: basic Monte Carlo sim from a raw decklist."""
     try:
         _ensure_src_path()
         from commander_ai_lab.sim.engine import GameEngine
@@ -307,7 +288,6 @@ def _run_sim_thread(sim_id: str, decklist: list, num_games: int,
 
 def _run_sim_thread_v2(sim_id: str, card_data: list[dict], num_games: int,
                        deck_name: str, record_logs: bool):
-    """Background thread: sim with full card data from the DB."""
     try:
         _ensure_src_path()
         from commander_ai_lab.sim.engine import GameEngine
@@ -335,7 +315,6 @@ def _run_sim_thread_v2(sim_id: str, card_data: list[dict], num_games: int,
 def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
                              num_games: int, deck_name: str,
                              record_logs: bool):
-    """Background thread: sim using DeepSeek AI opponent."""
     try:
         _ensure_src_path()
         from commander_ai_lab.sim.deepseek_engine import DeepSeekGameEngine
@@ -351,7 +330,7 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
         if brain and not brain._connected:
             brain.check_connection()
 
-        validator = _get_validator_brain()  # None if disabled
+        validator = _get_validator_brain()
         engine = DeepSeekGameEngine(
             brain=brain, ai_player_index=1,
             max_turns=25, record_log=record_logs, ml_log=True,
@@ -363,8 +342,6 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
             game_id_prefix=f'ds-sim-{sim_id[:8]}',
             archetype='midrange')
 
-        # Flush ML decisions once here — pass engine=None to _finish_sim
-        # to prevent a second flush that would produce an empty .jsonl file.
         ml_decisions = engine.flush_ml_decisions()
         if ml_decisions and brain and brain._connected:
             ml_path = os.path.join('results',
@@ -387,21 +364,15 @@ def _run_sim_thread_deepseek(sim_id: str, card_data: list[dict],
         summary = _build_summary(
             stats, deck_name, 'DeepSeek AI', num_games, elapsed,
             opponentType='deepseek', deepseekStats=ds_stats)
-        # engine=None: ML decisions already flushed above — do not flush again
         _finish_sim(sim_id, summary, game_results, engine=None)
     except Exception as e:
         _fail_sim(sim_id, e)
         traceback.print_exc()
 
-# ══════════════════════════════════════════════════════════════
-# N-Player Sim Thread
-# ══════════════════════════════════════════════════════════════
-
 
 def _run_sim_thread_n_player(sim_id: str, decks_data: list[list[dict]],
                               deck_names: list[str], num_games: int,
                               record_logs: bool, engine_type: str):
-    """Background thread: N-player (2-4) batch simulation."""
     try:
         _ensure_src_path()
         from commander_ai_lab.sim.engine import GameEngine
@@ -423,7 +394,6 @@ def _run_sim_thread_n_player(sim_id: str, decks_data: list[list[dict]],
         else:
             engine = GameEngine(max_turns=25, record_log=record_logs, ml_log=True)
 
-        # Per-seat accumulators
         seat_wins = [0] * n_players
         seat_turns = [0] * n_players
         seat_damage_dealt = [0] * n_players
@@ -493,13 +463,7 @@ def _run_sim_thread_n_player(sim_id: str, decks_data: list[list[dict]],
         traceback.print_exc()
 
 
-# ══════════════════════════════════════════════════════════════
-# Simulation API Endpoints
-# ══════════════════════════════════════════════════════════════
-
-
 def _create_sim_run(num_games, deck_name):
-    """Create a queued sim run entry and return its ID."""
     sim_id = str(_uuid.uuid4())[:8]
     with _sim_lock:
         _sim_runs[sim_id] = {
@@ -521,31 +485,42 @@ def _fetch_deck_card_data(deck_id):
     deck_name = row[0]
     cur.execute("""
         SELECT dc.card_name, dc.quantity,
-               ce.type_line, ce.cmc, ce.power, ce.toughness,
-               ce.oracle_text, ce.keywords, ce.mana_cost
+               COALESCE(ce.type_line, cr.type_line, '') as type_line,
+               COALESCE(ce.cmc, cr.cmc, 0) as cmc,
+               ce.power, ce.toughness,
+               COALESCE(ce.oracle_text, cr.oracle_text, '') as oracle_text,
+               COALESCE(ce.keywords, cr.keywords, '') as keywords,
+               COALESCE(ce.mana_cost, '') as mana_cost
         FROM deck_cards dc
         LEFT JOIN (
             SELECT scryfall_id, type_line, cmc, power, toughness,
                    oracle_text, keywords, mana_cost
             FROM collection_entries GROUP BY scryfall_id
         ) ce ON ce.scryfall_id = dc.scryfall_id
+        LEFT JOIN (
+            SELECT name, type_line, cmc, oracle_text, keywords
+            FROM card_records GROUP BY name
+        ) cr ON cr.name = dc.card_name
         WHERE dc.deck_id = ?
     """, (deck_id,))
     card_data = []
     for r in cur.fetchall():
         for _ in range(r[1] or 1):
             card_data.append({
-                'name': r[0], 'type_line': r[2] or '',
-                'cmc': r[3] or 0, 'power': r[4] or '',
-                'toughness': r[5] or '', 'oracle_text': r[6] or '',
-                'keywords': r[7] or '', 'mana_cost': r[8] or '',
+                'name': r[0],
+                'type_line': r[2] or '',
+                'cmc': r[3] or 0,
+                'power': r[4] or '',
+                'toughness': r[5] or '',
+                'oracle_text': r[6] or '',
+                'keywords': r[7] or '',
+                'mana_cost': r[8] or '',
             })
     return deck_name, card_data
 
 
 @router.post('/api/sim/run')
 async def sim_run(request: FastAPIRequest):
-    """Start a Monte Carlo simulation with the Python engine."""
     body = await request.json()
     decklist = body.get('decklist', [])
     num_games = body.get('numGames', 10)
@@ -566,7 +541,6 @@ async def sim_run(request: FastAPIRequest):
 
 @router.get('/api/sim/status')
 async def sim_status(simId: str):
-    """Poll simulation progress."""
     with _sim_lock:
         run = _sim_runs.get(simId)
     if not run:
@@ -580,7 +554,6 @@ async def sim_status(simId: str):
 
 @router.get('/api/sim/result')
 async def sim_result(simId: str):
-    """Get completed simulation results."""
     with _sim_lock:
         run = _sim_runs.get(simId)
     if not run:
@@ -593,7 +566,6 @@ async def sim_result(simId: str):
 
 @router.post('/api/sim/run-from-deck')
 async def sim_run_from_deck(request: FastAPIRequest):
-    """Start simulation using a deck from the Deck Builder (by deck ID)."""
     body = await request.json()
     deck_id = body.get('deckId')
     num_games = body.get('numGames', 10)
@@ -618,7 +590,6 @@ async def sim_run_from_deck(request: FastAPIRequest):
 
 @router.post('/api/sim/run-deepseek')
 async def sim_run_deepseek(request: FastAPIRequest):
-    """Start simulation using DeepSeek AI as the opponent brain."""
     body = await request.json()
     deck_id = body.get('deckId')
     num_games = body.get('numGames', 5)
@@ -647,7 +618,6 @@ async def sim_run_deepseek(request: FastAPIRequest):
 
 @router.post('/api/sim/run-n-player')
 async def sim_run_n_player(request: FastAPIRequest):
-    """Start an N-player (2-4) batch simulation."""
     body = await request.json()
     deck_ids = body.get('deckIds', [])
     num_games = body.get('numGames', 10)
@@ -681,14 +651,8 @@ async def sim_run_n_player(request: FastAPIRequest):
     })
 
 
-# ══════════════════════════════════════════════════════════════
-# DeepSeek AI Brain Endpoints
-# ══════════════════════════════════════════════════════════════
-
-
 @router.post('/api/deepseek/connect')
 async def deepseek_connect(request: FastAPIRequest):
-    """Test connection to the DeepSeek LLM endpoint and auto-detect model."""
     body = await request.json() if await request.body() else {}
     api_base = body.get('apiBase', None)
     model = body.get('model', None)
@@ -714,7 +678,6 @@ async def deepseek_connect(request: FastAPIRequest):
 
 @router.get('/api/deepseek/status')
 async def deepseek_status():
-    """Get DeepSeek brain status and performance stats."""
     brain = _get_deepseek_brain()
     if brain is None:
         return JSONResponse({'connected': False, 'error': 'Brain not initialized'})
@@ -723,7 +686,6 @@ async def deepseek_status():
 
 @router.post('/api/deepseek/configure')
 async def deepseek_configure(request: FastAPIRequest):
-    """Update DeepSeek configuration at runtime."""
     body = await request.json()
     brain = _get_deepseek_brain()
     if brain is None:
@@ -764,7 +726,6 @@ async def deepseek_configure(request: FastAPIRequest):
 
 @router.get('/api/deepseek/logs')
 async def deepseek_logs():
-    """Get decision log stats and flush pending entries."""
     brain = _get_deepseek_brain()
     if brain is None:
         return JSONResponse({'error': 'Brain not initialized'}, status_code=500)
@@ -799,7 +760,6 @@ async def deepseek_logs():
 
 @router.get("/api/validator/status")
 async def validator_status():
-    """Get DeepSeek-R1-14B validator brain status."""
     v = _get_validator_brain()
     if v is None:
         return JSONResponse({"enabled": False,
@@ -809,7 +769,6 @@ async def validator_status():
 
 @router.post("/api/validator/configure")
 async def validator_configure(request: FastAPIRequest):
-    """Update validator configuration at runtime."""
     body = await request.json()
     v = _get_validator_brain()
     if v is None:
