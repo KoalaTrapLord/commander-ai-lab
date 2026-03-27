@@ -3,9 +3,13 @@
 Commander AI Lab — FastAPI Backend
 Thin entry point: registers routers and starts uvicorn.
 """
+from __future__ import annotations
+
 import argparse
+import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 try:
@@ -41,12 +45,38 @@ from routes.ws_game import router as ws_game_router
 log = logging.getLogger("commander_ai_lab.api")
 
 _DEFAULT_ORIGINS = "http://localhost:5173,http://localhost:3000,http://localhost:8080"
-# ── CORS origins (env-configurable) ────────────────────────────
 _allowed = os.environ.get("ALLOWED_ORIGINS", _DEFAULT_ORIGINS)
 allowed_origins = [o.strip() for o in _allowed.split(",") if o.strip()]
 
-# ── App ────────────────────────────────────────────────────────
-app = FastAPI(title="Commander AI Lab API", version="3.0.0")
+
+# ── Lifespan (replaces deprecated @app.on_event) ───────────────────────────────
+@asynccontextmanager
+async def _lifespan(application: FastAPI):
+    # ──── STARTUP ────
+    if not CFG.precon_dir:
+        CFG.precon_dir = _resolve_precon_dir()
+    init_collection_db()
+    if not PRECON_INDEX:
+        download_precon_database()
+    if not COMMANDER_META:
+        load_commander_meta()
+
+    # RAG Phase 1: kick off Scryfall bulk download in background thread.
+    # run_in_executor returns a Future; we do NOT await it so startup
+    # completes immediately and the download runs concurrently.
+    from services.scryfall_bulk import ensure_bulk_db
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, ensure_bulk_db)
+
+    yield  # ← server is running
+
+    # ──── SHUTDOWN ────
+    from services.async_db import async_close_db
+    await async_close_db()
+
+
+# ── App ────────────────────────────────────────────────────────────────
+app = FastAPI(title="Commander AI Lab API", version="3.0.0", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -68,32 +98,31 @@ app.include_router(ws_game_router)
 app.include_router(ml_router)
 
 
+# ── API endpoints ────────────────────────────────────────────────────────────
+# NOTE: all @app.get routes MUST be registered before app.mount() calls.
+# Once StaticFiles is mounted at "/", it registers a wildcard catch-all that
+# shadows any routes added after it.
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint for load balancers and Unity client polling."""
     return {"status": "ok"}
 
 
-@app.on_event("startup")
-async def _on_startup():
-    """Ensure DB and precon index are ready (supports uvicorn --reload)."""
-    # Ensure precon_dir is resolved even when started via uvicorn directly
-    if not CFG.precon_dir:
-        CFG.precon_dir = _resolve_precon_dir()
-    init_collection_db()
-    if not PRECON_INDEX:
-        download_precon_database()
-    if not COMMANDER_META:
-        load_commander_meta()
+@app.get("/api/rag/status")
+async def rag_status():
+    """
+    Returns the current state of the Scryfall bulk card database.
+    Useful for confirming Phase 1 is live before building the ChromaDB index.
+    """
+    try:
+        from services.scryfall_bulk import get_stats
+        return {"bulk_db": get_stats(), "status": "ok"}
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
 
 
-@app.on_event("shutdown")
-async def _on_shutdown():
-    """Close the async SQLite connection pool."""
-    from services.async_db import async_close_db
-    await async_close_db()
-
-# ── Static UI ──────────────────────────────────────────────────
+# ── Static UI (MUST come after all @app.get routes) ────────────────────────────
 _legacy_ui_dir = Path(__file__).parent / "ui"
 _spa_dir = Path(__file__).parent / "frontend" / "commander-ai-lab-ui" / "dist"
 
@@ -103,6 +132,7 @@ elif _spa_dir.exists():
     _spa_assets = _spa_dir / "assets"
     if _spa_assets.exists():
         app.mount("/assets", StaticFiles(directory=str(_spa_assets)), name="spa-assets")
+
     @app.get("/{full_path:path}")
     async def _spa_catchall(full_path: str):
         from fastapi.responses import FileResponse
@@ -111,7 +141,8 @@ elif _spa_dir.exists():
             return FileResponse(str(requested_file))
         return FileResponse(str(_spa_dir / "index.html"))
 
-# ── Startup ────────────────────────────────────────────────────
+
+# ── Argument parsing + auto-detection helpers ─────────────────────────────────
 def _parse_args():
     p = argparse.ArgumentParser(description="Commander AI Lab API Server")
     p.add_argument("--forge-jar", default=os.environ.get("FORGE_JAR", ""))
@@ -124,6 +155,7 @@ def _parse_args():
     p.add_argument("--anthropic-key", default=os.environ.get("ANTHROPIC_API_KEY", ""))
     p.add_argument("--verbose", "-v", action="store_true")
     return p.parse_args()
+
 
 def _resolve_forge_decks_dir() -> str:
     import sys
@@ -142,52 +174,35 @@ def _resolve_forge_decks_dir() -> str:
             return str(candidate)
     return ""
 
+
 def _resolve_forge_dir() -> str:
-    """Auto-detect the Forge installation directory.
-
-    The Forge dir is the root of a Forge install — it typically contains
-    a 'res' subdirectory with card data.  We derive it from the JAR
-    location (parent of 'target/') or look in common install paths.
-    """
+    """Auto-detect the Forge installation directory."""
     import sys
-
-    # 1. If forge_jar is already resolved, derive forge_dir from it.
-    #    JAR lives in <forge-root>/forge-gui-desktop/target/<jar>
-    #    so forge_dir = JAR's grandparent's parent.
     if CFG.forge_jar and os.path.isfile(CFG.forge_jar):
         jar_path = Path(CFG.forge_jar)
-        # target/ -> forge-gui-desktop/ -> <forge-root>
         candidate = jar_path.parent.parent.parent
         if candidate.is_dir() and (candidate / "res").is_dir():
             return str(candidate)
-        # Also try just one level up from target/
         candidate = jar_path.parent.parent
-        # Check forge-gui sibling of forge-gui-desktop (res/ lives there)
         forge_gui_sibling = jar_path.parent.parent.parent / "forge-gui"
         if forge_gui_sibling.is_dir() and (forge_gui_sibling / "res").is_dir():
             return str(forge_gui_sibling)
         if candidate.is_dir() and (candidate / "res").is_dir():
             return str(candidate)
-        # Fall back to the directory containing the JAR itself
         candidate = jar_path.parent
         if candidate.is_dir():
             return str(candidate)
-
-    # 2. Check common sibling/child directories relative to project root
     project_root = Path(__file__).parent
     for candidate in [
         project_root / "forge",
         project_root.parent / "forge-repo",
-                    project_root.parent / "forge-repo" / "forge-gui",
+        project_root.parent / "forge-repo" / "forge-gui",
         project_root.parent / "forge",
         project_root / "forge-gui-desktop",
     ]:
         if candidate.is_dir():
-            # Prefer directory that has 'res' subfolder
             if (candidate / "res").is_dir():
                 return str(candidate)
-
-    # 3. Platform-specific user data directories
     if sys.platform == "win32":
         appdata = os.environ.get("APPDATA", "")
         if appdata:
@@ -195,32 +210,25 @@ def _resolve_forge_dir() -> str:
             if candidate.is_dir():
                 return str(candidate)
     home = Path.home()
-    for candidate in [
-        home / ".forge",
-        home / "Forge",
-    ]:
+    for candidate in [home / ".forge", home / "Forge"]:
         if candidate.is_dir():
             return str(candidate)
     return ""
 
+
 def _resolve_forge_jar() -> str:
     """Auto-detect the Forge GUI desktop JAR in common locations."""
     project_root = Path(__file__).parent
-
-    # Candidate directories where the Forge JAR might live
     candidates = [
         project_root / "forge-gui-desktop" / "target",
         project_root.parent / "forge-repo" / "forge-gui-desktop" / "target",
         project_root.parent / "forge" / "forge-gui-desktop" / "target",
     ]
-
-    # Also check FORGE_DIR/../forge-gui-desktop/target if FORGE_DIR is set
     forge_dir_env = os.environ.get("FORGE_DIR", "")
     if forge_dir_env:
         fd = Path(forge_dir_env)
         candidates.append(fd.parent / "forge-gui-desktop" / "target")
         candidates.append(fd / "target")
-
     for target_dir in candidates:
         if target_dir.is_dir():
             for pattern in [
@@ -233,6 +241,7 @@ def _resolve_forge_jar() -> str:
                 if jars:
                     return str(jars[0])
     return ""
+
 
 def _resolve_lab_jar() -> str:
     target_dir = Path(__file__).parent / "target"
@@ -248,35 +257,24 @@ def _resolve_lab_jar() -> str:
                 return str(jars[0])
     return ""
 
+
 def _resolve_precon_dir() -> str:
-    """Auto-detect the precon-decks directory.
-
-    The precon-decks dir lives in the project root and contains downloaded
-    .dck files plus precon-index.json.  We check relative to this file
-    (lab_api.py) first, then common sibling paths.
-    """
+    """Auto-detect the precon-decks directory."""
     project_root = Path(__file__).parent
-
-    # 1. Standard location: <project-root>/precon-decks
     candidate = project_root / "precon-decks"
     if candidate.is_dir():
         return str(candidate)
-
-    # 2. Check parent directory (in case running from a subdirectory)
     candidate = project_root.parent / "precon-decks"
     if candidate.is_dir():
         return str(candidate)
-
-    # 3. Derive from forge_dir if available
     if CFG.forge_dir:
         candidate = Path(CFG.forge_dir) / "precon-decks"
         if candidate.is_dir():
             return str(candidate)
-
-    # 4. Fall back: create the directory in the project root so downloads work
     fallback = project_root / "precon-decks"
     fallback.mkdir(parents=True, exist_ok=True)
     return str(fallback)
+
 
 def main():
     args = _parse_args()
@@ -311,8 +309,15 @@ def main():
     init_collection_db()
     init_coach_service()
 
+    # RAG Phase 1: synchronous boot-time check so logs are visible.
+    # The async lifespan handler also fires it in a thread on uvicorn startup,
+    # but calling here ensures it runs (and logs) before the first request.
+    from services.scryfall_bulk import ensure_bulk_db
+    ensure_bulk_db()
+
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=CFG.port, log_level="info")
+
 
 if __name__ == "__main__":
     main()
