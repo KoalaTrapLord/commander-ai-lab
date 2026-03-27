@@ -28,13 +28,13 @@ COACH_SESSIONS_DIR = LAB_ROOT / "coach-sessions"
 
 # ── Prompt Limits ───────────────────────────────────────────────
 MAX_PROMPT_TOKENS = 2048
-MAX_CANDIDATES_PER_UNDERPERFORMER = 5
-MAX_UNDERPERFORMERS = 4
+MAX_CANDIDATES_PER_UNDERPERFORMER = 8
+MAX_UNDERPERFORMERS =  8
 UNDERPERFORMER_IMPACT_THRESHOLD = -0.05  # impactScore below this = underperformer
 
 # ── LLM Generation Settings (Coach — Ollama fallback) ─────────────
 DEFAULT_TEMPERATURE = 0.7
-DEFAULT_MAX_TOKENS = 8192
+DEFAULT_MAX_TOKENS = 16384
 
 # ── Anthropic Claude Deck Generation Settings ──────────────────────
 # Provider for deck generation: "anthropic" (Claude) or "local" (Ollama)
