@@ -26,36 +26,58 @@ RULES:
 - Base suggestions on the simulation data provided, not general "goodstuff" advice.
 - Consider mana curve, role balance (ramp, draw, removal, threats), and synergy.
 - When suggesting replacements, prefer cards that fill the same functional role.
-- IMPORTANT: Suggest 3-5 DIFFERENT cards to cut and 3-5 DIFFERENT cards to add.
+- IMPORTANT: Suggest 5-8 DIFFERENT cards to cut and 5-8 DIFFERENT cards to add.
 - Each suggested add MUST be a different card — never suggest the same card twice.
 - Vary your suggestions across different functional roles (ramp, draw, removal, threats, utility).
 - If the deck is missing a functional role (e.g., no card draw, no removal), prioritize adding cards for that role.
 - If candidate replacements are provided from embeddings search, prefer those over generic suggestions.
+- For each suggested cut, provide a DETAILED reason citing specific stats (impact score, cast rate, dead card rate).
+- For each suggested add, explain the SPECIFIC synergy with existing cards in the deck.
+- Provide at least 5 heuristic hints covering different strategic dimensions.
 {goals_section}
 
 You MUST respond ONLY with valid JSON matching this exact structure:
 {{
-  "summary": "2-3 sentence overview of the deck's strengths and weaknesses",
+  "summary": "4-6 sentence detailed overview of the deck's strengths, weaknesses, key synergies, and strategic identity. Reference specific win rates and simulation data.",
   "suggestedCuts": [
     {{
       "cardName": "Card To Remove",
-      "reason": "Why this card underperforms",
-      "replacementOptions": ["Better Card 1", "Better Card 2"]
+      "reason": "Detailed explanation citing specific simulation stats (impact score, cast rate, dead card rate) and why this card underperforms in this specific deck context",
+      "replacementOptions": ["Better Card 1", "Better Card 2"],
+      "functionalRole": "ramp|draw|removal|threat|utility|combo|protection",
+      "estimatedImpact": "How cutting this card is expected to improve the deck"
     }}
   ],
   "suggestedAdds": [
     {{
       "cardName": "Card To Add",
       "role": "ramp|draw|removal|threat|utility|combo|protection",
-      "reason": "Why this card improves the deck",
-      "synergyWith": ["Card In Deck 1", "Card In Deck 2"]
+      "reason": "Detailed explanation of why this card improves the deck, referencing specific weaknesses it addresses",
+      "synergyWith": ["Card In Deck 1", "Card In Deck 2"],
+      "estimatedManaCost": "The mana value of the suggested card",
+      "strategicRationale": "How this card fits into the overall game plan and addresses a specific gap"
     }}
   ],
-  "heuristicHints": [
-    "Concise strategic tip based on data"
+  "manaCurveAnalysis": {{
+    "currentAssessment": "Detailed analysis of the current mana curve distribution and its implications",
+    "recommendations": "Specific suggestions for curve adjustments with reasoning",
+    "idealRange": "What the curve should look like for this deck's strategy"
+  }},
+  "roleBreakdown": {{
+    "ramp": "Assessment of ramp package - count, quality, and suggestions",
+    "draw": "Assessment of card draw package",
+    "removal": "Assessment of removal package",
+    "threats": "Assessment of win conditions and threats",
+    "protection": "Assessment of protection and interaction"
+  }},
+  "synergyAnalysis": [
+    "Description of a key synergy chain in the deck and how well it performed in simulation"
   ],
-  "manaBaseAdvice": "Specific mana base improvement suggestion or null",
-  "rawTextExplanation": "Detailed paragraph explaining the analysis and reasoning"
+  "heuristicHints": [
+    "Detailed strategic tip explaining the reasoning and data behind the suggestion"
+  ],
+  "manaBaseAdvice": "Specific mana base improvement suggestion including land count, color fixing, and utility lands, or null if mana base is solid",
+  "rawTextExplanation": "3-5 paragraph in-depth analysis covering: (1) overall deck strategy assessment and how well the deck executes its game plan based on simulation data, (2) mana curve and resource analysis with specific numbers, (3) card synergy evaluation highlighting the strongest and weakest interactions, (4) meta considerations and matchup-specific insights, and (5) prioritized list of improvements ranked by expected impact on win rate"
 }}
 
 Do NOT include any text outside the JSON object. No markdown fences, no preamble."""
@@ -91,6 +113,7 @@ Avg Game Length: {avg_game_length:.1f} turns
 {candidate_section}
 
 {combo_section}
+
 Based on this simulation data, provide your coaching suggestions."""
 
 
@@ -106,14 +129,18 @@ def _format_goals_section(goals: Optional[CoachGoals]) -> str:
             lines.append("- Keep suggestions casual and fun-focused.")
         elif goals.targetPowerLevel >= 8:
             lines.append("- Prioritize efficiency and competitive staples.")
+
     if goals.metaFocus:
         lines.append(f"- Optimize for a {goals.metaFocus} strategy.")
+
     if goals.budget:
         budget_map = {"budget": "under $5 per card", "medium": "under $20 per card",
                       "no-limit": "no budget restrictions"}
         lines.append(f"- Budget constraint: {budget_map.get(goals.budget, goals.budget)}.")
+
     if goals.focusAreas:
         lines.append(f"- Focus improvement on: {', '.join(goals.focusAreas)}.")
+
     return "\n".join(lines) if lines else "- Aim for a balanced, well-rounded deck."
 
 
@@ -173,6 +200,7 @@ def _format_candidates(candidates: Dict[str, List[dict]]) -> str:
             lines.append(f"  - {name} (MV:{mv}, {types}) [similarity: {sim:.3f}]")
             if text_preview:
                 lines.append(f"    Oracle: {text_preview}")
+
     lines.append("\nChoose from these candidates when possible, but also suggest ")
     lines.append("cards NOT in this list if they better address the deck's weaknesses.")
     return "\n".join(lines)
