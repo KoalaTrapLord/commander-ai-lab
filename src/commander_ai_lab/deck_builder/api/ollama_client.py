@@ -102,7 +102,7 @@ def chat(
     return response.choices[0].message.content or ""
 
 
-# ── 1. Analyze synergies ─────────────────────────────────────────
+# ── 1. Analyze synergies ─────────────────────────────────────────────
 
 def analyze_synergies(
     commander_name: str,
@@ -145,7 +145,7 @@ Cards to evaluate:
         return []
 
 
-# ── 2. Suggest cards for a category ──────────────────────────────
+# ── 2. Suggest cards for a category ────────────────────────────────
 
 def suggest_cards(
     commander_name: str,
@@ -154,13 +154,23 @@ def suggest_cards(
     count: int = 10,
     exclude: Optional[List[str]] = None,
     strategy_notes: Optional[str] = None,
+    sim_context: str = "",
 ) -> List[str]:
     """
     Ask the model to suggest cards for a specific deck category.
+
+    Parameters
+    ----------
+    sim_context:
+        Optional natural-language insight string from get_sim_insights().
+        When non-empty, appended to the prompt so the LLM can factor in
+        statistically successful card traits from simulation data.
+
     Returns a list of card names.
     """
     exclude_str = f"\nDo NOT suggest these cards: {json.dumps(exclude)}" if exclude else ""
     strategy = f"\nStrategy notes: {strategy_notes}" if strategy_notes else ""
+    sim_block = f"\n\n{sim_context}" if sim_context else ""
 
     prompt = f"""You are a Magic: The Gathering Commander deck-building expert.
 
@@ -168,7 +178,7 @@ Commander: {commander_name}
 Color identity: {', '.join(color_identity)}
 Category: {category}
 {strategy}
-{exclude_str}
+{exclude_str}{sim_block}
 
 Suggest exactly {count} cards for the {category} category that work well with this commander.
 Only suggest cards that are legal in Commander and match the color identity.
@@ -200,7 +210,7 @@ Return ONLY a JSON array of card name strings, like: ["Card A", "Card B", ...]""
         return []
 
 
-# ── 3. Filter by color identity ──────────────────────────────────
+# ── 3. Filter by color identity ────────────────────────────────────
 
 def filter_color_identity(
     card_names: List[str],
@@ -242,17 +252,28 @@ Cards:
         return card_names
 
 
-# ── 4. Enforce deck ratios ───────────────────────────────────────
+# ── 4. Enforce deck ratios ───────────────────────────────────────────
 
 def enforce_deck_ratios(
     cards_by_category: Dict[str, List[str]],
     target_ratios: Dict[str, int],
     commander_name: str,
+    sim_context: str = "",
 ) -> Dict[str, List[str]]:
     """
     Ask the model to trim/expand categories to hit target counts.
+
+    Parameters
+    ----------
+    sim_context:
+        Optional natural-language insight string from get_sim_insights().
+        When non-empty, appended to the prompt so the LLM preferentially
+        retains cards matching statistically high-value traits when trimming.
+
     Returns adjusted dict of category -> card names.
     """
+    sim_block = f"\n\n{sim_context}" if sim_context else ""
+
     prompt = f"""You are a Magic: The Gathering Commander deck-building expert.
 
 Commander: {commander_name}
@@ -265,7 +286,7 @@ Target card counts per category:
 
 Adjust each category to match the target count. Remove the weakest cards from
 over-filled categories. For under-filled categories, suggest additional cards.
-The total across all categories must be exactly 99.
+The total across all categories must be exactly 99.{sim_block}
 
 Return a JSON object with the same category keys, each mapping to an array of card name strings."""
 
@@ -284,7 +305,7 @@ Return a JSON object with the same category keys, each mapping to an array of ca
         return cards_by_category
 
 
-# ── 5. Assemble final deck JSON ──────────────────────────────────
+# ── 5. Assemble final deck JSON ─────────────────────────────────────────
 
 def assemble_deck_json(
     commander_name: str,
