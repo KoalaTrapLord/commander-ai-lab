@@ -36,6 +36,7 @@ from routes.precon import router as precon_router
 from routes.import_routes import router as import_router
 from routes.lab import router as lab_router
 from routes.scanner import router as scanner_router
+from routes.rag import router as rag_router
 from routes.deepseek import router as deepseek_router
 from routes.deckgen import router as deckgen_router
 from routes.coach import router as coach_router, init_coach_service
@@ -91,6 +92,7 @@ app.include_router(precon_router)
 app.include_router(import_router)
 app.include_router(lab_router)
 app.include_router(scanner_router)
+app.include_router(rag_router)
 app.include_router(deepseek_router)
 app.include_router(deckgen_router)
 app.include_router(coach_router)
@@ -107,20 +109,6 @@ app.include_router(ml_router)
 async def health_check():
     """Health check endpoint for load balancers and Unity client polling."""
     return {"status": "ok"}
-
-
-@app.get("/api/rag/status")
-async def rag_status():
-    """
-    Returns the current state of the Scryfall bulk card database.
-    Useful for confirming Phase 1 is live before building the ChromaDB index.
-    """
-    try:
-        from services.scryfall_bulk import get_stats
-        return {"bulk_db": get_stats(), "status": "ok"}
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
-
 
 # ── Static UI (MUST come after all @app.get routes) ────────────────────────────
 _legacy_ui_dir = Path(__file__).parent / "ui"
