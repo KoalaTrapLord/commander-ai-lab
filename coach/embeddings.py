@@ -28,6 +28,7 @@ from urllib.parse import quote
 
 import numpy as np
 
+from services.card_text import build_card_text
 from .config import EMBEDDINGS_DIR, EMBEDDINGS_NPZ, EMBEDDINGS_PARQUET
 
 logger = logging.getLogger("coach.embeddings")
@@ -114,15 +115,8 @@ def _fetch_scryfall_card(card_name: str) -> Optional[dict]:
 
 
 def _build_card_text(card: dict) -> str:
-    """Build the text string to embed, matching minimaxir/mtg-embeddings format."""
-    parts = [card["name"]]
-    if card.get("mana_cost"):
-        parts.append(card["mana_cost"])
-    if card.get("type_line"):
-        parts.append(card["type_line"])
-    if card.get("oracle_text"):
-        parts.append(card["oracle_text"])
-    return " | ".join(parts)
+    """Delegate to shared build_card_text() -- see services/card_text.py."""
+    return build_card_text(card)
 
 
 class CardMatch:
