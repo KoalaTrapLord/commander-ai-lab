@@ -3,9 +3,13 @@
 Commander AI Lab — FastAPI Backend
 Thin entry point: registers routers and starts uvicorn.
 """
+from __future__ import annotations
+
 import argparse
+import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 try:
@@ -41,12 +45,38 @@ from routes.ws_game import router as ws_game_router
 log = logging.getLogger("commander_ai_lab.api")
 
 _DEFAULT_ORIGINS = "http://localhost:5173,http://localhost:3000,http://localhost:8080"
-# ── CORS origins (env-configurable) ────────────────────────────────
 _allowed = os.environ.get("ALLOWED_ORIGINS", _DEFAULT_ORIGINS)
 allowed_origins = [o.strip() for o in _allowed.split(",") if o.strip()]
 
+
+# ── Lifespan (replaces deprecated @app.on_event) ───────────────────────────────
+@asynccontextmanager
+async def _lifespan(application: FastAPI):
+    # ──── STARTUP ────
+    if not CFG.precon_dir:
+        CFG.precon_dir = _resolve_precon_dir()
+    init_collection_db()
+    if not PRECON_INDEX:
+        download_precon_database()
+    if not COMMANDER_META:
+        load_commander_meta()
+
+    # RAG Phase 1: kick off Scryfall bulk download in background thread.
+    # run_in_executor returns a Future; we do NOT await it so startup
+    # completes immediately and the download runs concurrently.
+    from services.scryfall_bulk import ensure_bulk_db
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, ensure_bulk_db)
+
+    yield  # ← server is running
+
+    # ──── SHUTDOWN ────
+    from services.async_db import async_close_db
+    await async_close_db()
+
+
 # ── App ────────────────────────────────────────────────────────────────
-app = FastAPI(title="Commander AI Lab API", version="3.0.0")
+app = FastAPI(title="Commander AI Lab API", version="3.0.0", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -68,6 +98,11 @@ app.include_router(ws_game_router)
 app.include_router(ml_router)
 
 
+# ── API endpoints ────────────────────────────────────────────────────────────
+# NOTE: all @app.get routes MUST be registered before app.mount() calls.
+# Once StaticFiles is mounted at "/", it registers a wildcard catch-all that
+# shadows any routes added after it.
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint for load balancers and Unity client polling."""
@@ -87,34 +122,7 @@ async def rag_status():
         return {"status": "error", "error": str(exc)}
 
 
-@app.on_event("startup")
-async def _on_startup():
-    """Ensure DB and precon index are ready (supports uvicorn --reload)."""
-    if not CFG.precon_dir:
-        CFG.precon_dir = _resolve_precon_dir()
-    init_collection_db()
-    if not PRECON_INDEX:
-        download_precon_database()
-    if not COMMANDER_META:
-        load_commander_meta()
-
-    # ── RAG Phase 1: Scryfall bulk DB ────────────────────────────────────────
-    # Runs in a thread pool so the event loop is never blocked.
-    # On first run this downloads ~100 MB from Scryfall; subsequent
-    # runs are instant if data is fresher than SCRYFALL_BULK_STALENESS_DAYS.
-    import asyncio
-    from services.scryfall_bulk import ensure_bulk_db
-    loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, ensure_bulk_db)
-
-
-@app.on_event("shutdown")
-async def _on_shutdown():
-    """Close the async SQLite connection pool."""
-    from services.async_db import async_close_db
-    await async_close_db()
-
-# ── Static UI ───────────────────────────────────────────────────────────────
+# ── Static UI (MUST come after all @app.get routes) ────────────────────────────
 _legacy_ui_dir = Path(__file__).parent / "ui"
 _spa_dir = Path(__file__).parent / "frontend" / "commander-ai-lab-ui" / "dist"
 
@@ -124,6 +132,7 @@ elif _spa_dir.exists():
     _spa_assets = _spa_dir / "assets"
     if _spa_assets.exists():
         app.mount("/assets", StaticFiles(directory=str(_spa_assets)), name="spa-assets")
+
     @app.get("/{full_path:path}")
     async def _spa_catchall(full_path: str):
         from fastapi.responses import FileResponse
@@ -132,7 +141,8 @@ elif _spa_dir.exists():
             return FileResponse(str(requested_file))
         return FileResponse(str(_spa_dir / "index.html"))
 
-# ── Startup ────────────────────────────────────────────────────────────────
+
+# ── Argument parsing + auto-detection helpers ─────────────────────────────────
 def _parse_args():
     p = argparse.ArgumentParser(description="Commander AI Lab API Server")
     p.add_argument("--forge-jar", default=os.environ.get("FORGE_JAR", ""))
@@ -145,6 +155,7 @@ def _parse_args():
     p.add_argument("--anthropic-key", default=os.environ.get("ANTHROPIC_API_KEY", ""))
     p.add_argument("--verbose", "-v", action="store_true")
     return p.parse_args()
+
 
 def _resolve_forge_decks_dir() -> str:
     import sys
@@ -162,6 +173,7 @@ def _resolve_forge_decks_dir() -> str:
         if candidate.is_dir():
             return str(candidate)
     return ""
+
 
 def _resolve_forge_dir() -> str:
     """Auto-detect the Forge installation directory."""
@@ -198,13 +210,11 @@ def _resolve_forge_dir() -> str:
             if candidate.is_dir():
                 return str(candidate)
     home = Path.home()
-    for candidate in [
-        home / ".forge",
-        home / "Forge",
-    ]:
+    for candidate in [home / ".forge", home / "Forge"]:
         if candidate.is_dir():
             return str(candidate)
     return ""
+
 
 def _resolve_forge_jar() -> str:
     """Auto-detect the Forge GUI desktop JAR in common locations."""
@@ -232,6 +242,7 @@ def _resolve_forge_jar() -> str:
                     return str(jars[0])
     return ""
 
+
 def _resolve_lab_jar() -> str:
     target_dir = Path(__file__).parent / "target"
     if target_dir.exists():
@@ -245,6 +256,7 @@ def _resolve_lab_jar() -> str:
             if jars:
                 return str(jars[0])
     return ""
+
 
 def _resolve_precon_dir() -> str:
     """Auto-detect the precon-decks directory."""
@@ -262,6 +274,7 @@ def _resolve_precon_dir() -> str:
     fallback = project_root / "precon-decks"
     fallback.mkdir(parents=True, exist_ok=True)
     return str(fallback)
+
 
 def main():
     args = _parse_args()
@@ -296,13 +309,15 @@ def main():
     init_collection_db()
     init_coach_service()
 
-    # RAG Phase 1: kick off bulk DB download/validation before uvicorn starts
-    # (synchronous here in main() so logs are visible at server boot)
+    # RAG Phase 1: synchronous boot-time check so logs are visible.
+    # The async lifespan handler also fires it in a thread on uvicorn startup,
+    # but calling here ensures it runs (and logs) before the first request.
     from services.scryfall_bulk import ensure_bulk_db
     ensure_bulk_db()
 
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=CFG.port, log_level="info")
+
 
 if __name__ == "__main__":
     main()
