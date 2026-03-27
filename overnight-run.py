@@ -25,6 +25,7 @@ import json
 import logging
 import logging.handlers
 import os
+import subprocess
 import sys
 import time
 import urllib.request
@@ -42,6 +43,9 @@ DEFAULT_CONFIG = {
     "time_limit_hours": 11.5,   # stop after this many hours (leave buffer for training)
     "pause_between_batches": 10,  # seconds to pause between batches
     "auto_train": True,         # trigger ML training after all batches
+    "auto_update_weights": True,  # run update_weights.py after sims
+    "weights_min_games": 10,    # minimum games required for weight update
+    "weights_lr": 0.05,         # learning rate for weight update
     "train_epochs": 100,        # training epochs
     "train_lr": 0.001,          # learning rate
     "train_batch_size": 256,    # training batch size
@@ -229,6 +233,52 @@ def wait_for_batch(base_url, batch_id, engine="deepseek", deadline=None):
         time.sleep(poll_interval)
 
 
+def run_update_weights(cfg):
+    """
+    Run ml.scripts.update_weights to nudge learned_weights.json from sim
+    decision logs.  This feeds the deck builder's sim_insights injection.
+
+    Returns True on success, False on failure (non-fatal — overnight run
+    continues regardless).
+    """
+    log.info("")
+    log.info("── Auto-update sim weights ─────────────────────────────────")
+    log.info("Running update_weights.py to refresh learned_weights.json...")
+
+    cmd = [
+        sys.executable, "-m", "ml.scripts.update_weights",
+        "--min-games", str(cfg["weights_min_games"]),
+        "--lr", str(cfg["weights_lr"]),
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,  # 2 min ceiling — this should complete in seconds
+        )
+        if result.returncode == 0:
+            # Print the last ~800 chars of the weight report to the log
+            output = (result.stdout or "").strip()
+            if output:
+                for line in output.splitlines()[-20:]:
+                    log.info(f"  {line}")
+            log.info("Sim weights updated — deck builder will use new insights on next build.")
+            return True
+        else:
+            log.warning(f"update_weights.py exited with code {result.returncode}")
+            if result.stderr:
+                log.warning(result.stderr.strip()[-300:])
+            return False
+    except subprocess.TimeoutExpired:
+        log.warning("update_weights.py timed out after 120s — skipping")
+        return False
+    except Exception as e:
+        log.warning(f"update_weights.py failed: {e}")
+        return False
+
+
 def start_training(base_url, epochs, lr, batch_size, patience):
     """Trigger ML training and return immediately."""
     resp = api_post(base_url, "/api/ml/train", {
@@ -364,6 +414,7 @@ def run_overnight(cfg):
     else:
         log.info(f"  Mode: Run for {cfg['time_limit_hours']}h, {games_per_batch} games/batch")
     log.info(f"  Engine: {engine}")
+    log.info(f"  Auto-update weights: {'Yes' if cfg['auto_update_weights'] else 'No'}")
     log.info(f"  Auto-train after: {'Yes' if cfg['auto_train'] else 'No'}")
     log.info("")
 
@@ -440,6 +491,17 @@ def run_overnight(cfg):
     log.info(f"  Elapsed time:      {str(timedelta(seconds=int(total_elapsed)))}")
     log.info("")
 
+    # ── Auto-update sim weights ───────────────────────────────
+    # Runs update_weights.py to nudge learned_weights.json from the
+    # decision logs produced during this run.  This feeds sim_insights
+    # into the deck builder's Ollama prompts on the next deck build.
+    # Runs before neural net training so both pipelines benefit from
+    # the freshest possible data.
+    if cfg["auto_update_weights"]:
+        run_update_weights(cfg)
+    else:
+        log.info("Skipping sim weight update (--no-update-weights flag set)")
+
     # ── Auto-train ────────────────────────────────────────────
     if cfg["auto_train"]:
         if decisions_after < 100:
@@ -482,17 +544,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run DeepSeek sims for 11.5 hours, then train:
+  # Run DeepSeek sims for 11.5 hours, then update weights + train:
   python overnight-run.py
 
-  # Run 20 batches of 50 games each, then train:
+  # Run 20 batches of 50 games each, then update weights + train:
   python overnight-run.py --batches 20 --games 50
 
   # Run for 6 hours with Java engine:
   python overnight-run.py --engine java --hours 6 --decks "Deck A" "Deck B" "Deck C"
 
-  # Just run sims, no training:
-  python overnight-run.py --no-train
+  # Just run sims, skip both weight update and training:
+  python overnight-run.py --no-train --no-update-weights
 
   # Custom training settings:
   python overnight-run.py --epochs 200 --lr 0.0005 --patience 20
@@ -514,6 +576,12 @@ Examples:
                         help="Deck names (auto-detected if not specified)")
     parser.add_argument("--no-train", action="store_true",
                         help="Skip auto-training after sims")
+    parser.add_argument("--no-update-weights", action="store_true",
+                        help="Skip updating learned_weights.json after sims")
+    parser.add_argument("--weights-min-games", type=int, default=10,
+                        help="Minimum games required for weight update (default: 10)")
+    parser.add_argument("--weights-lr", type=float, default=0.05,
+                        help="Learning rate for sim weight update (default: 0.05)")
     parser.add_argument("--epochs", type=int, default=100,
                         help="Training epochs (default: 100)")
     parser.add_argument("--lr", type=float, default=0.001,
@@ -536,6 +604,9 @@ Examples:
     cfg["time_limit_hours"] = args.hours
     cfg["pause_between_batches"] = args.pause
     cfg["auto_train"] = not args.no_train
+    cfg["auto_update_weights"] = not args.no_update_weights
+    cfg["weights_min_games"] = args.weights_min_games
+    cfg["weights_lr"] = args.weights_lr
     cfg["train_epochs"] = args.epochs
     cfg["train_lr"] = args.lr
     cfg["train_batch_size"] = args.batch_size
