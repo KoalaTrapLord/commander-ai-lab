@@ -236,6 +236,9 @@ Avg Game Length: {avg_game_length:.1f} turns
 ### Underperforming Cards (candidates for cuts)
 {underperformer_section}
 
+
+### RAG-Retrieved Similar Cards (from ChromaDB)
+{rag_section}
 ### Candidate Replacement Cards (from embeddings search)
 {candidate_section}
 
@@ -336,6 +339,24 @@ def _format_candidates(candidates: Dict[str, List[dict]]) -> str:
   lines.append("cards NOT in this list if they better address the deck's weaknesses.")
   return "\n".join(lines)
 
+def _format_rag_cards(rag_cards: List[dict]) -> str:
+    """Format RAG-retrieved cards from ChromaDB vector search."""
+    if not rag_cards:
+        return "No RAG results available."
+    lines = []
+    for card in rag_cards[:15]:
+        name = card.get("name", "Unknown")
+        types = card.get("types", "")
+        mv = card.get("mana_value", "?")
+        mc = card.get("mana_cost", "")
+        dist = card.get("distance", 0)
+        text = card.get("text", "")[:80]
+        lines.append(f"- {name} ({mc}, MV:{mv}, {types}) [distance: {dist:.3f}]")
+        if text:
+            lines.append(f"    Oracle: {text}")
+    return "\n".join(lines)
+
+
 
 def _format_matchups(report: DeckReport) -> str:
   """Format per-opponent matchup data."""
@@ -402,7 +423,8 @@ def build_quick_system_prompt(report: DeckReport,
 
 
 def build_user_prompt(report: DeckReport,
-                     candidates: Dict[str, List[dict]] = None) -> str:
+                     candidates: Dict[str, List[dict]] = None,
+                      rag_cards: List[dict] = None) -> str:
   """Build the user prompt with full deck report data."""
   color_str = "/".join(report.colorIdentity) if report.colorIdentity else "unknown"
   type_parts = [f"{k}={v}" for k, v in report.structure.cardTypeCounts.items()] \
@@ -426,5 +448,6 @@ def build_user_prompt(report: DeckReport,
     underperformer_section=_format_underperformers(
       report.cards, report.underperformers),
     candidate_section=_format_candidates(candidates or {}),
+            rag_section=_format_rag_cards(rag_cards or []),
     combo_section=_format_combos(report),
   )
