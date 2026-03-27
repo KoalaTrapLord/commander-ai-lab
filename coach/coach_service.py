@@ -252,9 +252,19 @@ class CoachService:
                     candidates[card_name] = [m.to_dict() for m in matches]
         else:
             logger.warning("Embeddings not loaded — skipping candidate search")
+        # Phase 3: RAG vector search for additional card context
+        rag_cards: List[dict] = []
+        try:
+            from services.rag_store import query_cards
+            query_text = f"{report.commander} {' '.join(report.colorIdentity)} commander deck"
+            rag_cards = query_cards(query_text, n=15, colors=report.colorIdentity)
+            logger.info("RAG returned %d cards for '%s'", len(rag_cards), deck_id)
+        except Exception as e:
+            logger.warning("RAG query failed (non-fatal): %s", e)
+
 
         system_prompt = build_system_prompt(report, goals)
-        user_prompt = build_user_prompt(report, candidates)
+        user_prompt = build_user_prompt(report, candidates, rag_cards=rag_cards)
 
         logger.info("Calling LLM for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
 
@@ -332,9 +342,17 @@ class CoachService:
         if report is None:
             raise ValueError(f"Deck report not found for: {deck_id}")
 
+        # Phase 3: light RAG query for quick digest too
+        rag_cards: List[dict] = []
+        try:
+            from services.rag_store import query_cards
+            query_text = f"{report.commander} {' '.join(report.colorIdentity)}"
+            rag_cards = query_cards(query_text, n=8, colors=report.colorIdentity)
+        except Exception:
+            pass
         from .prompt_template import build_quick_system_prompt, build_user_prompt
         system_prompt = build_quick_system_prompt(report, goals)
-        user_prompt = build_user_prompt(report, {})  # no candidates for speed
+        user_prompt = build_user_prompt(report, {}, rag_cards=rag_cards)  # RAG-enriched quick digest  # no candidates for speed
 
         logger.info("Quick digest for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
 
