@@ -25,6 +25,28 @@ dev = [
     "httpx>=0.24.0",
     "ruff>=0.1.0",
 ]
+# RAG Phase 2: ChromaDB vector store + Ollama embedding support
+# Install with:  pip install ".[rag]"
+rag = [
+    "chromadb>=0.5.0",
+]
+# Local coach embeddings (sentence-transformers, no Ollama required)
+# Install with:  pip install ".[coach-embeddings]"
+coach-embeddings = [
+    "sentence-transformers>=3.0.0",
+    "torch>=2.0.0",
+    "pandas>=1.5.0",
+    "pyarrow>=12.0.0",
+]
+# Full local AI stack (RAG + coach embeddings)
+# Install with:  pip install ".[all]"
+all = [
+    "chromadb>=0.5.0",
+    "sentence-transformers>=3.0.0",
+    "torch>=2.0.0",
+    "pandas>=1.5.0",
+    "pyarrow>=12.0.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
