@@ -303,6 +303,10 @@ def main():
     from services.scryfall_bulk import ensure_bulk_db
     ensure_bulk_db()
 
+
+        # RAG Phase 2: synchronous boot-time ChromaDB build.
+    from services.rag_store import ensure_rag_store
+    ensure_rag_store()
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=CFG.port, log_level="info")
 
