@@ -63,7 +63,7 @@
     }
 
     function _attachCardHover(container) {
-        container.querySelectorAll('td[data-card-name]').forEach(td => {
+        container.querySelectorAll('[data-card-name]').forEach(td => {
             td.addEventListener('mouseenter', e => _showCardPreview(td.dataset.cardName, e));
             td.addEventListener('mousemove', e => _positionPreview(e));
             td.addEventListener('mouseleave', _hideCardPreview);
@@ -433,7 +433,7 @@
             html += '<span class="coach-session-detail-label">Cuts:</span>';
             html += '<div class="coach-session-pills">';
             for (const cut of cuts) {
-                html += '<span class="coach-pill coach-pill-cut" title="' + escHtml(cut.reason || '') + '">' + escHtml(cut.cardName) + '</span>';
+                html += '<span class="coach-pill coach-pill-cut" data-card-name="' + escHtml(cut.cardName) + '" title="' + escHtml(cut.reason || '') + '">' + escHtml(cut.cardName) + '</span>';
             }
             html += '</div></div>';
         }
@@ -444,7 +444,7 @@
             html += '<span class="coach-session-detail-label">Adds:</span>';
             html += '<div class="coach-session-pills">';
             for (const add of adds) {
-                html += '<span class="coach-pill coach-pill-add" title="' + escHtml(add.reason || '') + '">' + escHtml(add.cardName) + '</span>';
+                html += '<span class="coach-pill coach-pill-add" data-card-name="' + escHtml(add.cardName) + '" title="' + escHtml(add.reason || '') + '">' + escHtml(add.cardName) + '</span>';
             }
             html += '</div></div>';
         }
@@ -457,6 +457,7 @@
 
         html += '</div>';
         detailEl.innerHTML = html;
+    _attachCardHover(detailEl);
 
         // Bind buttons
         detailEl.querySelector('.coach-load-chat-btn')?.addEventListener('click', (e) => {
@@ -599,7 +600,7 @@
                 '<td>' + escHtml(cut.reason) + '</td>' +
                 '<td><div class="coach-replacements">' +
                     (cut.replacementOptions || []).map(r =>
-                        '<span class="coach-replacement-chip">' + escHtml(r) + '</span>'
+                        '<span class="coach-replacement-chip" data-card-name="' + escHtml(r) + '">' + escHtml(r) + '</span>'
                     ).join('') +
                 '</div></td>' +
                 '<td>' + formatImpact(cut.currentImpactScore) + '</td>';
@@ -622,7 +623,7 @@
                 '<td>' + escHtml(add.reason) + '</td>' +
                 '<td><div class="coach-replacements">' +
                     (add.synergyWith || []).map(s =>
-                        '<span class="coach-synergy-chip">' + escHtml(s) + '</span>'
+                        '<span class="coach-synergy-chip" data-card-name="' + escHtml(s) + '">' + escHtml(s) + '</span>'
                     ).join('') +
                 '</div></td>';
             tr.querySelector('.coach-card-name').parentElement.dataset.cardName = add.cardName;
@@ -918,7 +919,7 @@
 
                 div.innerHTML =
                     '<div class="coach-cl-top">' +
-                        '<span class="coach-cl-name">' + escHtml(card.name) + '</span>' +
+                        '<span class="coach-cl-name" data-card-name="' + escHtml(card.name) + '">' + escHtml(card.name) + '</span>' +
                         '<span class="coach-cl-sim">' + simPct + '%</span>' +
                     '</div>' +
                     '<div class="coach-cl-meta">' +
@@ -939,6 +940,7 @@
                 });
 
                 cardslikeResults.appendChild(div);
+            _attachCardHover(div);
             }
         } catch (e) {
             cardslikeResults.innerHTML = '<div class="coach-cardslike-empty">Error: ' + escHtml(e.message) + '</div>';

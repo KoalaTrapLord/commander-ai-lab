@@ -1132,7 +1132,11 @@
     height: auto;
     border-radius: 10px;
 }
-td[data-card-name] .coach-card-name {
+td[data-card-name] .coach-card-name,
+[data-card-name].coach-replacement-chip,
+[data-card-name].coach-synergy-chip,
+[data-card-name].coach-pill,
+[data-card-name].coach-cl-name {
     cursor: pointer;
     border-bottom: 1px dashed var(--text-secondary, #888);
 }
