@@ -4,10 +4,8 @@ Commander AI Lab — Coach Data Models
 Pydantic v2 models for deck reports, coach requests/responses,
 and coaching session persistence.
 """
-
 from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
-
 
 # ══════════════════════════════════════════════════════════════
 # Deck Report Models (mirrors Java DeckReport)
@@ -145,47 +143,80 @@ class MulliganAnalysis(BaseModel):
 
 class RemovalCoverage(BaseModel):
     """Categorized removal package by permanent type."""
-    creatures: str = ""             # Assessment of creature removal
-    artifacts: str = ""             # Assessment of artifact removal
-    enchantments: str = ""          # Assessment of enchantment removal
-    planeswalkers: str = ""         # Assessment of planeswalker removal
-    lands: str = ""                 # Assessment of land destruction
-    massRemoval: str = ""           # Assessment of board wipes / sweepers
-    gaps: List[str] = Field(default_factory=list)  # Permanent types with zero coverage
+    creatures: str = ""
+    artifacts: str = ""
+    enchantments: str = ""
+    planeswalkers: str = ""
+    lands: str = ""
+    massRemoval: str = ""
+    gaps: List[str] = Field(default_factory=list)
 
 
 class RampQuality(BaseModel):
     """Ramp package breakdown by subtype and fragility."""
-    manaRocks: str = ""             # 2-mana rocks, signets, etc.
-    landFetch: str = ""             # Cultivate, Kodama's Reach, etc.
-    manaDorks: str = ""             # Llanowar Elves, Birds of Paradise, etc.
-    costReducers: str = ""          # Medallions, Helm of Awakening, etc.
-    fragility: str = ""             # Overall fragility assessment (creature-heavy = fragile)
-    canReachFourByTurnThree: str = ""  # Whether the deck reliably hits 4 mana by turn 3
+    manaRocks: str = ""
+    landFetch: str = ""
+    manaDorks: str = ""
+    costReducers: str = ""
+    fragility: str = ""
+    canReachFourByTurnThree: str = ""
 
 
 class DrawEngineProfile(BaseModel):
     """Card draw sustainability analysis."""
-    burstDraw: List[str] = Field(default_factory=list)     # One-time draw spells
-    repeatableEngines: List[str] = Field(default_factory=list)  # Sustained draw engines
-    assessment: str = ""            # Overall draw engine quality evaluation
-    sustainability: str = ""        # Whether draw is sustainable or burst-only
+    burstDraw: List[str] = Field(default_factory=list)
+    repeatableEngines: List[str] = Field(default_factory=list)
+    assessment: str = ""
+    sustainability: str = ""
 
 
 class WinCondition(BaseModel):
     """A named win condition with independence rating."""
-    name: str                       # e.g., "Craterhoof Behemoth + wide board"
-    cards: List[str] = Field(default_factory=list)  # Key cards involved
-    independence: str = ""          # How well it works without other combos (high/medium/low)
-    description: str = ""           # How this win con functions
+    name: str
+    cards: List[str] = Field(default_factory=list)
+    independence: str = ""
+    description: str = ""
 
 
 class AntiSynergyFlag(BaseModel):
     """An internal conflict between cards in the deck."""
-    cards: List[str] = Field(default_factory=list)  # Cards that conflict
-    conflict: str = ""              # Description of the conflict
-    severity: str = ""              # high, medium, low
+    cards: List[str] = Field(default_factory=list)
+    conflict: str = ""
+    severity: str = ""
 
+
+# ══════════════════════════════════════════════════════════════
+# Phase 5: Pod Politics & Meta Awareness Models
+# ══════════════════════════════════════════════════════════════
+
+class PodPresence(BaseModel):
+    """Commander pod politics and threat assessment."""
+    threatLevel: str = ""  # early/medium/late/low
+    politicalTools: List[str] = Field(default_factory=list)
+    adversarialRating: str = ""  # low/medium/high
+    recommendation: str = ""
+
+
+class TempoAssessment(BaseModel):
+    """When the deck 'comes online' and whether that's fast enough."""
+    peakTurn: int = 0
+    profile: str = ""  # early/mid/late
+    survivalWindow: str = ""  # Assessment of whether it survives to peak
+    assessment: str = ""
+
+
+class MetaMatchup(BaseModel):
+    """Strategic reasoning about deck vs a meta archetype."""
+    archetype: str  # fast-combo, stax, control, aggro, etc.
+    assessment: str = ""
+    keyThreats: List[str] = Field(default_factory=list)
+    keyAnswers: List[str] = Field(default_factory=list)
+    overallRating: str = ""  # favored/even/unfavored
+
+
+# ══════════════════════════════════════════════════════════════
+# Coach Session (persisted result)
+# ══════════════════════════════════════════════════════════════
 
 class CoachSession(BaseModel):
     """
@@ -205,16 +236,24 @@ class CoachSession(BaseModel):
     promptTokens: int = 0
     completionTokens: int = 0
     goals: Optional[CoachGoals] = None
+    isQuickDigest: bool = False  # True for quick digest, False for full analysis
+
     # Phase 2: Structured analysis fields
     upgradePriority: List[UpgradePriorityItem] = Field(default_factory=list)
     commanderDependency: Optional[CommanderDependency] = None
     mulliganAnalysis: Optional[MulliganAnalysis] = None
+
     # Phase 3: Qualitative analysis fields
     removalCoverage: Optional[RemovalCoverage] = None
     rampQuality: Optional[RampQuality] = None
     drawEngineProfile: Optional[DrawEngineProfile] = None
     winConditions: List[WinCondition] = Field(default_factory=list)
     antiSynergyFlags: List[AntiSynergyFlag] = Field(default_factory=list)
+
+    # Phase 5: Pod politics & meta
+    podPresence: Optional[PodPresence] = None
+    tempoAssessment: Optional[TempoAssessment] = None
+    metaMatchups: List[MetaMatchup] = Field(default_factory=list)
 
 
 class ApplyRequest(BaseModel):
