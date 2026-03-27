@@ -28,20 +28,27 @@
                     </select>
                 </div>
                 <div class="form-group sim-field-auto">
-                    <label class="form-label" for="sim-opponent-select">Opponent</label>
+                    <label class="form-label" for="sim-opponent-select">
+                        Opponent
+                        <span class="tip-icon tip-below" data-tip="Heuristic AI uses rule-based logic — fast and deterministic. DeepSeek AI routes decisions through your local Ollama LLM for smarter but slower play.">?</span>
+                    </label>
                     <select id="sim-opponent-select" class="form-select">
                         <option value="heuristic">Heuristic AI</option>
                         <option value="deepseek">DeepSeek AI</option>
                     </select>
                 </div>
                 <div class="form-group sim-field-auto">
-                    <label class="form-label" for="sim-num-games">Games</label>
+                    <label class="form-label" for="sim-num-games">
+                        Games
+                        <span class="tip-icon tip-below" data-tip="Number of games to simulate. 10 is quick for a gut-check; 100+ gives statistically meaningful win rates. Each game is fully simulated end-to-end.">?</span>
+                    </label>
                     <input type="number" id="sim-num-games" class="form-input sim-num-input" value="10" min="1" max="1000" />
                 </div>
                 <div class="form-group sim-field-auto sim-field-end">
                     <label class="form-checkbox">
                         <input type="checkbox" id="sim-record-logs" checked />
                         Record turn logs
+                        <span class="tip-icon tip-below" data-tip="Saves per-turn decision snapshots to .jsonl files. Required for ML training data collection. Slightly slower — disable if you only need win rate stats.">?</span>
                     </label>
                 </div>
                 <div class="form-group sim-field-auto sim-field-end">
@@ -61,19 +68,31 @@
                 </div>
                 <div class="deepseek-config-row">
                     <div class="form-group sim-field-grow">
-                        <label class="form-label" for="ds-api-base">API Endpoint</label>
+                        <label class="form-label" for="ds-api-base">
+                            API Endpoint
+                            <span class="tip-icon tip-below" data-tip="Base URL of your Ollama server. Default is localhost:11434. Change this if Ollama is running on a different machine or WSL2 network address.">?</span>
+                        </label>
                         <input type="text" id="ds-api-base" class="form-input" value="http://localhost:11434" placeholder="http://localhost:11434" />
                     </div>
                     <div class="form-group sim-field-auto">
-                        <label class="form-label" for="ds-model">Model</label>
+                        <label class="form-label" for="ds-model">
+                            Model
+                            <span class="tip-icon tip-below" data-tip="Ollama model tag to use for AI decisions. Leave blank to auto-detect the best available model. Examples: deepseek-r1:7b, llama3:8b, mistral.">?</span>
+                        </label>
                         <input type="text" id="ds-model" class="form-input" value="" placeholder="Auto-detect" style="width:200px" />
                     </div>
                     <div class="form-group sim-field-auto">
-                        <label class="form-label" for="ds-temp">Temp</label>
+                        <label class="form-label" for="ds-temp">
+                            Temp
+                            <span class="tip-icon tip-below" data-tip="LLM sampling temperature. Lower = more deterministic decisions. 0.3 is a good balance — fully greedy (0.0) can get stuck in repetitive play patterns.">?</span>
+                        </label>
                         <input type="number" id="ds-temp" class="form-input sim-num-input" value="0.3" min="0" max="2" step="0.1" />
                     </div>
                     <div class="form-group sim-field-auto">
-                        <label class="form-label" for="ds-timeout">Timeout (s)</label>
+                        <label class="form-label" for="ds-timeout">
+                            Timeout (s)
+                            <span class="tip-icon tip-below" data-tip="Max seconds to wait for an LLM response per decision. If exceeded, falls back to heuristic AI automatically. Increase if your GPU is slow on cold inference.">?</span>
+                        </label>
                         <input type="number" id="ds-timeout" class="form-input sim-num-input" value="10" min="1" max="60" />
                     </div>
                 </div>

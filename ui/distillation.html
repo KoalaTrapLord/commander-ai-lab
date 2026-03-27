@@ -16,7 +16,7 @@
         <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
             <div>
                 <h1>Closed-Loop Distillation</h1>
-                <p>Iterative supervised → PPO → quality gate → merge pipeline</p>
+                <p>Iterative supervised &rarr; PPO &rarr; quality gate &rarr; merge pipeline</p>
             </div>
             <button id="btn-refresh" class="btn btn-secondary" onclick="refreshAll()" title="Refresh status">
                 <span class="btn-icon" id="refresh-icon">&#8635;</span> Refresh
@@ -59,43 +59,70 @@
             <div class="train-controls">
                 <div class="param-grid form-row">
                     <div class="form-group">
-                        <label class="form-label" for="param-iterations">Max Generations</label>
+                        <label class="form-label" for="param-iterations">
+                            Max Generations
+                            <span class="tip-icon" data-tip="How many distillation cycles to run. Each cycle: supervised train &rarr; PPO fine-tune &rarr; quality gate. Stops early if convergence is detected.">?</span>
+                        </label>
                         <input type="number" id="param-iterations" class="form-input" value="10" min="1" max="100" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="param-conv-window">Convergence Window</label>
+                        <label class="form-label" for="param-conv-window">
+                            Convergence Window
+                            <span class="tip-icon" data-tip="Number of recent generations to check for plateau. If ELO gain stays below threshold across this many gens, training stops early to save time.">?</span>
+                        </label>
                         <input type="number" id="param-conv-window" class="form-input" value="3" min="2" max="10" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="param-sup-epochs">Supervised Epochs</label>
+                        <label class="form-label" for="param-sup-epochs">
+                            Supervised Epochs
+                            <span class="tip-icon" data-tip="Training epochs for the supervised step each generation. Fewer is fine since each cycle trains on incrementally better data. 30 is a solid starting point.">?</span>
+                        </label>
                         <input type="number" id="param-sup-epochs" class="form-input" value="30" min="5" max="200" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="param-sup-lr">Supervised LR</label>
+                        <label class="form-label" for="param-sup-lr">
+                            Supervised LR
+                            <span class="tip-icon" data-tip="Learning rate for the supervised phase. 0.001 is a solid default. Lower it in later generations if the model is already strong.">?</span>
+                        </label>
                         <input type="number" id="param-sup-lr" class="form-input" value="0.001" step="0.0001" min="0.00001" max="0.1" />
                     </div>
                 </div>
                 <div class="param-grid form-row">
                     <div class="form-group">
-                        <label class="form-label" for="param-ppo-iters">PPO Iterations</label>
+                        <label class="form-label" for="param-ppo-iters">
+                            PPO Iterations
+                            <span class="tip-icon" data-tip="Number of PPO update steps per generation. Each step samples game episodes, computes advantages, and updates policy weights.">?</span>
+                        </label>
                         <input type="number" id="param-ppo-iters" class="form-input" value="50" min="10" max="500" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="param-ppo-episodes">PPO Episodes/Iter</label>
+                        <label class="form-label" for="param-ppo-episodes">
+                            PPO Episodes/Iter
+                            <span class="tip-icon" data-tip="Game simulations per PPO update step. More episodes = more stable gradients but slower iterations. 64 balances speed and stability well.">?</span>
+                        </label>
                         <input type="number" id="param-ppo-episodes" class="form-input" value="64" min="8" max="512" step="8" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="param-ppo-lr">PPO Learning Rate</label>
+                        <label class="form-label" for="param-ppo-lr">
+                            PPO Learning Rate
+                            <span class="tip-icon" data-tip="PPO step size. Keep this lower than the supervised LR. 0.0003 is the standard RL default and works well here.">?</span>
+                        </label>
                         <input type="number" id="param-ppo-lr" class="form-input" value="0.0003" step="0.0001" min="0.00001" max="0.01" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="param-min-wr">Min Win Rate Gate</label>
+                        <label class="form-label" for="param-min-wr">
+                            Min Win Rate Gate
+                            <span class="tip-icon" data-tip="Quality gate threshold. A generation must beat the heuristic opponent at this win rate to be accepted and merged into the next cycle. 0.30 is a lenient starting gate.">?</span>
+                        </label>
                         <input type="number" id="param-min-wr" class="form-input" value="0.30" step="0.05" min="0.1" max="0.9" />
                     </div>
                 </div>
                 <div class="param-grid form-row distill-bottom-params">
                     <div class="form-group">
-                        <label class="form-label" for="param-opponent">Opponent</label>
+                        <label class="form-label" for="param-opponent">
+                            Opponent
+                            <span class="tip-icon" data-tip="Who the agent trains against during PPO. Heuristic is recommended for a consistent challenge. Self-play can become unstable without a strong supervised baseline first.">?</span>
+                        </label>
                         <select id="param-opponent" class="form-select">
                             <option value="heuristic">Heuristic</option>
                             <option value="random">Random</option>
@@ -103,7 +130,10 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="param-playstyle">Playstyle</label>
+                        <label class="form-label" for="param-playstyle">
+                            Playstyle
+                            <span class="tip-icon" data-tip="Deck archetype used for simulations in this distillation run. Midrange is the most balanced test bed. Match this to the archetype you want the model to master.">?</span>
+                        </label>
                         <select id="param-playstyle" class="form-select">
                             <option value="midrange">Midrange</option>
                             <option value="aggro">Aggro</option>
@@ -164,7 +194,9 @@
         <!-- ELO Rating Chart -->
         <section class="panel" id="elo-panel">
             <div class="panel-header elo-panel-header">
-                <h2>ELO Ratings</h2>
+                <h2>ELO Ratings
+                    <span class="tip-icon tip-below" data-tip="ELO scores measure relative strength. Baseline is 1200. Scores above that mean the model wins more than it loses. Tournament runs the top 10 most recent checkpoints head-to-head.">?</span>
+                </h2>
                 <button id="btn-run-elo" class="btn btn-sm btn-secondary" onclick="runEloTournament()">
                     <span class="btn-icon">&#127942;</span> Run Tournament
                 </button>

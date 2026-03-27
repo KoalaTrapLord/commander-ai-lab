@@ -62,9 +62,13 @@
                             class="dg-input"
                             id="dg-strategy"
                             placeholder="e.g. zombie tokens, voltron, spellslinger..."
+                            title="Describe your deck strategy — the AI uses this to pick thematically aligned cards"
                         />
                         <div class="dg-bracket-row">
-                            <label class="dg-label">Target Bracket</label>
+                            <label class="dg-label">
+                                Target Bracket
+                                <span class="tip-icon" data-tip="B1 = precon-level casual. B2 = upgraded with synergies. B3 = high power with strong combos. B4 = cEDH with maximum optimization, fast mana, and instant-speed interaction.">?</span>
+                            </label>
                             <div class="dg-bracket-btns" id="dg-bracket-btns">
                                 <button class="dg-bracket-btn" data-bracket="1" title="Casual — precon level">B1</button>
                                 <button class="dg-bracket-btn" data-bracket="2" title="Upgraded Casual">B2</button>
@@ -105,7 +109,7 @@
                                 min="0"
                                 step="25"
                             />
-                            <select class="dg-select" id="dg-budget-mode">
+                            <select class="dg-select" id="dg-budget-mode" title="Total Deck: caps the combined price of all 100 cards. Per Card Max: caps each individual card price.">
                                 <option value="total">Total Deck $</option>
                                 <option value="per_card">Per Card Max $</option>
                             </select>
@@ -120,25 +124,34 @@
                     </div>
                     <div class="dg-panel-body">
                         <label class="dg-toggle-row">
-                            <span class="dg-toggle-label">Use my collection</span>
+                            <span class="dg-toggle-label">
+                                Use my collection
+                                <span class="tip-icon" data-tip="Prioritizes cards you already own before pulling from the full card pool. Saves money and ensures the deck is ready to play. Requires an imported collection.">?</span>
+                            </span>
                             <input type="checkbox" class="dg-toggle-check" id="dg-use-collection" checked />
                             <span class="dg-toggle-track"><span class="dg-toggle-thumb"></span></span>
                         </label>
                         <label class="dg-toggle-row">
-                            <span class="dg-toggle-label">Smart Substitution</span>
+                            <span class="dg-toggle-label">
+                                Smart Substitution
+                                <span class="tip-icon" data-tip="When a suggested card isn't in your collection, automatically finds the closest functional replacement you do own. Keeps the deck playable without buying extra cards.">?</span>
+                            </span>
                             <input type="checkbox" class="dg-toggle-check" id="dg-substitution" checked />
                             <span class="dg-toggle-track"><span class="dg-toggle-thumb"></span></span>
                         </label>
                         <div class="dg-model-row">
-                            <label class="dg-label">AI Model</label>
+                            <label class="dg-label">
+                                AI Model
+                                <span class="tip-icon" data-tip="The local LLM used to generate the deck list. Larger models produce better card selections but are slower. Requires Ollama running locally with the selected model pulled.">?</span>
+                            </label>
                             <select class="dg-select" id="dg-model">
-                                                        <option value="gpt-oss:20b" selected>gpt-oss:20b (Local Ollama)</option>
+                                <option value="gpt-oss:20b" selected>gpt-oss:20b (Local Ollama)</option>
                             </select>
                         </div>
                     </div>
                 </div>
 
-                                <!-- Omit Cards (chips input) -->
+                <!-- Omit Cards (chips input) -->
                 <div class="dg-panel">
                     <div class="dg-panel-header">
                         <span class="dg-panel-title">Omit Cards</span>
@@ -160,12 +173,12 @@
                 <!-- Action Buttons -->
                 <div class="dg-actions">
                     <button class="dg-btn dg-btn-preview" id="dg-preview-btn" disabled>
-                        <span class="dg-btn-icon">⚡</span> Generate Deck
+                        <span class="dg-btn-icon">&#9889;</span> Generate Deck
                     </button>
                 </div>
 
-                            <!-- Conversation Log -->
-                                             <div id="dg-conversation-log" class="dg-conversation-log">
+                <!-- Conversation Log -->
+                <div id="dg-conversation-log" class="dg-conversation-log">
                     <div class="dg-log-entry dg-log-info"><span class="dg-log-ts">[Ready]</span> Waiting for deck generation...</div>
                 </div>
 
@@ -175,7 +188,7 @@
             <section class="dg-col-results">
                 <!-- Empty State -->
                 <div class="dg-empty-state" id="dg-empty-state">
-                    <div class="dg-empty-icon">⚡</div>
+                    <div class="dg-empty-icon">&#9889;</div>
                     <div class="dg-empty-title">V3 AI Deck Generator</div>
                     <div class="dg-empty-text">Select a commander, set your bracket and strategy, then click "Generate Deck" to build a complete 100-card deck using Claude Opus with structured output.</div>
                 </div>
@@ -185,47 +198,18 @@
                     <div class="dg-spinner"></div>
                     <div class="dg-loading-text" id="dg-loading-text">Generating deck via Local AI...</div>
                 </div>
-                                    <div class="dg-progress-wrap" id="dg-progress-wrap" style="display:none">
-                        <div class="dg-progress-bar">
-                            <div class="dg-progress-fill" id="dg-progress-fill"></div>
-                        </div>
-                        <div class="dg-progress-meta">
-                            <span class="dg-progress-phase" id="dg-progress-phase"></span>
-                            <span class="dg-progress-elapsed" id="dg-progress-elapsed">0s elapsed</span>
-                        </div>
+                <div class="dg-progress-wrap" id="dg-progress-wrap" style="display:none">
+                    <div class="dg-progress-bar">
+                        <div class="dg-progress-fill" id="dg-progress-fill"></div>
                     </div>
-
-                <!-- Results -->
-                <div class="dg-results" id="dg-results" style="display:none">
-
-                    <!-- Strategy & Bracket Summary -->
-                    <div class="dg-strategy-bar" id="dg-strategy-bar"></div>
-
-                    <!-- Stats Bar -->
-                    <div class="dg-stats-bar" id="dg-stats-bar"></div>
-
-                    <!-- Substitution Summary -->
-                    <div class="dg-sub-summary" id="dg-sub-summary" style="display:none"></div>
-
-                    <!-- Card Groups -->
-                    <div class="dg-card-groups" id="dg-card-groups"></div>
-
-                    <!-- Export & Save Bar -->
-                    <div class="dg-save-bar" id="dg-save-bar">
-                        <button class="dg-btn dg-btn-save" id="dg-save-btn">
-                            <span class="dg-btn-icon">💾</span> Save to Deck Builder
-                        </button>
-                        <button class="dg-btn dg-btn-ghost" id="dg-regenerate-btn">
-                            <span class="dg-btn-icon">🔄</span> Regenerate
-                        </button>
-                        <div class="dg-export-group">
-                            <button class="dg-btn dg-btn-export" id="dg-export-csv">📊 CSV</button>
-                            <button class="dg-btn dg-btn-export" id="dg-export-dck">🎮 Forge .dck</button>
-                            <button class="dg-btn dg-btn-export" id="dg-export-moxfield">📋 Moxfield</button>
-                            <button class="dg-btn dg-btn-export" id="dg-export-shopping">🛒 Shopping List</button>
-                        </div>
+                    <div class="dg-progress-meta">
+                        <span class="dg-progress-phase" id="dg-progress-phase"></span>
+                        <span class="dg-progress-elapsed" id="dg-progress-elapsed">0s elapsed</span>
                     </div>
                 </div>
+
+                <!-- Results placeholder — rest generated dynamically by deckgenerator.js -->
+                <div class="dg-results" id="dg-results" style="display:none"></div>
             </section>
 
         </main>

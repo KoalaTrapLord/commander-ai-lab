@@ -58,7 +58,10 @@
 
                 <!-- Power Level Slider -->
                 <div class="form-group">
-                    <label class="form-label" for="coach-power-level">Target Power Level</label>
+                    <label class="form-label" for="coach-power-level">
+                        Target Power Level
+                        <span class="tip-icon tip-below" data-tip="Guides the LLM on how competitive suggestions should be. 1-3 = casual jank; 4-6 = upgraded precon; 7-8 = high power; 9-10 = cEDH with fast mana and infinite combos.">?</span>
+                    </label>
                     <div class="coach-slider-row">
                         <input type="range" id="coach-power-level" min="1" max="10" value="7" />
                         <span class="coach-slider-value" id="coach-power-value">7</span>
@@ -68,7 +71,10 @@
 
                 <!-- Meta Focus -->
                 <div class="form-group">
-                    <label class="form-label" for="coach-meta-focus">Meta Focus</label>
+                    <label class="form-label" for="coach-meta-focus">
+                        Meta Focus
+                        <span class="tip-icon tip-below" data-tip="The game plan the coach optimizes for. Aggro = fast damage; Control = answers and card advantage; Combo = tutors and win-con protection; Stax = slow everyone down.">?</span>
+                    </label>
                     <select id="coach-meta-focus" class="form-select">
                         <option value="">Any / Balanced</option>
                         <option value="aggro">Aggro</option>
@@ -81,7 +87,10 @@
 
                 <!-- Budget -->
                 <div class="form-group">
-                    <label class="form-label" for="coach-budget">Budget</label>
+                    <label class="form-label" for="coach-budget">
+                        Budget
+                        <span class="tip-icon tip-below" data-tip="Restricts suggestions to cards within a price range. Budget caps cards at ~$2 each; Medium at ~$10. No Limit allows any card including Reserved List staples.">?</span>
+                    </label>
                     <select id="coach-budget" class="form-select">
                         <option value="">No Limit</option>
                         <option value="budget">Budget (&lt; $2 per card)</option>
@@ -92,7 +101,10 @@
 
                 <!-- Focus Areas -->
                 <div class="form-group coach-field-wide">
-                    <label class="form-label">Focus Areas (optional)</label>
+                    <label class="form-label">
+                        Focus Areas (optional)
+                        <span class="tip-icon tip-below" data-tip="Narrows the coach to specific deck categories. Leaving all unchecked triggers a full-deck general analysis across all categories.">?</span>
+                    </label>
                     <div class="coach-focus-tags">
                         <label class="coach-tag"><input type="checkbox" value="ramp" /> Ramp</label>
                         <label class="coach-tag"><input type="checkbox" value="card draw" /> Card Draw</label>
@@ -121,7 +133,7 @@
             </div>
         </section>
 
-        <!-- ═══ Multi-turn Chat Panel ═══ -->
+        <!-- Multi-turn Chat Panel -->
         <section class="panel coach-chat-section" id="coach-chat-section">
             <div class="panel-header coach-chat-header">
                 <h2>Chat with Coach</h2>
@@ -143,7 +155,7 @@
             </div>
         </section>
 
-        <!-- ═══ Cards-Like Search Panel ═══ -->
+        <!-- Cards-Like Search Panel -->
         <section class="panel coach-cardslike-section" id="coach-cardslike-section">
             <div class="panel-header coach-panel-collapsible" id="cardslike-header">
                 <h2>Find Similar Cards</h2>
@@ -163,7 +175,10 @@
                             <button class="coach-color-pip coach-pip-G" data-color="G" title="Green">G</button>
                         </div>
                         <div class="form-group coach-cardslike-topn">
-                            <label class="form-label">Results</label>
+                            <label class="form-label">
+                                Results
+                                <span class="tip-icon tip-below" data-tip="How many similar cards to return. Uses vector embeddings to find cards with the most semantically similar oracle text and mechanics to your query card.">?</span>
+                            </label>
                             <input type="number" id="cardslike-topn" class="form-input" value="10" min="1" max="50" />
                         </div>
                         <button id="cardslike-search-btn" class="btn btn-accent btn-sm">Search</button>
@@ -173,7 +188,7 @@
             </div>
         </section>
 
-        <!-- ═══ One-Shot Results Section ═══ -->
+        <!-- One-Shot Results Section -->
         <section id="coach-results" class="coach-results" style="display:none;">
 
             <!-- Apply Suggestions Bar -->
