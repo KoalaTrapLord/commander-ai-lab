@@ -187,7 +187,7 @@ class CoachService:
                 continue
         return sessions
 
-    # ── Main Coaching Pipeline ──────────────────────────────
+    # ── Main Coaching Pipeline ───────────────────────────────
 
     async def run_coaching_session(
         self,
@@ -205,7 +205,6 @@ class CoachService:
         6. Parse response
         7. Persist session
         """
-        # 0. Auto-load embeddings if not loaded
         if not self.embeddings.loaded:
             logger.info("Embeddings not loaded — attempting auto-load...")
             try:
@@ -217,7 +216,6 @@ class CoachService:
             except Exception as e:
                 logger.warning("Embeddings auto-load failed: %s", e)
 
-        # 1. Load deck report
         report = self.load_deck_report(deck_id)
         if report is None and fallback_report is not None:
             report = fallback_report
@@ -225,10 +223,8 @@ class CoachService:
         if report is None:
             raise ValueError(f"Deck report not found for: {deck_id}")
 
-        # 2. Get deck card names (for exclusion from candidates)
         deck_card_names = [c.name for c in report.cards]
 
-        # 3. Find replacement candidates for underperformers
         candidates: Dict[str, List[dict]] = {}
         underperformers = report.underperformers[:MAX_UNDERPERFORMERS]
         if not underperformers:
@@ -257,11 +253,9 @@ class CoachService:
         else:
             logger.warning("Embeddings not loaded — skipping candidate search")
 
-        # 4. Build prompts
         system_prompt = build_system_prompt(report, goals)
         user_prompt = build_user_prompt(report, candidates)
 
-        # 5. Call LLM
         logger.info("Calling LLM for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
 
         if COACH_PROVIDER == "anthropic":
@@ -269,7 +263,6 @@ class CoachService:
             anthropic_key = ANTHROPIC_API_KEY
             if not anthropic_key:
                 raise ConnectionError("Anthropic API key not configured. Set ANTHROPIC_API_KEY env var.")
-
             aclient = _anthropic.AsyncAnthropic(api_key=anthropic_key)
             async with aclient.messages.stream(
                 model=ANTHROPIC_MODEL,
@@ -281,7 +274,6 @@ class CoachService:
                 content = await stream.get_final_text()
                 final_msg = await stream.get_final_message()
             usage = getattr(final_msg, "usage", None)
-
             from types import SimpleNamespace
             llm_response = SimpleNamespace(
                 content=content,
@@ -304,7 +296,6 @@ class CoachService:
         else:
             llm_response = await self.llm.chat(system_prompt, user_prompt)
 
-        # 6. Parse response into CoachSession
         session_id = f"sess-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         session = CoachSession(
             sessionId=session_id,
@@ -322,15 +313,16 @@ class CoachService:
             session.rawTextExplanation = llm_response.content
             session.summary = "LLM returned non-JSON response. See raw explanation."
 
-        # 7. Persist
         self.save_session(session)
         logger.info("Coaching session saved: %s", session_id)
         return session
 
-    # ── Quick Digest ───────────────────────────────────────
+    # ── Quick Digest ──────────────────────────────────────────
 
     async def run_quick_digest(
-        self, deck_id: str, goals: Optional[CoachGoals] = None,
+        self,
+        deck_id: str,
+        goals: Optional[CoachGoals] = None,
         fallback_report: Optional[DeckReport] = None,
     ) -> CoachSession:
         """Fast ~400-600 token call: summary + top 3 upgradePriority + commanderDependency."""
@@ -353,16 +345,19 @@ class CoachService:
                 raise ConnectionError("Anthropic API key not configured.")
             aclient = _anthropic.AsyncAnthropic(api_key=anthropic_key)
             async with aclient.messages.stream(
-                model=ANTHROPIC_MODEL, system=system_prompt,
+                model=ANTHROPIC_MODEL,
+                system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
-                max_tokens=1024, temperature=0.5,
+                max_tokens=1024,
+                temperature=0.5,
             ) as stream:
                 content = await stream.get_final_text()
                 final_msg = await stream.get_final_message()
                 usage = getattr(final_msg, "usage", None)
             from types import SimpleNamespace
             llm_response = SimpleNamespace(
-                content=content, model=final_msg.model,
+                content=content,
+                model=final_msg.model,
                 prompt_tokens=usage.input_tokens if usage else 0,
                 completion_tokens=usage.output_tokens if usage else 0,
                 parsed_json=None,
@@ -374,19 +369,23 @@ class CoachService:
             except (json.JSONDecodeError, ValueError):
                 match = re.search(r'\{[\s\S]*\}', content)
                 if match:
-                    try: llm_response.parsed_json = json.loads(match.group(0))
-                    except json.JSONDecodeError: pass
+                    try:
+                        llm_response.parsed_json = json.loads(match.group(0))
+                    except json.JSONDecodeError:
+                        pass
         else:
             llm_response = await self.llm.chat(system_prompt, user_prompt)
 
         session_id = f"quick-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         session = CoachSession(
-            sessionId=session_id, deckId=deck_id,
+            sessionId=session_id,
+            deckId=deck_id,
             timestamp=datetime.now(timezone.utc).isoformat(),
             modelUsed=llm_response.model,
             promptTokens=llm_response.prompt_tokens,
             completionTokens=llm_response.completion_tokens,
-            goals=goals, isQuickDigest=True,
+            goals=goals,
+            isQuickDigest=True,
         )
         if llm_response.parsed_json:
             self._populate_session_from_json(session, llm_response.parsed_json)
@@ -397,7 +396,7 @@ class CoachService:
         self.save_session(session)
         return session
 
-    # ── JSON Response Parser ───────────────────────────────
+    # ── JSON Parser ───────────────────────────────────────────
 
     def _populate_session_from_json(self, session: CoachSession, data: dict):
         """Parse LLM JSON response into CoachSession fields."""
@@ -425,7 +424,7 @@ class CoachService:
                     synergyWith=add_data.get("synergyWith", []),
                 ))
 
-        # Phase 2: Parse upgrade priority
+        # Phase 2
         for item in data.get("upgradePriority", []):
             if isinstance(item, dict):
                 session.upgradePriority.append(UpgradePriorityItem(
@@ -436,7 +435,6 @@ class CoachService:
                     expectedImpact=item.get("expectedImpact", ""),
                 ))
 
-        # Phase 2: Parse commander dependency
         cd = data.get("commanderDependency")
         if isinstance(cd, dict):
             session.commanderDependency = CommanderDependency(
@@ -445,7 +443,6 @@ class CoachService:
                 recoveryPlan=cd.get("recoveryPlan", ""),
             )
 
-        # Phase 2: Parse mulligan analysis
         ma = data.get("mulliganAnalysis")
         if isinstance(ma, dict):
             session.mulliganAnalysis = MulliganAnalysis(
@@ -529,7 +526,7 @@ class CoachService:
                     overallRating=mm.get("overallRating", ""),
                 ))
 
-    # ── Status Check ───────────────────────────────────
+    # ── Status Check ─────────────────────────────────────────
 
     def get_status(self) -> CoachStatus:
         """Check the health of all coach subsystems."""
