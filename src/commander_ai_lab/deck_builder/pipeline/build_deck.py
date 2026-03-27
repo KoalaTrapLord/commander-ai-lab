@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 
 from ..api import edhrec, scryfall
 from ..api import ollama_client as ollama
+from ..api.sim_insights import get_sim_insights
 from ..core.collection_filter import filter_names_by_collection
 from ..core.models import BuildRequest, BuildResult, CardEntry, CommanderDeck, DeckRatios
 from ..core.rules_engine import check_ban_list, filter_by_color_identity, validate_deck
@@ -37,7 +38,7 @@ def build_deck(request: BuildRequest) -> BuildResult:
     warnings: List[str] = []
     sources: List[str] = []
 
-    # ── Step 1: Resolve commander ────────────────────────────────
+    # ── Step 1: Resolve commander ────────────────────────────────────────────
     logger.info(f"Step 1: Resolving commander '{request.commander_name}'")
     commander = scryfall.search_commander(request.commander_name)
     if not commander:
@@ -50,7 +51,17 @@ def build_deck(request: BuildRequest) -> BuildResult:
     logger.info(f"Commander: {commander.name}, CI: {ci_list}")
     sources.append("scryfall")
 
-    # ── Step 2: Fetch EDHrec recommendations ─────────────────────
+    # Load simulation insights once; injected into Ollama prompts in Steps 4 & 6.
+    # Returns "" when learned_weights.json doesn't exist or has no meaningful drift
+    # yet — so behaviour is identical to before until real sim data is available.
+    sim_context = get_sim_insights()
+    if sim_context:
+        logger.info("Sim insights available — injecting into Ollama prompts")
+        sources.append("sim_weights")
+    else:
+        logger.debug("No sim insights available (run update_weights.py after overnight sims)")
+
+    # ── Step 2: Fetch EDHrec recommendations ─────────────────────────────
     logger.info(f"Step 2: Fetching EDHrec data for '{commander.name}'")
     edhrec_cards = edhrec.get_recommended_cards(commander.name)
     if edhrec_cards:
@@ -59,7 +70,7 @@ def build_deck(request: BuildRequest) -> BuildResult:
     else:
         warnings.append("EDHrec returned no data — relying on Scryfall + Ollama")
 
-    # ── Step 3: Fetch Scryfall candidates by category ────────────
+    # ── Step 3: Fetch Scryfall candidates by category ────────────────────────
     logger.info("Step 3: Fetching Scryfall candidates by category")
     scryfall_candidates: Dict[str, List[CardEntry]] = {
         "ramp": scryfall.search_ramp(commander_ci),
@@ -70,7 +81,7 @@ def build_deck(request: BuildRequest) -> BuildResult:
     for cat, cards in scryfall_candidates.items():
         logger.info(f"  Scryfall {cat}: {len(cards)} candidates")
 
-    # ── Step 4: Ollama suggestions to fill gaps ──────────────────
+    # ── Step 4: Ollama suggestions to fill gaps ────────────────────────────
     logger.info("Step 4: Ollama suggesting additional cards")
 
     # Collect all names we already have
@@ -79,7 +90,9 @@ def build_deck(request: BuildRequest) -> BuildResult:
         all_names.extend(c.name for c in cards)
     all_names = list(set(all_names))
 
-    # Ask Ollama to suggest cards for categories that need more
+    # Ask Ollama to suggest cards for categories that need more.
+    # sim_context is forwarded so the LLM factors in what traits have
+    # been statistically successful in our own game simulations.
     categories_to_fill = ["synergy", "protection", "wincon"]
     ollama_suggestions: Dict[str, List[str]] = {}
 
@@ -91,6 +104,7 @@ def build_deck(request: BuildRequest) -> BuildResult:
             count=15,
             exclude=all_names,
             strategy_notes=request.strategy_notes,
+            sim_context=sim_context,
         )
         ollama_suggestions[category] = suggested
         all_names.extend(suggested)
@@ -98,7 +112,7 @@ def build_deck(request: BuildRequest) -> BuildResult:
 
     sources.append("ollama")
 
-    # ── Step 5: Filter (color identity, collection, ban list) ────
+    # ── Step 5: Filter (color identity, collection, ban list) ────────────────
     logger.info("Step 5: Filtering candidates")
 
     # Build a unified name pool per category
@@ -140,7 +154,7 @@ def build_deck(request: BuildRequest) -> BuildResult:
             n for n in cards_by_category[cat] if n not in BANNED_CARDS
         ]
 
-    # ── Step 6: Ollama enforce ratios ────────────────────────────
+    # ── Step 6: Ollama enforce ratios ────────────────────────────────────
     logger.info("Step 6: Ollama enforcing deck ratios")
     target_ratios = {
         "lands": request.ratios.lands,
@@ -153,10 +167,13 @@ def build_deck(request: BuildRequest) -> BuildResult:
         "uncategorized": request.ratios.uncategorized,
     }
 
+    # sim_context is forwarded so Ollama preferentially retains cards
+    # matching high-value sim traits when trimming over-filled categories.
     adjusted = ollama.enforce_deck_ratios(
         cards_by_category=cards_by_category,
         target_ratios=target_ratios,
         commander_name=commander.name,
+        sim_context=sim_context,
     )
 
     # Verify total is 99
@@ -165,7 +182,7 @@ def build_deck(request: BuildRequest) -> BuildResult:
         warnings.append(f"Ollama returned {total} cards instead of 99 — adjusting")
         logger.warning(f"Ratio enforcement returned {total} cards")
 
-    # ── Step 7: Assemble final deck ──────────────────────────────
+    # ── Step 7: Assemble final deck ────────────────────────────────────────
     logger.info("Step 7: Assembling final deck")
 
     # Build a globally-deduplicated name list. enforce_deck_ratios can
