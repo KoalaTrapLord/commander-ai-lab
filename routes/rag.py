@@ -77,15 +77,25 @@ async def rag_search(body: RAGSearchRequest):
     Returns ranked card results with relevance scores.
     """
     try:
-        from services.rag_store import search_cards
-        results = search_cards(
+        from services.rag_store import query_cards
+        raw_results = query_cards(
             query=body.query,
+            n_results=body.top_k,
             color_identity=body.color_identity,
-            top_k=body.top_k,
         )
+        results = [
+            RAGCardResult(
+                name=r.get("name", ""),
+                type_line=r.get("type_line", ""),
+                oracle_text=r.get("oracle_text", ""),
+                color_identity=r.get("color_identity", ""),
+                score=round(1.0 - r.get("distance", 0.0), 4),
+            )
+            for r in raw_results
+        ]
         return RAGSearchResponse(
             query=body.query,
-            results=[RAGCardResult(**r) for r in results],
+            results=results,
             total=len(results),
         )
     except FileNotFoundError as exc:
@@ -104,8 +114,8 @@ async def rag_status_detail():
     Detailed RAG index status including card count and age.
     """
     try:
-        from services.rag_store import get_index_status
-        return {"status": "ok", **get_index_status()}
+        from services.rag_store import get_rag_stats
+        return {"status": "ok", **get_rag_stats()}
     except Exception as exc:
         log.exception("RAG status check failed")
         return {"status": "error", "error": str(exc)}
