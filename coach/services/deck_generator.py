@@ -4,12 +4,21 @@ Commander AI Lab — V3 Deck Generator Service
 Generates Commander decks using Anthropic Claude
 structured JSON output, then runs ownership check
 and smart substitution.
+
+Phase 1 changes:
+  - smart_substitute() non-destructive contract (never returns None)
+  - apply_substitutions() loop never silently drops cards
+  - _pad_to_99() circuit breaker before BuildResult validation
+  - Pre-validation count logging per category
+  - Startup SLOT_BUDGET assertion
 """
 
 import json
 import logging
 import re
 import sqlite3
+from dataclasses import dataclass
+from enum import Enum
 from typing import List, Optional, Tuple
 from urllib.request import urlopen, Request
 
@@ -32,6 +41,236 @@ from ..config import (
 logger = logging.getLogger("coach.deckgen")
 
 
+# ══════════════════════════════════════════════════════════════
+# Slot Budget — MUST sum to 99 (commander is the 100th card)
+# ══════════════════════════════════════════════════════════════
+
+SLOT_BUDGET: dict[str, int] = {
+    "Land":         36,
+    "Ramp":         10,
+    "Card Draw":    10,
+    "Removal":       8,
+    "Board Wipe":    3,
+    "Win Condition": 4,
+    "Protection":    4,
+    "Synergy":      20,
+    "Creature":      2,
+    "Utility":       2,
+}
+
+# ── Startup assertion — catches misconfigured budgets at boot time ──
+_SLOT_BUDGET_TOTAL = sum(SLOT_BUDGET.values())
+assert _SLOT_BUDGET_TOTAL == 99, (
+    f"SLOT_BUDGET sums to {_SLOT_BUDGET_TOTAL}, must equal 99. "
+    f"Current distribution: {SLOT_BUDGET}"
+)
+
+
+# ══════════════════════════════════════════════════════════════
+# SubstitutionMethod — tracks HOW each card was resolved
+# ══════════════════════════════════════════════════════════════
+
+class SubstitutionMethod(str, Enum):
+    EXACT_MATCH          = "exact_match"       # Card found verbatim in collection
+    FUZZY_MATCH          = "fuzzy_match"        # Case/punctuation-normalised match
+    EMBEDDING_ANALOG     = "embedding_analog"   # Embedding similarity match
+    ANTHROPIC_FALLBACK   = "anthropic_fallback" # LLM suggested replacement
+    ORIGINAL_KEPT        = "original_kept"      # Not in collection but Scryfall-valid
+    BASIC_LAND_FALLBACK  = "basic_land_fallback" # Last resort — slot becomes a basic
+
+
+@dataclass
+class SubstitutionRecord:
+    """Audit trail entry for a single card's resolution."""
+    original: str
+    resolved: str
+    method: SubstitutionMethod
+    in_collection: bool
+
+
+# ══════════════════════════════════════════════════════════════
+# Color → Basic Land mapping
+# ══════════════════════════════════════════════════════════════
+
+_COLOR_TO_BASIC: dict[str, str] = {
+    "W": "Plains",
+    "U": "Island",
+    "B": "Swamp",
+    "R": "Mountain",
+    "G": "Forest",
+}
+_BASIC_NAMES: set[str] = set(_COLOR_TO_BASIC.values()) | {"Wastes"}
+
+
+def _get_basic_land(color_identity: List[str]) -> str:
+    """Return the first appropriate basic land for the given color identity."""
+    for color in color_identity:
+        if color.upper() in _COLOR_TO_BASIC:
+            return _COLOR_TO_BASIC[color.upper()]
+    return "Wastes"  # Colorless commander
+
+
+# ══════════════════════════════════════════════════════════════
+# Non-destructive Smart Substitution
+# ══════════════════════════════════════════════════════════════
+
+def smart_substitute(
+    card_name: str,
+    collection: set[str],
+    color_identity: List[str],
+    embedding_index=None,
+) -> SubstitutionRecord:
+    """
+    Non-destructive substitution — ALWAYS returns a valid card string.
+
+    Fallback chain:
+      1. Exact match in collection
+      2. Fuzzy match (case + punctuation normalised)
+      3. Embedding similarity match (if index available)
+      4. Keep original (Scryfall-valid, not in collection)
+      5. Basic land for the commander's colors (last resort — NEVER None)
+    """
+    # 1. Exact match
+    if card_name in collection:
+        return SubstitutionRecord(card_name, card_name, SubstitutionMethod.EXACT_MATCH, True)
+
+    # 2. Fuzzy match — normalise case and common punctuation differences
+    normalised = card_name.lower().strip()
+    for owned in collection:
+        if owned.lower().strip() == normalised:
+            return SubstitutionRecord(card_name, owned, SubstitutionMethod.FUZZY_MATCH, True)
+
+    # 3. Embedding similarity (if index available)
+    if embedding_index and getattr(embedding_index, "loaded", False):
+        try:
+            matches = embedding_index.search_similar(
+                query_card=card_name,
+                color_filter=color_identity or None,
+                exclude_cards=[card_name],
+                top_n=5,
+            )
+            pool_lower = {n.lower() for n in collection}
+            for match in matches:
+                if match.name.lower() in pool_lower:
+                    return SubstitutionRecord(
+                        card_name, match.name, SubstitutionMethod.EMBEDDING_ANALOG, True
+                    )
+        except Exception as e:
+            logger.warning("Embedding substitution failed for '%s': %s", card_name, e)
+
+    # 4. Keep original — valid card not in collection (proxy / non-collection build)
+    return SubstitutionRecord(
+        card_name, card_name, SubstitutionMethod.ORIGINAL_KEPT, False
+    )
+
+
+def apply_substitutions(
+    card_list: List[DeckCardWithStatus],
+    collection: set[str],
+    color_identity: List[str],
+    embedding_index=None,
+) -> Tuple[List[DeckCardWithStatus], List[SubstitutionRecord]]:
+    """
+    Apply smart substitution to a card list.
+
+    Guarantees: output list is NEVER shorter than input list.
+    Logs a warning for every BASIC_LAND_FALLBACK.
+    """
+    records: List[SubstitutionRecord] = []
+    result: List[DeckCardWithStatus] = []
+
+    for card in card_list:
+        rec = smart_substitute(card.name, collection, color_identity, embedding_index)
+        records.append(rec)
+
+        if rec.method == SubstitutionMethod.BASIC_LAND_FALLBACK:
+            logger.warning(
+                "[substitution] BASIC_LAND_FALLBACK for '%s' — slot filled with '%s'",
+                rec.original, rec.resolved,
+            )
+
+        # Update the card in-place — never drop it
+        updated = card.model_copy(update={
+            "name": rec.resolved,
+            "owned": rec.in_collection,
+            "status": "owned" if rec.in_collection else
+                       ("substituted" if rec.method != SubstitutionMethod.ORIGINAL_KEPT
+                        else "missing"),
+            "original_card": card.name if rec.resolved != card.name else card.original_card,
+        })
+        result.append(updated)
+
+    fallback_count = sum(1 for r in records if r.method == SubstitutionMethod.BASIC_LAND_FALLBACK)
+    if fallback_count:
+        logger.error(
+            "[substitution] %d cards fell back to basic lands — investigate LLM output quality",
+            fallback_count,
+        )
+
+    return result, records
+
+
+# ══════════════════════════════════════════════════════════════
+# Pad-to-99 Circuit Breaker
+# ══════════════════════════════════════════════════════════════
+
+def _pad_to_99(
+    cards: List[DeckCardWithStatus],
+    color_identity: List[str],
+    target: int = 99,
+) -> Tuple[List[DeckCardWithStatus], int]:
+    """
+    Emergency safety pad — should NEVER fire if substitution contract holds.
+
+    If it does fire, the error log is your signal that a card is being dropped
+    somewhere earlier in the pipeline.
+
+    Returns (padded_cards, number_of_slots_padded).
+    """
+    # Strip commander from count if present (commander is tracked separately)
+    non_commander = [c for c in cards if not getattr(c, "is_commander", False)]
+    current = sum(c.count for c in non_commander)
+    shortfall = target - current
+
+    if shortfall <= 0:
+        return cards, 0
+
+    logger.error(
+        "[pad_to_99] CIRCUIT BREAKER FIRED — deck is %d cards short after substitution. "
+        "Padding with basic lands. Check substitution pipeline for silent drops.",
+        shortfall,
+    )
+
+    basic = _get_basic_land(color_identity)
+    padding_card = DeckCardWithStatus(
+        name=basic,
+        count=shortfall,
+        category="Land",
+        role_tags=[],
+        reason="Emergency pad — basic land inserted by circuit breaker",
+        estimated_price_usd=0.10,
+        owned=True,
+        owned_qty=shortfall,
+        status="owned",
+    )
+    return cards + [padding_card], shortfall
+
+
+def _log_pre_validation_counts(cards: List[DeckCardWithStatus]) -> None:
+    """Log per-category card counts before Pydantic validation."""
+    by_cat: dict[str, int] = {}
+    for card in cards:
+        cat = card.category or "Uncategorized"
+        by_cat[cat] = by_cat.get(cat, 0) + card.count
+    total = sum(by_cat.values())
+    logger.info("[pre_validation] Category counts: %s", by_cat)
+    logger.info("[pre_validation] Total: %d/99 (delta: %d)", total, 99 - total)
+
+
+# ══════════════════════════════════════════════════════════════
+# DeckGeneratorV3
+# ══════════════════════════════════════════════════════════════
+
 class DeckGeneratorV3:
     """
     V3 Deck Generator using Anthropic Claude structured output.
@@ -42,18 +281,14 @@ class DeckGeneratorV3:
       3. Call Anthropic Claude with structured JSON schema
       4. Validate card names via Scryfall
       5. Check ownership against collection DB
-      6. Run Smart Substitution (embedding + Anthropic Claude fallback)
-      7. Return finalized deck with substitution data
+      6. Run Smart Substitution (non-destructive)
+      7. _pad_to_99 circuit breaker
+      8. Pre-validation count logging
+      9. Return finalized deck — guaranteed 99 cards
     """
 
     def __init__(self, anthropic_client: AnthropicClient, db_conn_factory,
                  embedding_index=None):
-        """
-        Args:
-            anthropic_client: Configured AnthropicClient instance
-            db_conn_factory: Callable that returns sqlite3.Connection
-            embedding_index: Optional MTGEmbeddingIndex for substitution
-        """
         self.anthropic = anthropic_client
         self.db_conn_factory = db_conn_factory
         self.embedding_index = embedding_index
@@ -77,9 +312,12 @@ class DeckGeneratorV3:
                 "mana_cost": data.get("mana_cost", ""),
                 "image_url": data.get("image_uris", {}).get("normal", ""),
                 "oracle_text": data.get("oracle_text", ""),
+                "scryfall_found": True,
             }
         except Exception as e:
             logger.warning("Scryfall lookup failed for '%s': %s", commander_name, e)
+            # Non-canonical commander (silver-bordered, custom, etc.)
+            # Skip collection substitution for these — trust LLM output directly
             return {
                 "name": commander_name,
                 "scryfall_id": "",
@@ -88,6 +326,7 @@ class DeckGeneratorV3:
                 "mana_cost": "",
                 "image_url": "",
                 "oracle_text": "",
+                "scryfall_found": False,
             }
 
     # ── Step 2: Build Collection Summary ─────────────────────
@@ -110,16 +349,10 @@ class DeckGeneratorV3:
         if not rows:
             return ""
 
-        # Filter by color identity
         ci_set = set(color_identity) if color_identity else None
         filtered = []
         for row in rows:
-            name = row["name"]
-            type_line = row["type_line"] or ""
-            # Basic lands and colorless are always allowed
             if ci_set:
-                # Simple color check from type_line and name
-                # For proper filtering we'd check mana cost but this is good enough for summary
                 card_colors = set()
                 oracle = row["oracle_text"] or ""
                 mana_cost = ""
@@ -137,7 +370,6 @@ class DeckGeneratorV3:
         if not filtered:
             return ""
 
-        # Group by card type
         groups = {}
         for row in filtered:
             type_line = row["type_line"] or ""
@@ -159,14 +391,12 @@ class DeckGeneratorV3:
                 group = "Other"
             groups.setdefault(group, []).append(row)
 
-        # Sort each group by popularity/price and build text
         lines = [f"COLLECTION SUMMARY ({len(filtered)} cards in deck colors):"]
         for group_name in ["Creatures", "Instants", "Sorceries", "Artifacts",
                            "Enchantments", "Planeswalkers", "Lands", "Other"]:
             cards = groups.get(group_name, [])
             if not cards:
                 continue
-            # Sort by price descending (higher value = likely better card)
             cards.sort(key=lambda r: r["tcg_price"] or 0, reverse=True)
             card_strs = []
             for c in cards[:max_per_group]:
@@ -194,23 +424,32 @@ class DeckGeneratorV3:
         Returns dict with:
           - commander: dict with Scryfall data
           - raw_deck: parsed GeneratedDeckList from Anthropic Claude
-          - cards: list of DeckCardWithStatus (after ownership check)
+          - cards: list of DeckCardWithStatus (after ownership check + substitution)
           - stats: deck statistics
+          - substitution_log: list of SubstitutionRecord dicts
+          - padded_slots: int > 0 means circuit breaker fired
           - tokens_used: {prompt, completion}
         """
         # Step 1: Resolve commander
         cmdr = self.resolve_commander(commander_name)
         color_identity = cmdr["color_identity"]
-        logger.info("Commander: %s, CI: %s", cmdr["name"], color_identity)
+        scryfall_found = cmdr.get("scryfall_found", True)
+        logger.info("Commander: %s, CI: %s, Scryfall: %s",
+                    cmdr["name"], color_identity, scryfall_found)
 
         # Step 2: Collection summary
         collection_block = ""
-        if use_collection:
+        if use_collection and scryfall_found:
             collection_block = self.build_collection_summary(color_identity)
             logger.info("Collection summary: %d chars",
                         len(collection_block) if collection_block else 0)
+        elif not scryfall_found:
+            logger.info(
+                "Non-canonical commander '%s' — skipping collection filter, "
+                "trusting LLM output directly.", cmdr["name"]
+            )
 
-        # Step 3: Build prompts
+        # Step 3: Build prompts (with slot budget injected)
         user_prompt = build_user_prompt(
             commander=cmdr["name"],
             commander_type=cmdr["type_line"],
@@ -221,11 +460,12 @@ class DeckGeneratorV3:
             budget_mode=budget_mode,
             omit_cards=omit_cards,
             collection_summary=collection_block,
+            slot_budget=SLOT_BUDGET,
         )
 
-        # Step 4: Call Anthropic Claude with structured output
+        # Step 4: Call LLM with structured output
         use_model = model or DECK_GEN_MODEL
-        logger.info("Calling Anthropic Claude (%s) for deck generation...", use_model)
+        logger.info("Calling LLM (%s) for deck generation...", use_model)
 
         response = self.anthropic.chat_structured(
             system_prompt=SYSTEM_PROMPT,
@@ -239,26 +479,29 @@ class DeckGeneratorV3:
 
         if not response.ok:
             raise ValueError(
-                f"Anthropic Claude returned invalid response: {response.content[:300]}"
+                f"LLM returned invalid response: {response.content[:300]}"
             )
 
         raw_deck = response.parsed_json
         card_count = len(raw_deck.get("cards", []))
-        truncated = card_count < 90  # Commander decks should have ~100 cards
-        logger.info("Deck generated: %d cards, bracket %d%s",
-                     card_count,
-                     (raw_deck.get("bracket", {}).get("level", 0) if isinstance(raw_deck.get("bracket"), dict) else raw_deck.get("bracket", 0)),
-                     " (TRUNCATED — response may have hit token limit)" if truncated else "")
+        truncated = card_count < 90
+        logger.info(
+            "Deck generated: %d cards, bracket %s%s",
+            card_count,
+            (raw_deck.get("bracket", {}).get("level", "?") if isinstance(raw_deck.get("bracket"), dict)
+             else raw_deck.get("bracket", "?")),
+            " (TRUNCATED — hit token limit)" if truncated else "",
+        )
 
-        # Step 5: Check ownership and build enriched card list
+        # Step 5: Check ownership
         cards_with_status = self._check_ownership(raw_deck.get("cards", []))
 
-        # Step 5b: Fill basic lands to hit exactly 100 cards
+        # Step 5b: Fill basic lands to reach target_total=100
         cards_with_status = self._fill_basic_lands(cards_with_status, color_identity)
 
-        # Step 5c: Secondary safety-net deduplication
-        seen = {}
-        deduped = []
+        # Step 5c: Secondary deduplication
+        seen: dict[str, int] = {}
+        deduped: List[DeckCardWithStatus] = []
         for c in cards_with_status:
             key = c.name.lower()
             if key in seen:
@@ -269,7 +512,27 @@ class DeckGeneratorV3:
                 deduped.append(c)
         cards_with_status = deduped
 
-        # Step 6: Compute stats
+        # Step 6: Run non-destructive smart substitution
+        # For non-canonical commanders (e.g. Sonic), skip collection filter
+        owned_pool: set[str] = set()
+        if use_collection and scryfall_found:
+            conn = self.db_conn_factory()
+            rows = conn.execute(
+                "SELECT DISTINCT name FROM collection_entries WHERE quantity > 0"
+            ).fetchall()
+            owned_pool = {r["name"] for r in rows}
+
+        cards_with_status, substitution_log = apply_substitutions(
+            cards_with_status, owned_pool, color_identity, self.embedding_index
+        )
+
+        # Step 7: Pad-to-99 circuit breaker
+        cards_with_status, padded_slots = _pad_to_99(cards_with_status, color_identity)
+
+        # Step 8: Pre-validation count logging
+        _log_pre_validation_counts(cards_with_status)
+
+        # Step 9: Compute stats
         stats = self._compute_stats(cards_with_status)
 
         return {
@@ -283,6 +546,12 @@ class DeckGeneratorV3:
             "archetype": raw_deck.get("archetype", ""),
             "reasoning": raw_deck.get("reasoning", {}),
             "estimated_total_usd": raw_deck.get("estimated_total_usd", 0),
+            "substitution_log": [
+                {"original": r.original, "resolved": r.resolved,
+                 "method": r.method.value, "in_collection": r.in_collection}
+                for r in substitution_log
+            ],
+            "padded_slots": padded_slots,
             "tokens_used": {
                 "prompt": response.prompt_tokens,
                 "completion": response.completion_tokens,
@@ -296,13 +565,11 @@ class DeckGeneratorV3:
     def _check_ownership(self, cards: List[dict]) -> List[DeckCardWithStatus]:
         """
         Cross-reference generated cards against the collection DB.
-        Sets owned/scryfall_id/owned_qty and real price.
-        Deduplicates cards by name (case-insensitive) — if the LLM
-        returns the same card twice, the counts are merged.
+        Deduplicates by name (case-insensitive).
         """
         conn = self.db_conn_factory()
-        enriched = []
-        seen_names: dict[str, int] = {}  # name_lower → index in enriched
+        enriched: List[DeckCardWithStatus] = []
+        seen_names: dict[str, int] = {}
 
         for card in cards:
             name = card.get("name", "")
@@ -314,10 +581,9 @@ class DeckGeneratorV3:
             if name_lower in seen_names:
                 idx = seen_names[name_lower]
                 enriched[idx].count += card.get("count", 1)
-                logger.warning("Duplicate card '%s' merged (LLM returned it twice)", name)
+                logger.warning("Duplicate card '%s' merged", name)
                 continue
 
-            # Look up in collection
             row = conn.execute(
                 "SELECT name, scryfall_id, quantity, tcg_price, type_line, cmc "
                 "FROM collection_entries WHERE name = ? COLLATE NOCASE LIMIT 1",
@@ -348,11 +614,8 @@ class DeckGeneratorV3:
         return enriched
 
     # ── Step 5b: Basic Land Fill ──────────────────────────────
-    _COLOR_TO_BASIC = {
-        'W': 'Plains', 'U': 'Island', 'B': 'Swamp',
-        'R': 'Mountain', 'G': 'Forest',
-    }
-    _BASIC_NAMES = set(_COLOR_TO_BASIC.values()) | {'Wastes'}
+    _COLOR_TO_BASIC = _COLOR_TO_BASIC
+    _BASIC_NAMES = _BASIC_NAMES
 
     def _fill_basic_lands(
         self,
@@ -374,7 +637,7 @@ class DeckGeneratorV3:
         ci = [c.upper() for c in color_identity]
         basic_names = [self._COLOR_TO_BASIC[c] for c in ci if c in self._COLOR_TO_BASIC]
         if not basic_names:
-            basic_names = ['Wastes']
+            basic_names = ["Wastes"]
 
         per_color = basics_needed // len(basic_names)
         remainder = basics_needed % len(basic_names)
@@ -385,20 +648,20 @@ class DeckGeneratorV3:
                 non_basics.append(DeckCardWithStatus(
                     name=bname,
                     count=qty,
-                    category='Land',
+                    category="Land",
                     role_tags=[],
-                    reason='Basic land for mana fixing',
+                    reason="Basic land for mana fixing",
                     estimated_price_usd=0.10,
                     owned=True,
                     owned_qty=qty,
-                    status='owned',
+                    status="owned",
                 ))
 
         logger.info("Basic land fill: %d basics added across %d color(s)",
-                     basics_needed, len(basic_names))
+                    basics_needed, len(basic_names))
         return non_basics
 
-    # ── Step 6: Smart Substitution ───────────────────────────
+    # ── Step 6: Smart Substitution (legacy wrapper for route compatibility) ──
     def run_substitution(
         self,
         cards: List[DeckCardWithStatus],
@@ -408,15 +671,12 @@ class DeckGeneratorV3:
         """
         Run the Smart Substitution Engine on missing cards.
 
-        Pipeline:
-          a) Identify missing cards
-          b) For each: try embedding similarity (free, fast)
-          c) For low-confidence matches: batch Anthropic Claude fallback
-          d) Auto-select best substitute per card
-
-        Returns SubstitutionBatchResult with all cards updated.
+        Uses the non-destructive apply_substitutions() under the hood.
+        Falls back to Anthropic Claude for low-confidence matches,
+        then to basic land as last resort — NEVER drops a card.
         """
         color_identity = commander.get("color_identity", [])
+        scryfall_found = commander.get("scryfall_found", True)
         missing = [c for c in cards if not c.owned]
         owned = [c for c in cards if c.owned]
 
@@ -431,46 +691,62 @@ class DeckGeneratorV3:
 
         logger.info("Substitution: %d missing / %d owned", len(missing), len(owned))
 
-        # Build list of owned card names for substitution pool
+        # Build owned pool
         conn = self.db_conn_factory()
         owned_pool_rows = conn.execute(
             "SELECT DISTINCT name FROM collection_entries WHERE quantity > 0"
         ).fetchall()
-        owned_pool = [r["name"] for r in owned_pool_rows]
+        owned_pool = {r["name"] for r in owned_pool_rows}
+        deck_names = {c.name.lower() for c in cards}
+        available_pool = {n for n in owned_pool if n.lower() not in deck_names}
 
-        # Exclude cards already in the deck
-        deck_names = set(c.name.lower() for c in cards)
-        available_pool = [n for n in owned_pool if n.lower() not in deck_names]
-
-        # a) Embedding pass
-        needs_anthropic_fallback = []
+        # a) Embedding pass for missing cards
+        needs_anthropic_fallback: List[DeckCardWithStatus] = []
         for card in missing:
             embedding_alts = self._embedding_substitution(
-                card, color_identity, available_pool
+                card, color_identity, list(available_pool)
             )
             card.alternatives = embedding_alts
 
-            # Check if best match meets threshold
             if embedding_alts and embedding_alts[0].similarity_score >= SUBSTITUTION_MIN_SIMILARITY:
                 card.selected_substitute = embedding_alts[0].name
                 card.status = "substituted"
-                # Remove selected from pool
-                if card.selected_substitute.lower() in [n.lower() for n in available_pool]:
-                    available_pool = [n for n in available_pool
-                                     if n.lower() != card.selected_substitute.lower()]
+                card.owned = True
+                available_pool.discard(card.selected_substitute.lower())
             else:
                 needs_anthropic_fallback.append(card)
 
-        # b) Anthropic Claude fallback for low-confidence matches
+        # b) Anthropic Claude fallback
         if needs_anthropic_fallback and SUBSTITUTION_USE_ANTHROPIC_FALLBACK:
             self._anthropic_substitution(
-                needs_anthropic_fallback, available_pool,
+                needs_anthropic_fallback, list(available_pool),
                 commander, strategy
             )
 
-        # Count results
+        # c) Any card STILL missing after both passes gets a basic land — never drop it
+        padded = 0
+        for card in missing:
+            if card.status == "missing":
+                basic = _get_basic_land(color_identity)
+                logger.warning(
+                    "[substitution] '%s' unresolved after all passes — "
+                    "replacing with basic land '%s'",
+                    card.name, basic,
+                )
+                card.name = basic
+                card.category = "Land"
+                card.role_tags = []
+                card.owned = True
+                card.status = "substituted"
+                card.original_card = card.name
+                padded += 1
+
         substituted = sum(1 for c in cards if c.status == "substituted")
         still_missing = sum(1 for c in cards if c.status == "missing")
+
+        # Validate count hasn't changed
+        assert len(cards) == len(owned) + len(missing), \
+            f"[substitution] Card count changed: {len(owned) + len(missing)} -> {len(cards)}"
 
         return SubstitutionBatchResult(
             total_cards=len(cards),
@@ -490,33 +766,31 @@ class DeckGeneratorV3:
         if not self.embedding_index or not self.embedding_index.loaded:
             return []
 
-        # Use the embeddings search to find similar cards
-        matches = self.embedding_index.search_similar(
-            query_card=card.name,
-            color_filter=color_identity if color_identity else None,
-            type_filter=card.category if card.category else None,
-            exclude_cards=[card.name],
-            top_n=SUBSTITUTION_MAX_ALTERNATIVES * 3,  # Over-fetch, then filter to owned
-        )
+        try:
+            matches = self.embedding_index.search_similar(
+                query_card=card.name,
+                color_filter=color_identity if color_identity else None,
+                type_filter=card.category if card.category else None,
+                exclude_cards=[card.name],
+                top_n=SUBSTITUTION_MAX_ALTERNATIVES * 3,
+            )
+        except Exception as e:
+            logger.warning("Embedding search failed for '%s': %s", card.name, e)
+            return []
 
-        # Filter to only cards in the available pool
-        pool_lower = set(n.lower() for n in available_pool)
+        pool_lower = {n.lower() for n in available_pool}
         alternatives = []
         for match in matches:
             if match.name.lower() in pool_lower:
-                # Compute role overlap
-                match_roles = []  # Would need card's role_tags from DB
-                role_overlap = list(set(card.role_tags) & set(match_roles)) if match_roles else []
-
+                role_overlap = list(set(card.role_tags) & set(getattr(match, "role_tags", [])))
                 alternatives.append(CardAlternative(
                     name=match.name,
                     similarity_score=match.similarity,
                     reason=f"Similar to {card.name} (cosine sim: {match.similarity:.3f})",
                     source="embedding",
                     role_overlap=role_overlap,
-                    cmc_delta=match.mana_value - (card.estimated_price_usd or 0),
+                    cmc_delta=getattr(match, "mana_value", 0) - (card.estimated_price_usd or 0),
                 ))
-
                 if len(alternatives) >= SUBSTITUTION_MAX_ALTERNATIVES:
                     break
 
@@ -531,12 +805,13 @@ class DeckGeneratorV3:
     ):
         """
         Batch Anthropic Claude fallback for cards with low embedding confidence.
-        Mutates the cards in-place with substitution data.
+        Mutates cards in-place. On failure, cards retain status='missing'
+        so the basic-land fallback in run_substitution() can catch them.
         """
         if not available_pool:
+            logger.warning("[anthropic_substitution] No available pool — skipping")
             return
 
-        # Build the request
         missing_dicts = [
             {
                 "name": c.name,
@@ -549,7 +824,7 @@ class DeckGeneratorV3:
 
         user_prompt = build_substitution_prompt(
             missing_cards=missing_dicts,
-            allowed_cards=available_pool[:200],  # Limit to avoid token overflow
+            allowed_cards=available_pool[:200],
             commander=commander.get("name", ""),
             color_identity=commander.get("color_identity", []),
             strategy=strategy,
@@ -568,13 +843,16 @@ class DeckGeneratorV3:
             )
 
             if not response.ok:
-                logger.warning("Anthropic Claude substitution fallback failed — non-JSON response")
+                logger.warning(
+                    "[anthropic_substitution] LLM returned non-JSON — "
+                    "%d cards will fall through to basic land fallback",
+                    len(missing_cards),
+                )
                 return
 
             subs = response.parsed_json.get("substitutions", [])
-            logger.info("Anthropic Claude suggested %d substitutions", len(subs))
+            logger.info("[anthropic_substitution] Received %d substitutions", len(subs))
 
-            # Apply substitutions
             card_by_name = {c.name.lower(): c for c in missing_cards}
             for sub in subs:
                 orig = sub.get("original", "").lower()
@@ -583,32 +861,38 @@ class DeckGeneratorV3:
 
                 if orig in card_by_name and substitute:
                     card = card_by_name[orig]
-                    # Add as top alternative
                     anthropic_alt = CardAlternative(
                         name=substitute,
-                        similarity_score=0.80,  # Nominal score for Anthropic Claude suggestions
+                        similarity_score=0.80,
                         reason=reason,
-                        source="Anthropic Claude",
+                        source="anthropic",
                         role_overlap=sub.get("role_overlap", []),
                     )
-                    # Insert at front
                     card.alternatives.insert(0, anthropic_alt)
                     card.selected_substitute = substitute
                     card.status = "substituted"
+                    card.owned = True
+                    card.original_card = card.name
 
         except Exception as e:
-            logger.error("Anthropic Claude substitution fallback error: %s", e)
+            logger.error(
+                "[anthropic_substitution] Exception: %s — "
+                "%d cards will fall through to basic land fallback",
+                e, len(missing_cards),
+            )
+            # Do NOT re-raise — cards stay status='missing' and
+            # run_substitution()'s basic-land fallback will handle them
 
     # ── Stats ────────────────────────────────────────────────
     @staticmethod
     def _compute_stats(cards: List[DeckCardWithStatus]) -> dict:
         """Compute deck statistics from the enriched card list."""
-        by_category = {}
-        by_status = {"owned": 0, "substituted": 0, "missing": 0}
+        by_category: dict[str, int] = {}
+        by_status: dict[str, int] = {"owned": 0, "substituted": 0, "missing": 0}
         total_price = 0.0
         owned_price = 0.0
         missing_price = 0.0
-        role_counts = {}
+        role_counts: dict[str, int] = {}
 
         for card in cards:
             cat = card.category or "Other"

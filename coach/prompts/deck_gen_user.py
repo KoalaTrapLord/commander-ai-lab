@@ -1,11 +1,33 @@
 """
 Commander AI Lab — Deck Generation User Prompt Builder
 ═══════════════════════════════════════════════════════
-Constructs the user message for Claude Opus deck generation
-from a DeckGenV3Request.
+Constructs the user message for LLM deck generation.
+
+Phase 1 changes:
+  - slot_budget parameter injected into prompt so LLM targets exactly 99 cards
+  - Explicit card count requirement in prompt text
 """
 
-from typing import List
+from typing import Dict, List, Optional
+
+
+def build_slot_budget_segment(slot_budget: Dict[str, int]) -> str:
+    """
+    Build the slot budget prompt segment.
+    Informs the LLM of exact per-category card counts so it never undershoots.
+    """
+    total = sum(slot_budget.values())
+    lines = [f"SLOT BUDGET (you must fill EXACTLY {total} cards, excluding the commander):"]
+    for cat, count in slot_budget.items():
+        lines.append(f"  {cat}: {count}")
+    lines.append(f"  TOTAL: {total}")
+    lines.append("")
+    lines.append(
+        f"CRITICAL: Return exactly {total} cards in the JSON 'cards' array "
+        "(not counting the commander). Every slot in the budget above must be filled. "
+        "Do not return more or fewer cards."
+    )
+    return "\n".join(lines)
 
 
 def build_user_prompt(
@@ -18,6 +40,7 @@ def build_user_prompt(
     budget_mode: str = "total",
     omit_cards: List[str] = None,
     collection_summary: str = "",
+    slot_budget: Optional[Dict[str, int]] = None,
 ) -> str:
     """
     Build the user prompt for deck generation.
@@ -26,12 +49,13 @@ def build_user_prompt(
         commander: Commander card name
         commander_type: Type line from Scryfall
         color_identity: List of color letters, e.g. ["U", "B"]
-        strategy: User-specified strategy focus (e.g. "zombie tokens")
+        strategy: User-specified strategy focus
         target_bracket: Target bracket level 1-4
         budget_usd: Optional budget constraint
         budget_mode: "total" for total deck cost, "per_card" for per-card max
         omit_cards: Cards to exclude
         collection_summary: Pre-built collection summary text block
+        slot_budget: Dict of category -> card count (must sum to 99)
     """
     ci_str = ", ".join(color_identity) if color_identity else "Unknown"
 
@@ -60,16 +84,21 @@ def build_user_prompt(
         lines.append(f"OMIT LIST (do NOT include these cards): {', '.join(omit_cards)}")
 
     if collection_summary:
-        lines.append(f"")
+        lines.append("")
         lines.append(collection_summary)
-        lines.append(f"")
-        lines.append(f"STRONGLY PREFER cards from the collection when they fit the strategy.")
+        lines.append("")
+        lines.append("STRONGLY PREFER cards from the collection when they fit the strategy.")
     else:
-        lines.append(f"")
-        lines.append(f"No collection data available — suggest the best cards regardless of ownership.")
+        lines.append("")
+        lines.append("No collection data available — suggest the best cards regardless of ownership.")
 
-    lines.append(f"")
-    lines.append(f"Build the deck as a structured JSON response. Include the commander in the cards list.")
-    lines.append(f"Ensure exactly 100 total cards. Assign role_tags and bracket info accurately.")
+    # Inject slot budget so LLM knows exact target counts
+    if slot_budget:
+        lines.append("")
+        lines.append(build_slot_budget_segment(slot_budget))
+
+    lines.append("")
+    lines.append("Build the deck as a structured JSON response. Include the commander in the cards list.")
+    lines.append("Ensure exactly 100 total cards. Assign role_tags and bracket info accurately.")
 
     return "\n".join(lines)

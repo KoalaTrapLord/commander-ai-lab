@@ -3,6 +3,10 @@ Commander AI Lab — Substitution Schemas
 ════════════════════════════════════════
 Pydantic models and JSON Schema dicts for the
 Smart Substitution Engine output.
+
+Phase 1 changes:
+  - SubstitutionBatchResult gains padded_slots field
+  - DeckCardWithStatus gains original_card field (was missing)
 """
 
 from typing import List, Optional
@@ -25,9 +29,10 @@ class CardAlternative(BaseModel):
 
 class DeckCardWithStatus(BaseModel):
     """A deck card enriched with ownership and substitution data."""
-    
+
     class Config:
         extra = "ignore"
+
     name: str
     count: int = 1
     category: str = ""
@@ -41,9 +46,15 @@ class DeckCardWithStatus(BaseModel):
     owned_qty: int = 0
     scryfall_id: str = ""
     status: str = Field(default="owned", description="owned | substituted | missing")
-    original_card: Optional[str] = Field(default=None, description="Original card name if this is a substitution")
+    original_card: Optional[str] = Field(
+        default=None,
+        description="Original card name before substitution (None if not substituted)"
+    )
     alternatives: List[CardAlternative] = Field(default_factory=list)
-    selected_substitute: Optional[str] = Field(default=None, description="User-selected substitute name")
+    selected_substitute: Optional[str] = Field(
+        default=None,
+        description="The substitute card name chosen for this slot"
+    )
 
 
 class SubstitutionRequest(BaseModel):
@@ -61,11 +72,16 @@ class SubstitutionBatchResult(BaseModel):
     owned_count: int = 0
     substituted_count: int = 0
     missing_count: int = 0
+    padded_slots: int = Field(
+        default=0,
+        description="Number of slots filled by the pad-to-99 circuit breaker. "
+                    "Any value > 0 indicates a bug in the substitution pipeline."
+    )
     cards: List[DeckCardWithStatus] = Field(default_factory=list)
 
 
 # ══════════════════════════════════════════════════════════════
-# JSON Schema dicts (for Perplexity fallback substitution)
+# JSON Schema dicts (for LLM fallback substitution)
 # ══════════════════════════════════════════════════════════════
 
 SUBSTITUTION_RESPONSE_SCHEMA = {
