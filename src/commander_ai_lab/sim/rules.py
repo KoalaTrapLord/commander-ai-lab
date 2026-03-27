@@ -223,6 +223,21 @@ def enrich_card(card: Card) -> Card:
                 _apply_oracle_flags(card)
                 return card
 
+
+                # ── Nonbasic land name guard (Issue #118) ──────────────────
+        # Catch common nonbasic lands BEFORE the creature fallback
+        _land_kw = re.compile(
+            r"\b(grove|garden|glade|falls|summit|crag|chapel|retreat|harbor|cemetery|"
+            r"pool|fountain|shrine|foundry|vents|grave|crypt|tomb|ground|"
+            r"command tower|path of ancestry|evolving wilds|terramorphic|expanse|"
+            r"exotic orchard|mana confluence|city of brass|reflecting pool|"
+            r"fabled passage|prismatic vista)\b", re.IGNORECASE)
+        if _land_kw.search(name_lower):
+            card.type_line = "Land"
+            card.cmc = 0
+            _apply_oracle_flags(card)
+            return card
+
         # Default: treat as creature with deterministic CMC based on
         # card name hash (fixes #32 — no more random.randint jitter
         # between games for the same card).
