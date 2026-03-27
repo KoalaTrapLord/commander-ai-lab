@@ -77,6 +77,24 @@ async def _lifespan(application: FastAPI):
     from services.rag_store import ensure_rag_store
     loop.run_in_executor(None, ensure_rag_store)
 
+        # RAG Phase 3: background staleness monitor (rebuilds if >14 days old)
+        async def _rag_staleness_monitor():
+            """Periodically check if the RAG index needs rebuilding."""
+            import time as _time
+            while True:
+                await asyncio.sleep(6 * 3600)  # check every 6 hours
+                try:
+                    from services.rag_store import check_staleness, build_index
+                    info = check_staleness()
+                    if info.get("stale"):
+                        log.info("RAG staleness monitor: %s — triggering rebuild.", info["reason"])
+                        loop.run_in_executor(None, lambda: build_index(force=True))
+                    else:
+                        log.debug("RAG staleness monitor: index is current (%.1f days).", info.get("age_days", 0))
+                except Exception as exc:
+                    log.warning("RAG staleness monitor failed: %s", exc)
+        asyncio.ensure_future(_rag_staleness_monitor())
+
     yield  # ← server is running
 
     # ──── SHUTDOWN ────
