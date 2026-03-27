@@ -65,7 +65,7 @@ class CoachService:
         self.embeddings = embeddings
         ensure_dirs()
 
-    # ── Deck Report I/O ────────────────────────────────────────
+    # ── Deck Report I/O ────────────────────────────────────
 
     def load_deck_report(self, deck_id: str) -> Optional[DeckReport]:
         """Load a deck report from disk."""
@@ -92,7 +92,7 @@ class CoachService:
             return []
         return [f.stem for f in DECK_REPORTS_DIR.glob("*.json")]
 
-    # ── Coach Session I/O ──────────────────────────────────────
+    # ── Coach Session I/O ──────────────────────────────
 
     def save_session(self, session: CoachSession) -> Path:
         """Persist a coaching session to disk and SQLite."""
@@ -187,7 +187,7 @@ class CoachService:
                 continue
         return sessions
 
-    # ── Main Coaching Pipeline ───────────────────────────────────
+    # ── Main Coaching Pipeline ──────────────────────────────
 
     async def run_coaching_session(
         self,
@@ -205,6 +205,7 @@ class CoachService:
         6. Parse response
         7. Persist session
         """
+        # 0. Auto-load embeddings if not loaded
         if not self.embeddings.loaded:
             logger.info("Embeddings not loaded — attempting auto-load...")
             try:
@@ -216,6 +217,7 @@ class CoachService:
             except Exception as e:
                 logger.warning("Embeddings auto-load failed: %s", e)
 
+        # 1. Load deck report
         report = self.load_deck_report(deck_id)
         if report is None and fallback_report is not None:
             report = fallback_report
@@ -223,8 +225,10 @@ class CoachService:
         if report is None:
             raise ValueError(f"Deck report not found for: {deck_id}")
 
+        # 2. Get deck card names (for exclusion from candidates)
         deck_card_names = [c.name for c in report.cards]
 
+        # 3. Find replacement candidates for underperformers
         candidates: Dict[str, List[dict]] = {}
         underperformers = report.underperformers[:MAX_UNDERPERFORMERS]
         if not underperformers:
@@ -253,9 +257,11 @@ class CoachService:
         else:
             logger.warning("Embeddings not loaded — skipping candidate search")
 
+        # 4. Build prompts
         system_prompt = build_system_prompt(report, goals)
         user_prompt = build_user_prompt(report, candidates)
 
+        # 5. Call LLM
         logger.info("Calling LLM for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
 
         if COACH_PROVIDER == "anthropic":
@@ -298,6 +304,7 @@ class CoachService:
         else:
             llm_response = await self.llm.chat(system_prompt, user_prompt)
 
+        # 6. Parse response into CoachSession
         session_id = f"sess-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         session = CoachSession(
             sessionId=session_id,
@@ -315,16 +322,15 @@ class CoachService:
             session.rawTextExplanation = llm_response.content
             session.summary = "LLM returned non-JSON response. See raw explanation."
 
+        # 7. Persist
         self.save_session(session)
         logger.info("Coaching session saved: %s", session_id)
         return session
 
-    # ── Quick Digest ─────────────────────────────────────────────
+    # ── Quick Digest ───────────────────────────────────────
 
     async def run_quick_digest(
-        self,
-        deck_id: str,
-        goals: Optional[CoachGoals] = None,
+        self, deck_id: str, goals: Optional[CoachGoals] = None,
         fallback_report: Optional[DeckReport] = None,
     ) -> CoachSession:
         """Fast ~400-600 token call: summary + top 3 upgradePriority + commanderDependency."""
@@ -391,6 +397,8 @@ class CoachService:
         self.save_session(session)
         return session
 
+    # ── JSON Response Parser ───────────────────────────────
+
     def _populate_session_from_json(self, session: CoachSession, data: dict):
         """Parse LLM JSON response into CoachSession fields."""
         session.summary = data.get("summary", "")
@@ -417,7 +425,7 @@ class CoachService:
                     synergyWith=add_data.get("synergyWith", []),
                 ))
 
-        # Phase 2: upgrade priority
+        # Phase 2: Parse upgrade priority
         for item in data.get("upgradePriority", []):
             if isinstance(item, dict):
                 session.upgradePriority.append(UpgradePriorityItem(
@@ -428,7 +436,7 @@ class CoachService:
                     expectedImpact=item.get("expectedImpact", ""),
                 ))
 
-        # Phase 2: commander dependency
+        # Phase 2: Parse commander dependency
         cd = data.get("commanderDependency")
         if isinstance(cd, dict):
             session.commanderDependency = CommanderDependency(
@@ -437,7 +445,7 @@ class CoachService:
                 recoveryPlan=cd.get("recoveryPlan", ""),
             )
 
-        # Phase 2: mulligan analysis
+        # Phase 2: Parse mulligan analysis
         ma = data.get("mulliganAnalysis")
         if isinstance(ma, dict):
             session.mulliganAnalysis = MulliganAnalysis(
@@ -521,7 +529,7 @@ class CoachService:
                     overallRating=mm.get("overallRating", ""),
                 ))
 
-    # ── Status Check ───────────────────────────────────────────
+    # ── Status Check ───────────────────────────────────
 
     def get_status(self) -> CoachStatus:
         """Check the health of all coach subsystems."""
