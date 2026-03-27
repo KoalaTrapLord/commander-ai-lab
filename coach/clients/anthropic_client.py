@@ -4,6 +4,13 @@ Commander AI Lab — Anthropic Claude Structured Output Client
 Uses the anthropic SDK to call Claude's messages endpoint
 with structured JSON output enforced via system prompt.
 Supports both sync and native async operation.
+
+All methods use the .stream() context manager to comply with
+Anthropic SDK's requirement that requests which may exceed 10
+minutes must use streaming. Sync methods use SyncMessageStream;
+async methods use AsyncMessageStream. The final text and usage
+stats are collected via get_final_text() / get_final_message()
+so call-sites are unaffected.
 """
 import json
 import logging
@@ -98,7 +105,7 @@ class AnthropicClient:
         model: str = None,
         temperature: float = 0.2,
         max_tokens: int = 8192,
-    ) -> AnthropicResponse:
+    ) -> "AnthropicResponse":
         """
         Send a chat request expecting JSON output.
 
@@ -122,14 +129,16 @@ class AnthropicClient:
         effective_system = self._build_system(system_prompt, json_schema, schema_name)
 
         try:
-            response = self._client.messages.create(
+            with self._client.messages.stream(
                 model=use_model,
                 system=effective_system,
                 messages=[{"role": "user", "content": user_prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
-            )
-            return self._parse_response(response, use_model)
+            ) as stream:
+                content = stream.get_final_text()
+                final_msg = stream.get_final_message()
+            return self._parse_response(final_msg, use_model, content)
         except Exception as e:
             logger.error("[anthropic] API call failed: %s", e)
             raise
@@ -141,7 +150,7 @@ class AnthropicClient:
         model: str = None,
         temperature: float = 0.2,
         max_tokens: int = 4096,
-    ) -> AnthropicResponse:
+    ) -> "AnthropicResponse":
         """
         Send a plain chat request without strict structured output.
         Used for substitution fallback queries.
@@ -149,14 +158,16 @@ class AnthropicClient:
         use_model = model or self.model
 
         try:
-            response = self._client.messages.create(
+            with self._client.messages.stream(
                 model=use_model,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
-            )
-            return self._parse_response(response, use_model)
+            ) as stream:
+                content = stream.get_final_text()
+                final_msg = stream.get_final_message()
+            return self._parse_response(final_msg, use_model, content)
         except Exception as e:
             logger.error("[anthropic] Plain chat failed: %s", e)
             raise
@@ -170,20 +181,22 @@ class AnthropicClient:
         model: str = None,
         temperature: float = 0.2,
         max_tokens: int = 8192,
-    ) -> AnthropicResponse:
+    ) -> "AnthropicResponse":
         """Native async structured chat — no run_in_executor needed."""
         use_model = model or self.model
         effective_system = self._build_system(system_prompt, json_schema, schema_name)
 
         try:
-            response = await self._async_client.messages.create(
+            async with self._async_client.messages.stream(
                 model=use_model,
                 system=effective_system,
                 messages=[{"role": "user", "content": user_prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
-            )
-            return self._parse_response(response, use_model)
+            ) as stream:
+                content = await stream.get_final_text()
+                final_msg = await stream.get_final_message()
+            return self._parse_response(final_msg, use_model, content)
         except Exception as e:
             logger.error("[anthropic] Async structured chat failed: %s", e)
             raise
@@ -195,19 +208,21 @@ class AnthropicClient:
         model: str = None,
         temperature: float = 0.2,
         max_tokens: int = 4096,
-    ) -> AnthropicResponse:
+    ) -> "AnthropicResponse":
         """Native async plain chat."""
         use_model = model or self.model
 
         try:
-            response = await self._async_client.messages.create(
+            async with self._async_client.messages.stream(
                 model=use_model,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
-            )
-            return self._parse_response(response, use_model)
+            ) as stream:
+                content = await stream.get_final_text()
+                final_msg = await stream.get_final_message()
+            return self._parse_response(final_msg, use_model, content)
         except Exception as e:
             logger.error("[anthropic] Async plain chat failed: %s", e)
             raise
@@ -215,13 +230,13 @@ class AnthropicClient:
     def check_status(self) -> dict:
         """Quick health check — try a minimal API call."""
         try:
-            response = self._client.messages.create(
+            with self._client.messages.stream(
                 model=self.model,
                 system="Reply with the word OK.",
                 messages=[{"role": "user", "content": "Status check."}],
                 max_tokens=10,
-            )
-            content = response.content[0].text if response.content else ""
+            ) as stream:
+                content = stream.get_final_text()
             return {
                 "connected": True,
                 "model": self.model,
@@ -249,11 +264,16 @@ class AnthropicClient:
             f"{schema_str}"
         )
 
-    def _parse_response(self, response, use_model: str) -> AnthropicResponse:
-        """Extract content and attempt JSON parsing from an Anthropic response."""
-        content = ""
-        if response.content:
-            content = response.content[0].text or ""
+    def _parse_response(self, response, use_model: str, content: str = None) -> "AnthropicResponse":
+        """Extract content and attempt JSON parsing from an Anthropic response.
+
+        When called from stream-based methods, pass the pre-collected `content`
+        string to avoid re-extracting from a consumed stream object.
+        """
+        if content is None:
+            content = ""
+            if response.content:
+                content = response.content[0].text or ""
 
         usage = response.usage
         prompt_tokens = usage.input_tokens if usage else 0

@@ -281,21 +281,26 @@ class CoachService:
             if not anthropic_key:
                 raise ConnectionError("Anthropic API key not configured. Set ANTHROPIC_API_KEY env var.")
             aclient = anthropic.AsyncAnthropic(api_key=anthropic_key)
-            resp = await aclient.messages.create(
+            # Use streaming to comply with Anthropic SDK's 10-minute request requirement.
+            # get_final_text() accumulates all streamed chunks; get_final_message() provides
+            # usage stats and model name identical to a non-streaming response object.
+            async with aclient.messages.stream(
                 model=ANTHROPIC_MODEL,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
                 max_tokens=DEFAULT_MAX_TOKENS,
                 temperature=0.7,
-            )
-            content = resp.content[0].text if resp.content else ""
-            usage = resp.usage
+            ) as stream:
+                content = await stream.get_final_text()
+                final_msg = await stream.get_final_message()
+
+            usage = final_msg.usage
 
             # Build an LLMResponse-compatible object
             from types import SimpleNamespace
             llm_response = SimpleNamespace(
                 content=content,
-                model=resp.model,
+                model=final_msg.model,
                 prompt_tokens=usage.input_tokens if usage else 0,
                 completion_tokens=usage.output_tokens if usage else 0,
                 parsed_json=None,
