@@ -1,8 +1,9 @@
 /**
- * Commander AI Lab — Deck Coach UI v28
+ * Commander AI Lab — Deck Coach UI v29
  * ═════════════════════════════════════
  * Multi-turn chat with SSE streaming, apply suggestions,
  * cards-like search, enhanced session history.
+ * v29: Quick Digest button + Top Priority Swap card.
  */
 
 (function () {
@@ -10,7 +11,7 @@
 
     const API = window.location.origin;
 
-    // ── State ────────────────────────────────────────────────
+    // ── State ────────────────────────────────────────────
     let chatHistory = [];       // [{role, content}]
     let isStreaming = false;
     let currentSessionId = null;
@@ -43,7 +44,8 @@
                 .then(r => r.ok ? r.json() : null)
                 .then(data => {
                     if (!data) return;
-                    const url = (data.image_uris && data.image_uris.normal) || (data.card_faces && data.card_faces[0] && data.card_faces[0].image_uris && data.card_faces[0].image_uris.normal) || '';
+                    const url = (data.image_uris && data.image_uris.normal) ||
+                        (data.card_faces && data.card_faces[0] && data.card_faces[0].image_uris && data.card_faces[0].image_uris.normal) || '';
                     _scryfallImgCache[cardName] = url;
                     if (el.style.display !== 'none') img.src = url;
                 }).catch(() => {});
@@ -55,7 +57,7 @@
     function _positionPreview(evt) {
         if (!_previewEl) return;
         _previewEl.style.left = Math.max(0, Math.min(evt.clientX + 20, window.innerWidth - 260)) + 'px';
-        _previewEl.style.top = Math.max(0, Math.min(evt.clientY - 150, window.innerHeight - 370)) + 'px';
+        _previewEl.style.top  = Math.max(0, Math.min(evt.clientY - 150, window.innerHeight - 370)) + 'px';
     }
 
     function _hideCardPreview() {
@@ -65,17 +67,18 @@
     function _attachCardHover(container) {
         container.querySelectorAll('[data-card-name]').forEach(td => {
             td.addEventListener('mouseenter', e => _showCardPreview(td.dataset.cardName, e));
-            td.addEventListener('mousemove', e => _positionPreview(e));
+            td.addEventListener('mousemove',  e => _positionPreview(e));
             td.addEventListener('mouseleave', _hideCardPreview);
         });
     }
 
-    // ── DOM References ──────────────────────────────────────
+    // ── DOM References ────────────────────────────────────
     const deckSelect       = document.getElementById('coach-deck-select');
     const powerSlider      = document.getElementById('coach-power-level');
     const powerValue       = document.getElementById('coach-power-value');
     const metaFocus        = document.getElementById('coach-meta-focus');
     const budgetSelect     = document.getElementById('coach-budget');
+    const quickBtn         = document.getElementById('coach-quick-btn');
     const runBtn           = document.getElementById('coach-run-btn');
     const runHint          = document.getElementById('coach-run-hint');
     const progressEl       = document.getElementById('coach-progress');
@@ -106,6 +109,8 @@
     const rawText          = document.getElementById('coach-raw-text');
     const sessionsList     = document.getElementById('coach-sessions-list');
     const genReportsBtn    = document.getElementById('generate-reports-btn');
+    const topPriorityCard  = document.getElementById('coach-top-priority');
+    const topPriorityContent = document.getElementById('coach-top-priority-content');
 
     // Chat
     const chatMessages     = document.getElementById('coach-chat-messages');
@@ -127,7 +132,7 @@
     const applyDeckSelect  = document.getElementById('coach-apply-deck-select');
     const applyCountEl     = document.getElementById('coach-apply-count');
 
-    // ── Init ────────────────────────────────────────────────
+    // ── Init ──────────────────────────────────────────────
 
     init();
 
@@ -138,11 +143,13 @@
 
         deckSelect.addEventListener('change', () => {
             const hasDeck = deckSelect.value !== '';
+            quickBtn.disabled = !hasDeck;
             runBtn.disabled = !hasDeck;
             chatSendBtn.disabled = !hasDeck;
             runHint.textContent = hasDeck ? 'Ready to analyze' : 'Select a deck to begin';
         });
 
+        quickBtn.addEventListener('click', runQuickDigest);
         runBtn.addEventListener('click', runCoach);
         genReportsBtn.addEventListener('click', generateReports);
 
@@ -198,7 +205,7 @@
         ]);
     }
 
-    // ── Goals Helper ────────────────────────────────────────
+    // ── Goals Helper ────────────────────────────────────
 
     function getGoals() {
         const goals = {};
@@ -214,7 +221,7 @@
         return goals;
     }
 
-    // ── Status Check ────────────────────────────────────────
+    // ── Status Check ────────────────────────────────────
 
     async function checkStatus() {
         try {
@@ -254,18 +261,15 @@
         valueEl.textContent = text;
     }
 
-    // ── Load Decks ──────────────────────────────────────────
+    // ── Load Decks ───────────────────────────────────────
 
     async function loadDecks() {
         try {
             const res = await fetch(API + '/api/coach/decks');
             const data = await res.json();
-            // Backend returns a bare array of objects, not {decks: [...]}
             const decks = Array.isArray(data) ? data : (data.decks || []);
 
-            while (deckSelect.options.length > 1) {
-                deckSelect.remove(1);
-            }
+            while (deckSelect.options.length > 1) deckSelect.remove(1);
 
             if (decks.length === 0) {
                 const opt = document.createElement('option');
@@ -275,7 +279,6 @@
                 return;
             }
 
-            // Sort by deck name
             decks.sort((a, b) => {
                 const na = (typeof a === 'string' ? a : a.deck_name || '').toLowerCase();
                 const nb = (typeof b === 'string' ? b : b.deck_name || '').toLowerCase();
@@ -285,11 +288,9 @@
             for (const deck of decks) {
                 const opt = document.createElement('option');
                 if (typeof deck === 'string') {
-                    // Legacy: bare string ID
                     opt.value = deck;
                     opt.textContent = deck;
                 } else {
-                    // Object format: {deck_id, deck_name, commander, has_report, ...}
                     const slug = deck.deck_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
                     opt.value = slug;
                     opt.textContent = deck.deck_name + (deck.commander ? ' (' + deck.commander + ')' : '');
@@ -310,9 +311,7 @@
             const data = await res.json();
             dbDecks = data.decks || [];
 
-            while (applyDeckSelect.options.length > 1) {
-                applyDeckSelect.remove(1);
-            }
+            while (applyDeckSelect.options.length > 1) applyDeckSelect.remove(1);
 
             for (const deck of dbDecks) {
                 const opt = document.createElement('option');
@@ -346,11 +345,14 @@
 
                 const timeStr = s.timestamp ? formatTime(s.timestamp) : '';
                 const isExpanded = expandedSessions[s.sessionId];
+                const quickBadge = s.sessionId && s.sessionId.startsWith('quick-')
+                    ? '<span class="coach-badge-quick" title="Quick Digest">\u26A1 Quick</span>'
+                    : '';
 
                 item.innerHTML =
                     '<div class="coach-session-header" data-sid="' + escHtml(s.sessionId) + '">' +
                         '<span class="coach-session-expand-arrow">' + (isExpanded ? '\u25BC' : '\u25B6') + '</span>' +
-                        '<span class="coach-session-deck">' + escHtml(s.deckId) + '</span>' +
+                        '<span class="coach-session-deck">' + escHtml(s.deckId) + quickBadge + '</span>' +
                         '<span class="coach-session-summary">' + escHtml(s.summary || '(no summary)') + '</span>' +
                         '<span class="coach-session-meta">' +
                             '<span class="coach-session-cuts">-' + (s.cutsCount || 0) + '</span>' +
@@ -362,14 +364,12 @@
                         '<div class="coach-session-detail-loading">Loading...</div>' +
                     '</div>';
 
-                // Click handler for expand/collapse
                 item.querySelector('.coach-session-header').addEventListener('click', function () {
                     toggleSession(s.sessionId);
                 });
 
                 sessionsList.appendChild(item);
 
-                // If previously expanded, load detail
                 if (isExpanded && sessionCache[s.sessionId]) {
                     renderSessionDetail(s.sessionId, sessionCache[s.sessionId]);
                 }
@@ -383,23 +383,19 @@
         const detailEl = document.getElementById('session-detail-' + sessionId);
         const headerEl = detailEl?.previousElementSibling;
         const arrowEl = headerEl?.querySelector('.coach-session-expand-arrow');
-
         if (!detailEl) return;
 
         const wasHidden = detailEl.style.display === 'none';
-
         if (wasHidden) {
             detailEl.style.display = 'block';
             expandedSessions[sessionId] = true;
             if (arrowEl) arrowEl.textContent = '\u25BC';
-
             if (!sessionCache[sessionId]) {
                 try {
                     const res = await fetch(API + '/api/coach/sessions/' + encodeURIComponent(sessionId));
                     if (!res.ok) throw new Error('Session not found');
-                    const session = await res.json();
-                    sessionCache[sessionId] = session;
-                    renderSessionDetail(sessionId, session);
+                    sessionCache[sessionId] = await res.json();
+                    renderSessionDetail(sessionId, sessionCache[sessionId]);
                 } catch (e) {
                     detailEl.innerHTML = '<div class="coach-session-detail-error">Failed to load session details</div>';
                 }
@@ -421,45 +417,30 @@
         const adds = session.suggestedAdds || [];
 
         let html = '<div class="coach-session-detail-inner">';
-
-        // Summary
         if (session.summary) {
             html += '<p class="coach-session-detail-summary">' + escHtml(session.summary) + '</p>';
         }
-
-        // Cuts
         if (cuts.length > 0) {
-            html += '<div class="coach-session-detail-group">';
-            html += '<span class="coach-session-detail-label">Cuts:</span>';
-            html += '<div class="coach-session-pills">';
+            html += '<div class="coach-session-detail-group"><span class="coach-session-detail-label">Cuts:</span><div class="coach-session-pills">';
             for (const cut of cuts) {
                 html += '<span class="coach-pill coach-pill-cut" data-card-name="' + escHtml(cut.cardName) + '" title="' + escHtml(cut.reason || '') + '">' + escHtml(cut.cardName) + '</span>';
             }
             html += '</div></div>';
         }
-
-        // Adds
         if (adds.length > 0) {
-            html += '<div class="coach-session-detail-group">';
-            html += '<span class="coach-session-detail-label">Adds:</span>';
-            html += '<div class="coach-session-pills">';
+            html += '<div class="coach-session-detail-group"><span class="coach-session-detail-label">Adds:</span><div class="coach-session-pills">';
             for (const add of adds) {
                 html += '<span class="coach-pill coach-pill-add" data-card-name="' + escHtml(add.cardName) + '" title="' + escHtml(add.reason || '') + '">' + escHtml(add.cardName) + '</span>';
             }
             html += '</div></div>';
         }
-
-        // Load in Chat button
         html += '<div class="coach-session-detail-actions">';
         html += '<button class="btn btn-ghost btn-sm coach-load-chat-btn" data-sid="' + escHtml(sessionId) + '">Load in Chat</button>';
         html += '<button class="btn btn-ghost btn-sm coach-view-full-btn" data-sid="' + escHtml(sessionId) + '">View Full Results</button>';
-        html += '</div>';
-
-        html += '</div>';
+        html += '</div></div>';
         detailEl.innerHTML = html;
-    _attachCardHover(detailEl);
+        _attachCardHover(detailEl);
 
-        // Bind buttons
         detailEl.querySelector('.coach-load-chat-btn')?.addEventListener('click', (e) => {
             e.stopPropagation();
             loadSessionInChat(sessionId);
@@ -474,10 +455,7 @@
     function loadSessionInChat(sessionId) {
         const session = sessionCache[sessionId];
         if (!session) return;
-
         clearChat();
-
-        // Set deck selector if possible
         if (session.deckId) {
             for (let i = 0; i < deckSelect.options.length; i++) {
                 if (deckSelect.options[i].value === session.deckId) {
@@ -487,30 +465,24 @@
                 }
             }
         }
-
-        // Pre-fill chat with a summary context
         const contextMsg = 'Based on a previous coaching session for this deck, here was the analysis:\n\n' +
             (session.summary || '') + '\n\n' +
             'Suggested cuts: ' + (session.suggestedCuts || []).map(c => c.cardName).join(', ') + '\n' +
             'Suggested adds: ' + (session.suggestedAdds || []).map(a => a.cardName).join(', ');
-
         chatHistory.push({ role: 'assistant', content: contextMsg });
         appendChatBubble('assistant', contextMsg);
-
         chatInput.focus();
         showToast('Session loaded into chat', 'success');
     }
 
-    // ── Generate Reports ────────────────────────────────────
+    // ── Generate Reports ──────────────────────────────────
 
     async function generateReports() {
         genReportsBtn.disabled = true;
         genReportsBtn.textContent = 'Generating...';
-
         try {
             const res = await fetch(API + '/api/coach/reports/generate', { method: 'POST' });
             const data = await res.json();
-
             if (data.count > 0) {
                 genReportsBtn.textContent = data.count + ' reports generated';
                 await checkStatus();
@@ -528,14 +500,57 @@
         }
     }
 
-    // ── Run Coach (one-shot) ────────────────────────────────
+    // ── Quick Digest ───────────────────────────────────────
+
+    async function runQuickDigest() {
+        const deckId = deckSelect.value;
+        if (!deckId) return;
+
+        const goals = getGoals();
+        quickBtn.disabled = true;
+        runBtn.disabled = true;
+        progressEl.style.display = 'flex';
+        progressText.textContent = '\u26A1 Quick Digest running (~5s)...';
+        resultsEl.style.display = 'none';
+
+        const prevError = document.querySelector('.coach-error');
+        if (prevError) prevError.remove();
+
+        try {
+            const res = await fetch(API + '/api/coach/decks/' + encodeURIComponent(deckId) + '/quick', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ goals }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+                throw new Error(err.detail || 'Quick digest failed (' + res.status + ')');
+            }
+            const session = await res.json();
+            currentSessionId = session.sessionId || null;
+            displaySession(session);
+            loadSessions();
+            showToast('Quick Digest complete!', 'success');
+        } catch (e) {
+            const errDiv = document.createElement('div');
+            errDiv.className = 'coach-error';
+            errDiv.textContent = 'Quick digest error: ' + e.message;
+            document.querySelector('.coach-config').appendChild(errDiv);
+        } finally {
+            quickBtn.disabled = false;
+            runBtn.disabled = false;
+            progressEl.style.display = 'none';
+        }
+    }
+
+    // ── Full Analysis ───────────────────────────────────────
 
     async function runCoach() {
         const deckId = deckSelect.value;
         if (!deckId) return;
 
         const goals = getGoals();
-
+        quickBtn.disabled = true;
         runBtn.disabled = true;
         progressEl.style.display = 'flex';
         progressText.textContent = 'Analyzing deck and consulting LLM... This may take 30-60 seconds.';
@@ -548,14 +563,12 @@
             const res = await fetch(API + '/api/coach/decks/' + encodeURIComponent(deckId), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ goals: goals }),
+                body: JSON.stringify({ goals }),
             });
-
             if (!res.ok) {
                 const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
                 throw new Error(err.detail || 'Coach request failed (' + res.status + ')');
             }
-
             const session = await res.json();
             currentSessionId = session.sessionId || null;
             displaySession(session);
@@ -566,9 +579,43 @@
             errDiv.textContent = 'Coach error: ' + e.message;
             document.querySelector('.coach-config').appendChild(errDiv);
         } finally {
+            quickBtn.disabled = false;
             runBtn.disabled = false;
             progressEl.style.display = 'none';
         }
+    }
+
+    // ── Top Priority Swap ──────────────────────────────────
+
+    function displayTopPriority(upgradePriority) {
+        if (!topPriorityCard || !topPriorityContent) return;
+        if (!upgradePriority || upgradePriority.length === 0) {
+            topPriorityCard.style.display = 'none';
+            return;
+        }
+        // Show rank-1 item (or first if rank field missing)
+        const top = upgradePriority.find(u => u.rank === 1) || upgradePriority[0];
+        const impactClass = {
+            high: 'coach-impact-negative',
+            medium: 'coach-impact-neutral',
+            low: 'coach-impact-positive'
+        }[top.expectedImpact] || 'coach-impact-neutral';
+
+        topPriorityContent.innerHTML =
+            '<div class="coach-priority-swap">' +
+                '<div class="coach-priority-row">' +
+                    '<span class="coach-priority-label">Cut</span>' +
+                    '<span class="coach-priority-card coach-pill-cut" data-card-name="' + escHtml(top.cut) + '">' + escHtml(top.cut) + '</span>' +
+                    '<span class="coach-priority-arrow">\u2192</span>' +
+                    '<span class="coach-priority-label">Add</span>' +
+                    '<span class="coach-priority-card coach-pill-add" data-card-name="' + escHtml(top.add) + '">' + escHtml(top.add) + '</span>' +
+                    '<span class="coach-impact ' + impactClass + '">' + escHtml(top.expectedImpact || '') + '</span>' +
+                '</div>' +
+                (top.reasoning ? '<p class="coach-priority-reasoning">' + escHtml(top.reasoning) + '</p>' : '') +
+            '</div>';
+
+        _attachCardHover(topPriorityContent);
+        topPriorityCard.style.display = 'block';
     }
 
     // ── Display Session Results ──────────────────────────────
@@ -580,18 +627,21 @@
         summaryText.textContent = session.summary || '(No summary provided)';
 
         metaRow.innerHTML = '';
-        if (session.modelUsed) addMetaChip('Model', session.modelUsed);
-        if (session.promptTokens) addMetaChip('Prompt', session.promptTokens.toLocaleString() + ' tokens');
+        if (session.modelUsed)        addMetaChip('Model', session.modelUsed);
+        if (session.promptTokens)     addMetaChip('Prompt', session.promptTokens.toLocaleString() + ' tokens');
         if (session.completionTokens) addMetaChip('Completion', session.completionTokens.toLocaleString() + ' tokens');
-        if (session.deckId) addMetaChip('Deck', session.deckId);
-        if (session.timestamp) addMetaChip('Time', formatTime(session.timestamp));
+        if (session.deckId)           addMetaChip('Deck', session.deckId);
+        if (session.timestamp)        addMetaChip('Time', formatTime(session.timestamp));
+        if (session.isQuickDigest)    addMetaChip('Mode', '\u26A1 Quick Digest');
+
+        // Top Priority Swap
+        displayTopPriority(session.upgradePriority || []);
 
         // Cuts table
         const cuts = session.suggestedCuts || [];
         cutsCount.textContent = cuts.length;
         cutsBody.innerHTML = '';
         cutsAllCheck.checked = false;
-
         for (const cut of cuts) {
             const tr = document.createElement('tr');
             tr.innerHTML =
@@ -613,7 +663,6 @@
         addsCount.textContent = adds.length;
         addsBody.innerHTML = '';
         addsAllCheck.checked = false;
-
         for (const add of adds) {
             const tr = document.createElement('tr');
             tr.innerHTML =
@@ -652,9 +701,7 @@
             manaCard.style.display = 'none';
         }
 
-        // Raw text
         rawText.textContent = session.rawTextExplanation || session.summary || '(empty)';
-
 
         _attachCardHover(cutsBody);
         _attachCardHover(addsBody);
@@ -666,31 +713,23 @@
     function updateApplyCount() {
         const cutChecked = cutsBody.querySelectorAll('input[type="checkbox"]:checked');
         const addChecked = addsBody.querySelectorAll('input[type="checkbox"]:checked');
-        const total = cutChecked.length + addChecked.length;
-
         applyCountEl.textContent = cutChecked.length + ' cuts, ' + addChecked.length + ' adds selected';
-        applyBtn.disabled = total === 0 || !applyDeckSelect.value;
+        applyBtn.disabled = (cutChecked.length + addChecked.length) === 0 || !applyDeckSelect.value;
     }
 
     applyDeckSelect.addEventListener('change', updateApplyCount);
 
     async function applySuggestions() {
         const deckId = parseInt(applyDeckSelect.value);
-        if (!deckId) {
-            showToast('Select a deck to apply suggestions to', 'warning');
-            return;
-        }
+        if (!deckId) { showToast('Select a deck to apply suggestions to', 'warning'); return; }
 
         const acceptedCuts = [];
         cutsBody.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-            const name = cb.dataset.card;
-            if (name) acceptedCuts.push(name);
+            if (cb.dataset.card) acceptedCuts.push(cb.dataset.card);
         });
-
         const acceptedAdds = [];
         addsBody.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-            const name = cb.dataset.card;
-            if (name) acceptedAdds.push(name);
+            if (cb.dataset.card) acceptedAdds.push(cb.dataset.card);
         });
 
         if (acceptedCuts.length === 0 && acceptedAdds.length === 0) {
@@ -712,17 +751,14 @@
                     accepted_adds: acceptedAdds,
                 }),
             });
-
             if (!res.ok) {
                 const err = await res.json().catch(() => ({ detail: 'Apply failed' }));
                 throw new Error(err.detail || 'Apply failed');
             }
-
             const result = await res.json();
             const msg = 'Applied: ' + result.total_cuts + ' cuts, ' + result.total_adds + ' adds' +
                 (result.errors.length > 0 ? ' (' + result.errors.length + ' errors)' : '');
             showToast(msg, result.errors.length > 0 ? 'warning' : 'success');
-
         } catch (e) {
             showToast('Apply error: ' + e.message, 'error');
         } finally {
@@ -732,19 +768,17 @@
         }
     }
 
-    // ── Multi-turn Chat ─────────────────────────────────────
+    // ── Multi-turn Chat ────────────────────────────────────
 
     async function sendChatMessage() {
         const text = chatInput.value.trim();
         if (!text || !deckSelect.value || isStreaming) return;
 
-        // Add user message
         chatHistory.push({ role: 'user', content: text });
         appendChatBubble('user', text);
         chatInput.value = '';
         chatSendBtn.disabled = true;
 
-        // Show typing indicator
         const typingEl = showTypingIndicator();
         isStreaming = true;
 
@@ -759,20 +793,16 @@
                     stream: true,
                 }),
             });
-
             if (!res.ok) {
                 const err = await res.json().catch(() => ({ detail: 'Chat failed' }));
                 throw new Error(err.detail || 'Chat failed (' + res.status + ')');
             }
 
-            // Remove typing indicator, add assistant bubble
             typingEl.remove();
             const bubbleEl = appendChatBubble('assistant', '');
             const contentEl = bubbleEl.querySelector('.coach-chat-bubble-content');
-
             let fullContent = '';
 
-            // Read SSE stream
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
@@ -780,18 +810,14 @@
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
                 buffer = lines.pop() || '';
-
                 for (const line of lines) {
                     const trimmed = line.trim();
                     if (!trimmed.startsWith('data: ')) continue;
-
                     const payload = trimmed.slice(6);
                     if (payload === '[DONE]') break;
-
                     try {
                         const chunk = JSON.parse(payload);
                         if (chunk.content) {
@@ -799,17 +825,13 @@
                             contentEl.innerHTML = formatMarkdown(fullContent);
                             scrollChatToBottom();
                         }
-                    } catch (e) {
-                        // skip malformed chunks
-                    }
+                    } catch (_) {}
                 }
             }
 
-            // Finalize
             chatHistory.push({ role: 'assistant', content: fullContent });
             contentEl.innerHTML = formatMarkdown(fullContent);
             scrollChatToBottom();
-
         } catch (e) {
             typingEl.remove();
             appendChatBubble('system', 'Error: ' + e.message);
@@ -820,18 +842,14 @@
     }
 
     function appendChatBubble(role, content) {
-        // Remove welcome message
         const welcome = chatMessages.querySelector('.coach-chat-welcome');
         if (welcome) welcome.remove();
-
         const bubble = document.createElement('div');
         bubble.className = 'coach-chat-bubble coach-chat-' + role;
-
         const label = role === 'user' ? 'You' : role === 'assistant' ? 'Coach' : 'System';
         bubble.innerHTML =
             '<div class="coach-chat-bubble-label">' + label + '</div>' +
             '<div class="coach-chat-bubble-content">' + (content ? formatMarkdown(content) : '') + '</div>';
-
         chatMessages.appendChild(bubble);
         scrollChatToBottom();
         return bubble;
@@ -848,9 +866,7 @@
         return el;
     }
 
-    function scrollChatToBottom() {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
+    function scrollChatToBottom() { chatMessages.scrollTop = chatMessages.scrollHeight; }
 
     function clearChat() {
         chatHistory = [];
@@ -863,7 +879,6 @@
 
     function formatMarkdown(text) {
         if (!text) return '';
-        // Basic markdown: bold, italic, code, line breaks
         return escHtml(text)
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.+?)\*/g, '<em>$1</em>')
@@ -871,7 +886,7 @@
             .replace(/\n/g, '<br>');
     }
 
-    // ── Cards-Like Search ───────────────────────────────────
+    // ── Cards-Like Search ──────────────────────────────────
 
     async function searchCardsLike() {
         const card = cardslikeInput.value.trim();
@@ -881,16 +896,13 @@
         document.querySelectorAll('.coach-cardslike-colors .coach-color-pip.active').forEach(btn => {
             activeColors.push(btn.dataset.color);
         });
-
         const topN = parseInt(cardslikeTopn.value) || 10;
 
         cardslikeResults.innerHTML = '<div class="coach-cardslike-loading"><div class="spinner"></div> Searching embeddings...</div>';
 
         try {
             let url = API + '/api/coach/cards-like?card=' + encodeURIComponent(card) + '&top_n=' + topN;
-            if (activeColors.length > 0) {
-                url += '&colors=' + activeColors.join('');
-            }
+            if (activeColors.length > 0) url += '&colors=' + activeColors.join('');
 
             const res = await fetch(url);
             if (!res.ok) {
@@ -910,13 +922,11 @@
             for (const card of results) {
                 const div = document.createElement('div');
                 div.className = 'coach-cardslike-card';
-
                 const simPct = Math.round(card.similarity * 100);
                 const ownedBadge = card.owned_qty > 0
                     ? '<span class="coach-cl-owned">' + card.owned_qty + ' owned</span>'
                     : '<span class="coach-cl-unowned">not owned</span>';
                 const price = card.tcg_price ? '$' + Number(card.tcg_price).toFixed(2) : '';
-
                 div.innerHTML =
                     '<div class="coach-cl-top">' +
                         '<span class="coach-cl-name" data-card-name="' + escHtml(card.name) + '">' + escHtml(card.name) + '</span>' +
@@ -932,27 +942,24 @@
                     '<div class="coach-cl-actions">' +
                         '<button class="btn btn-ghost btn-xs coach-cl-chat-btn">Add to Chat</button>' +
                     '</div>';
-
                 div.querySelector('.coach-cl-chat-btn').addEventListener('click', () => {
                     chatInput.value += (chatInput.value ? ' ' : '') + card.name;
                     chatInput.focus();
                     showToast(card.name + ' added to chat input', 'success');
                 });
-
                 cardslikeResults.appendChild(div);
-            _attachCardHover(div);
+                _attachCardHover(div);
             }
         } catch (e) {
             cardslikeResults.innerHTML = '<div class="coach-cardslike-empty">Error: ' + escHtml(e.message) + '</div>';
         }
     }
 
-    // Color pip toggle
     document.querySelectorAll('.coach-cardslike-colors .coach-color-pip').forEach(btn => {
         btn.addEventListener('click', () => btn.classList.toggle('active'));
     });
 
-    // ── Toast ───────────────────────────────────────────────
+    // ── Toast ─────────────────────────────────────────────
 
     function showToast(message, type) {
         const container = document.getElementById('coach-toast-container');
@@ -960,7 +967,6 @@
         toast.className = 'coach-toast coach-toast-' + (type || 'info');
         toast.textContent = message;
         container.appendChild(toast);
-
         setTimeout(() => toast.classList.add('coach-toast-show'), 10);
         setTimeout(() => {
             toast.classList.remove('coach-toast-show');
@@ -968,7 +974,7 @@
         }, 4000);
     }
 
-    // ── Helpers ─────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────
 
     function addMetaChip(label, value) {
         const chip = document.createElement('span');
@@ -978,26 +984,19 @@
     }
 
     function formatImpact(score) {
-        if (score === undefined || score === null) {
+        if (score === undefined || score === null)
             return '<span class="coach-impact coach-impact-neutral">\u2014</span>';
-        }
         const fixed = score.toFixed(3);
-        if (score < -0.01) {
-            return '<span class="coach-impact coach-impact-negative">' + fixed + '</span>';
-        } else if (score > 0.01) {
-            return '<span class="coach-impact coach-impact-positive">+' + fixed + '</span>';
-        } else {
-            return '<span class="coach-impact coach-impact-neutral">' + fixed + '</span>';
-        }
+        if (score < -0.01) return '<span class="coach-impact coach-impact-negative">' + fixed + '</span>';
+        if (score > 0.01)  return '<span class="coach-impact coach-impact-positive">+' + fixed + '</span>';
+        return '<span class="coach-impact coach-impact-neutral">' + fixed + '</span>';
     }
 
     function formatTime(isoStr) {
         try {
             const d = new Date(isoStr);
             return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        } catch {
-            return isoStr;
-        }
+        } catch { return isoStr; }
     }
 
     function escHtml(str) {

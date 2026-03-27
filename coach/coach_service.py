@@ -25,6 +25,9 @@ from .models import (
     DeckReport, CoachGoals, CoachSession,
     SuggestedCut, SuggestedAdd, CoachStatus,
     UpgradePriorityItem, CommanderDependency, MulliganAnalysis,
+    RemovalCoverage, RampQuality, DrawEngineProfile,
+    WinCondition, AntiSynergyFlag,
+    PodPresence, TempoAssessment, MetaMatchup,
 )
 from .llm_client import LLMClient
 from .embeddings import MTGEmbeddingIndex
@@ -62,7 +65,7 @@ class CoachService:
         self.embeddings = embeddings
         ensure_dirs()
 
-    # ── Deck Report I/O ────────────────────────────────────────
+    # ── Deck Report I/O ────────────────────────────────────
 
     def load_deck_report(self, deck_id: str) -> Optional[DeckReport]:
         """Load a deck report from disk."""
@@ -89,7 +92,7 @@ class CoachService:
             return []
         return [f.stem for f in DECK_REPORTS_DIR.glob("*.json")]
 
-    # ── Coach Session I/O ──────────────────────────────────────
+    # ── Coach Session I/O ──────────────────────────────
 
     def save_session(self, session: CoachSession) -> Path:
         """Persist a coaching session to disk and SQLite."""
@@ -184,7 +187,7 @@ class CoachService:
                 continue
         return sessions
 
-    # ── Main Coaching Pipeline ───────────────────────────────────
+    # ── Main Coaching Pipeline ───────────────────────────────
 
     async def run_coaching_session(
         self,
@@ -202,7 +205,6 @@ class CoachService:
         6. Parse response
         7. Persist session
         """
-        # 0. Auto-load embeddings if not loaded
         if not self.embeddings.loaded:
             logger.info("Embeddings not loaded — attempting auto-load...")
             try:
@@ -214,7 +216,6 @@ class CoachService:
             except Exception as e:
                 logger.warning("Embeddings auto-load failed: %s", e)
 
-        # 1. Load deck report
         report = self.load_deck_report(deck_id)
         if report is None and fallback_report is not None:
             report = fallback_report
@@ -222,10 +223,8 @@ class CoachService:
         if report is None:
             raise ValueError(f"Deck report not found for: {deck_id}")
 
-        # 2. Get deck card names (for exclusion from candidates)
         deck_card_names = [c.name for c in report.cards]
 
-        # 3. Find replacement candidates for underperformers
         candidates: Dict[str, List[dict]] = {}
         underperformers = report.underperformers[:MAX_UNDERPERFORMERS]
         if not underperformers:
@@ -254,11 +253,9 @@ class CoachService:
         else:
             logger.warning("Embeddings not loaded — skipping candidate search")
 
-        # 4. Build prompts
         system_prompt = build_system_prompt(report, goals)
         user_prompt = build_user_prompt(report, candidates)
 
-        # 5. Call LLM
         logger.info("Calling LLM for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
 
         if COACH_PROVIDER == "anthropic":
@@ -266,8 +263,6 @@ class CoachService:
             anthropic_key = ANTHROPIC_API_KEY
             if not anthropic_key:
                 raise ConnectionError("Anthropic API key not configured. Set ANTHROPIC_API_KEY env var.")
-
-            # Use streaming to avoid the Anthropic SDK 10-minute non-streaming timeout.
             aclient = _anthropic.AsyncAnthropic(api_key=anthropic_key)
             async with aclient.messages.stream(
                 model=ANTHROPIC_MODEL,
@@ -279,8 +274,6 @@ class CoachService:
                 content = await stream.get_final_text()
                 final_msg = await stream.get_final_message()
             usage = getattr(final_msg, "usage", None)
-
-            # Build an LLMResponse-compatible object
             from types import SimpleNamespace
             llm_response = SimpleNamespace(
                 content=content,
@@ -303,7 +296,6 @@ class CoachService:
         else:
             llm_response = await self.llm.chat(system_prompt, user_prompt)
 
-        # 6. Parse response into CoachSession
         session_id = f"sess-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         session = CoachSession(
             sessionId=session_id,
@@ -321,10 +313,90 @@ class CoachService:
             session.rawTextExplanation = llm_response.content
             session.summary = "LLM returned non-JSON response. See raw explanation."
 
-        # 7. Persist
         self.save_session(session)
         logger.info("Coaching session saved: %s", session_id)
         return session
+
+    # ── Quick Digest ──────────────────────────────────────────
+
+    async def run_quick_digest(
+        self,
+        deck_id: str,
+        goals: Optional[CoachGoals] = None,
+        fallback_report: Optional[DeckReport] = None,
+    ) -> CoachSession:
+        """Fast ~400-600 token call: summary + top 3 upgradePriority + commanderDependency."""
+        report = self.load_deck_report(deck_id)
+        if report is None and fallback_report is not None:
+            report = fallback_report
+        if report is None:
+            raise ValueError(f"Deck report not found for: {deck_id}")
+
+        from .prompt_template import build_quick_system_prompt, build_user_prompt
+        system_prompt = build_quick_system_prompt(report, goals)
+        user_prompt = build_user_prompt(report, {})  # no candidates for speed
+
+        logger.info("Quick digest for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
+
+        if COACH_PROVIDER == "anthropic":
+            import anthropic as _anthropic
+            anthropic_key = ANTHROPIC_API_KEY
+            if not anthropic_key:
+                raise ConnectionError("Anthropic API key not configured.")
+            aclient = _anthropic.AsyncAnthropic(api_key=anthropic_key)
+            async with aclient.messages.stream(
+                model=ANTHROPIC_MODEL,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+                max_tokens=1024,
+                temperature=0.5,
+            ) as stream:
+                content = await stream.get_final_text()
+                final_msg = await stream.get_final_message()
+                usage = getattr(final_msg, "usage", None)
+            from types import SimpleNamespace
+            llm_response = SimpleNamespace(
+                content=content,
+                model=final_msg.model,
+                prompt_tokens=usage.input_tokens if usage else 0,
+                completion_tokens=usage.output_tokens if usage else 0,
+                parsed_json=None,
+            )
+            try:
+                cleaned = re.sub(r'^```(?:json)?\s*', '', content.strip())
+                cleaned = re.sub(r'\s*```$', '', cleaned.strip())
+                llm_response.parsed_json = json.loads(cleaned)
+            except (json.JSONDecodeError, ValueError):
+                match = re.search(r'\{[\s\S]*\}', content)
+                if match:
+                    try:
+                        llm_response.parsed_json = json.loads(match.group(0))
+                    except json.JSONDecodeError:
+                        pass
+        else:
+            llm_response = await self.llm.chat(system_prompt, user_prompt)
+
+        session_id = f"quick-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
+        session = CoachSession(
+            sessionId=session_id,
+            deckId=deck_id,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            modelUsed=llm_response.model,
+            promptTokens=llm_response.prompt_tokens,
+            completionTokens=llm_response.completion_tokens,
+            goals=goals,
+            isQuickDigest=True,
+        )
+        if llm_response.parsed_json:
+            self._populate_session_from_json(session, llm_response.parsed_json)
+        else:
+            session.rawTextExplanation = llm_response.content
+            session.summary = "Quick digest returned non-JSON. See raw explanation."
+
+        self.save_session(session)
+        return session
+
+    # ── JSON Parser ───────────────────────────────────────────
 
     def _populate_session_from_json(self, session: CoachSession, data: dict):
         """Parse LLM JSON response into CoachSession fields."""
@@ -352,7 +424,7 @@ class CoachService:
                     synergyWith=add_data.get("synergyWith", []),
                 ))
 
-        # Phase 2: Parse upgrade priority
+        # Phase 2
         for item in data.get("upgradePriority", []):
             if isinstance(item, dict):
                 session.upgradePriority.append(UpgradePriorityItem(
@@ -363,7 +435,6 @@ class CoachService:
                     expectedImpact=item.get("expectedImpact", ""),
                 ))
 
-        # Phase 2: Parse commander dependency
         cd = data.get("commanderDependency")
         if isinstance(cd, dict):
             session.commanderDependency = CommanderDependency(
@@ -372,7 +443,6 @@ class CoachService:
                 recoveryPlan=cd.get("recoveryPlan", ""),
             )
 
-        # Phase 2: Parse mulligan analysis
         ma = data.get("mulliganAnalysis")
         if isinstance(ma, dict):
             session.mulliganAnalysis = MulliganAnalysis(
@@ -381,7 +451,82 @@ class CoachService:
                 recommendation=ma.get("recommendation", ""),
             )
 
-    # ── Status Check ───────────────────────────────────────────
+        # Phase 3: Removal coverage
+        rc = data.get("removalCoverage")
+        if isinstance(rc, dict):
+            session.removalCoverage = RemovalCoverage(**{
+                k: rc.get(k, "" if k != "gaps" else [])
+                for k in ["creatures", "artifacts", "enchantments", "planeswalkers", "lands", "massRemoval", "gaps"]
+            })
+
+        # Phase 3: Ramp quality
+        rq = data.get("rampQuality")
+        if isinstance(rq, dict):
+            session.rampQuality = RampQuality(**{
+                k: rq.get(k, "") for k in ["manaRocks", "landFetch", "manaDorks", "costReducers", "fragility", "canReachFourByTurnThree"]
+            })
+
+        # Phase 3: Draw engine profile
+        dep = data.get("drawEngineProfile")
+        if isinstance(dep, dict):
+            session.drawEngineProfile = DrawEngineProfile(
+                burstDraw=dep.get("burstDraw", []),
+                repeatableEngines=dep.get("repeatableEngines", []),
+                assessment=dep.get("assessment", ""),
+                sustainability=dep.get("sustainability", ""),
+            )
+
+        # Phase 3: Win conditions
+        for wc in data.get("winConditions", []):
+            if isinstance(wc, dict):
+                session.winConditions.append(WinCondition(
+                    name=wc.get("name", ""),
+                    cards=wc.get("cards", []),
+                    independence=wc.get("independence", ""),
+                    description=wc.get("description", ""),
+                ))
+
+        # Phase 3: Anti-synergy flags
+        for af in data.get("antiSynergyFlags", []):
+            if isinstance(af, dict):
+                session.antiSynergyFlags.append(AntiSynergyFlag(
+                    cards=af.get("cards", []),
+                    conflict=af.get("conflict", ""),
+                    severity=af.get("severity", ""),
+                ))
+
+        # Phase 5: Pod presence
+        pp = data.get("podPresence")
+        if isinstance(pp, dict):
+            session.podPresence = PodPresence(
+                threatLevel=pp.get("threatLevel", ""),
+                politicalTools=pp.get("politicalTools", []),
+                adversarialRating=pp.get("adversarialRating", ""),
+                recommendation=pp.get("recommendation", ""),
+            )
+
+        # Phase 5: Tempo assessment
+        ta = data.get("tempoAssessment")
+        if isinstance(ta, dict):
+            session.tempoAssessment = TempoAssessment(
+                peakTurn=ta.get("peakTurn", 0),
+                profile=ta.get("profile", ""),
+                survivalWindow=ta.get("survivalWindow", ""),
+                assessment=ta.get("assessment", ""),
+            )
+
+        # Phase 5: Meta matchups
+        for mm in data.get("metaMatchups", []):
+            if isinstance(mm, dict):
+                session.metaMatchups.append(MetaMatchup(
+                    archetype=mm.get("archetype", ""),
+                    assessment=mm.get("assessment", ""),
+                    keyThreats=mm.get("keyThreats", []),
+                    keyAnswers=mm.get("keyAnswers", []),
+                    overallRating=mm.get("overallRating", ""),
+                ))
+
+    # ── Status Check ─────────────────────────────────────────
 
     def get_status(self) -> CoachStatus:
         """Check the health of all coach subsystems."""

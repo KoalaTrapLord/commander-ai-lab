@@ -40,6 +40,14 @@ RULES:
 - Assess how dependent the deck is on the commander being in play.
 - Evaluate opening hand quality and identify cards that cause bad mulligans.
 - Rank your suggested swaps by priority so the user knows what to change first.
+- Categorize the removal package by permanent type and flag coverage gaps.
+- Evaluate the ramp package for fragility (creature/artifact-heavy vs land-based).
+- Distinguish one-time draw from repeatable draw engines.
+- Identify the top 3 win conditions and rate each for independence.
+- Flag internal anti-synergies or card conflicts.
+- Assess pod threat perception: does this deck draw too much hate too early?
+- Evaluate when the deck comes online (tempo profile) and whether that's viable.
+- Reason about matchups vs fast combo, stax/prison, and control archetypes.
 {goals_section}
 
 You MUST respond ONLY with valid JSON matching this exact structure:
@@ -102,10 +110,102 @@ You MUST respond ONLY with valid JSON matching this exact structure:
     "Detailed strategic tip explaining the reasoning and data behind the suggestion"
   ],
   "manaBaseAdvice": "Specific mana base improvement suggestion including land count, color fixing, and utility lands, or null if mana base is solid",
-  "rawTextExplanation": "3-5 paragraph in-depth analysis covering: (1) overall deck strategy assessment and how well the deck executes its game plan based on simulation data, (2) mana curve and resource analysis with specific numbers including avgTurnCast for key cards, (3) card synergy evaluation highlighting the strongest and weakest interactions using synergyScore data, (4) meta considerations and matchup-specific insights referencing perArchetypeWinRates, and (5) prioritized list of improvements ranked by expected impact on win rate"
+  "rawTextExplanation": "3-5 paragraph in-depth analysis covering: (1) overall deck strategy assessment and how well the deck executes its game plan based on simulation data, (2) mana curve and resource analysis with specific numbers including avgTurnCast for key cards, (3) card synergy evaluation highlighting the strongest and weakest interactions using synergyScore data, (4) meta considerations and matchup-specific insights referencing perArchetypeWinRates, and (5) prioritized list of improvements ranked by expected impact on win rate",
+  "removalCoverage": {{
+    "creatures": "Assessment of creature removal",
+    "artifacts": "Assessment of artifact removal",
+    "enchantments": "Assessment of enchantment removal",
+    "planeswalkers": "Assessment of planeswalker removal",
+    "lands": "Assessment of land destruction",
+    "massRemoval": "Assessment of board wipes",
+    "gaps": ["Permanent types with zero or weak coverage"]
+  }},
+  "rampQuality": {{
+    "manaRocks": "2-mana rocks, signets, etc.",
+    "landFetch": "Cultivate, Kodama's Reach, etc.",
+    "manaDorks": "Llanowar Elves, Birds, etc.",
+    "costReducers": "Medallions, Helm of Awakening, etc.",
+    "fragility": "Overall fragility assessment",
+    "canReachFourByTurnThree": "yes/no with reasoning"
+  }},
+  "drawEngineProfile": {{
+    "burstDraw": ["One-time draw spells"],
+    "repeatableEngines": ["Sustained draw engines"],
+    "assessment": "Overall draw quality",
+    "sustainability": "Whether draw is sustainable or burst-only"
+  }},
+  "winConditions": [
+    {{
+      "name": "Name of win condition",
+      "cards": ["Key cards involved"],
+      "independence": "high|medium|low",
+      "description": "How this win con functions"
+    }}
+  ],
+  "antiSynergyFlags": [
+    {{
+      "cards": ["Card A", "Card B"],
+      "conflict": "Description of conflict",
+      "severity": "high|medium|low"
+    }}
+  ],
+  "podPresence": {{
+    "threatLevel": "early|medium|late|low",
+    "politicalTools": ["Pillowfort or group effect cards"],
+    "adversarialRating": "low|medium|high",
+    "recommendation": "How to manage threat perception in a pod"
+  }},
+  "tempoAssessment": {{
+    "peakTurn": 5,
+    "profile": "early|mid|late",
+    "survivalWindow": "Assessment of whether the deck survives to its power window",
+    "assessment": "Overall tempo evaluation"
+  }},
+  "metaMatchups": [
+    {{
+      "archetype": "fast-combo|stax|control|aggro|midrange",
+      "assessment": "How the deck fares against this archetype",
+      "keyThreats": ["Cards/strategies that threaten this deck"],
+      "keyAnswers": ["Cards in the deck that answer this archetype"],
+      "overallRating": "favored|even|unfavored"
+    }}
+  ]
 }}
 
 Do NOT include any text outside the JSON object. No markdown fences, no preamble."""
+
+# ══════════════════════════════════════════════════════════════
+# Quick Digest Prompt
+# ══════════════════════════════════════════════════════════════
+
+QUICK_DIGEST_SYSTEM_PROMPT = """You are an expert Magic: The Gathering Commander deck coach.
+Provide a FAST summary analysis of this deck. Be concise.
+
+RULES:
+- NEVER suggest cutting the commander ({commander}).
+- Only suggest cards within the deck's color identity: {color_identity}.
+{goals_section}
+
+You MUST respond ONLY with valid JSON matching this exact structure:
+{{
+  "summary": "3-sentence deck overview: what it does, main strength, main weakness.",
+  "upgradePriority": [
+    {{
+      "rank": 1,
+      "cut": "Card to remove",
+      "add": "Card to add instead",
+      "reasoning": "Why this is a high-impact swap",
+      "expectedImpact": "high|medium|low"
+    }}
+  ],
+  "commanderDependency": {{
+    "score": 5,
+    "dependentCards": ["Card that is nearly dead without commander"],
+    "recoveryPlan": "Brief recovery strategy"
+  }}
+}}
+Do NOT include any text outside the JSON object. No markdown fences, no preamble."""
+
 
 # ══════════════════════════════════════════════════════════════
 # User Prompt Builder
@@ -284,6 +384,17 @@ def build_system_prompt(report: DeckReport,
   """Build the system prompt with deck-specific rules."""
   color_str = "/".join(report.colorIdentity) if report.colorIdentity else "any"
   return SYSTEM_PROMPT_TEMPLATE.format(
+    commander=report.commander,
+    color_identity=color_str,
+    goals_section=_format_goals_section(goals),
+  )
+
+
+def build_quick_system_prompt(report: DeckReport,
+                              goals: Optional[CoachGoals] = None) -> str:
+  """Build the quick digest system prompt (~400-600 token target)."""
+  color_str = "/".join(report.colorIdentity) if report.colorIdentity else "any"
+  return QUICK_DIGEST_SYSTEM_PROMPT.format(
     commander=report.commander,
     color_identity=color_str,
     goals_section=_format_goals_section(goals),
