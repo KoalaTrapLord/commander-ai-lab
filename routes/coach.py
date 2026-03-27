@@ -6,6 +6,7 @@ LLM-powered deck coaching endpoints:
   GET  /api/coach/decks
   GET  /api/coach/decks/{deck_id}/report
   POST /api/coach/decks/{deck_id}
+  POST /api/coach/decks/{deck_id}/quick
   GET  /api/coach/sessions
   GET  /api/coach/sessions/{session_id}
   POST /api/coach/embeddings/download
@@ -192,6 +193,34 @@ async def coach_run_session(deck_id: str, body: CoachRequestBody = None):
     raise HTTPException(503, f"LLM connection failed: {e}")
   except Exception as e:
     raise HTTPException(500, f"Coach session failed: {e}")
+
+
+@router.post("/api/coach/decks/{deck_id}/quick")
+async def coach_run_quick_digest(deck_id: str, body: CoachRequestBody = None):
+  """Fast ~5s quick digest: summary, top 3 upgrades, commander dependency."""
+  if _coach_service is None:
+    raise HTTPException(500, "Coach service not initialized")
+  goals = None
+  if body and body.goals:
+    from coach.models import CoachGoals
+    try:
+      goals = CoachGoals(**body.goals)
+    except Exception:
+      goals = None
+  fallback_report = None
+  try:
+    fallback_report = await _build_deck_report_from_db(deck_id)
+  except Exception as e:
+    log_coach.error(f"  Coach: Quick fallback failed for '{deck_id}': {e}")
+  try:
+    session = await _coach_service.run_quick_digest(deck_id, goals, fallback_report=fallback_report)
+    return session.model_dump()
+  except ValueError as e:
+    raise HTTPException(404, str(e))
+  except ConnectionError as e:
+    raise HTTPException(503, f"LLM connection failed: {e}")
+  except Exception as e:
+    raise HTTPException(500, f"Quick digest failed: {e}")
 
 
 async def _build_deck_report_from_db(deck_slug: str):
