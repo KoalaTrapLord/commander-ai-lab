@@ -31,8 +31,11 @@ RULES:
 - Vary your suggestions across different functional roles (ramp, draw, removal, threats, utility).
 - If the deck is missing a functional role (e.g., no card draw, no removal), prioritize adding cards for that role.
 - If candidate replacements are provided from embeddings search, prefer those over generic suggestions.
-- For each suggested cut, provide a DETAILED reason citing specific stats (impact score, cast rate, dead card rate).
+- For each suggested cut, provide a DETAILED reason citing specific stats (impact score, cast rate, dead card rate, clunkiness, synergy score).
 - For each suggested add, explain the SPECIFIC synergy with existing cards in the deck.
+- When reasoning about cuts, also consider keptInOpeningHandRate (low = bad in opening hands) and avgTurnCast (high = too slow for the curve).
+- When evaluating synergy, use the synergyScore: cards below 0.1 have weak co-occurrence with the rest of the deck.
+- Use perArchetypeWinRates to identify which matchup types this deck struggles with and tailor suggestions accordingly.
 - Provide at least 5 heuristic hints covering different strategic dimensions.
 {goals_section}
 
@@ -42,7 +45,7 @@ You MUST respond ONLY with valid JSON matching this exact structure:
   "suggestedCuts": [
     {{
       "cardName": "Card To Remove",
-      "reason": "Detailed explanation citing specific simulation stats (impact score, cast rate, dead card rate) and why this card underperforms in this specific deck context",
+      "reason": "Detailed explanation citing specific simulation stats (impact score, cast rate, dead card rate, clunkiness score, synergy score, avg turn cast) and why this card underperforms in this specific deck context",
       "replacementOptions": ["Better Card 1", "Better Card 2"],
       "functionalRole": "ramp|draw|removal|threat|utility|combo|protection",
       "estimatedImpact": "How cutting this card is expected to improve the deck"
@@ -77,7 +80,7 @@ You MUST respond ONLY with valid JSON matching this exact structure:
     "Detailed strategic tip explaining the reasoning and data behind the suggestion"
   ],
   "manaBaseAdvice": "Specific mana base improvement suggestion including land count, color fixing, and utility lands, or null if mana base is solid",
-  "rawTextExplanation": "3-5 paragraph in-depth analysis covering: (1) overall deck strategy assessment and how well the deck executes its game plan based on simulation data, (2) mana curve and resource analysis with specific numbers, (3) card synergy evaluation highlighting the strongest and weakest interactions, (4) meta considerations and matchup-specific insights, and (5) prioritized list of improvements ranked by expected impact on win rate"
+  "rawTextExplanation": "3-5 paragraph in-depth analysis covering: (1) overall deck strategy assessment and how well the deck executes its game plan based on simulation data, (2) mana curve and resource analysis with specific numbers including avgTurnCast for key cards, (3) card synergy evaluation highlighting the strongest and weakest interactions using synergyScore data, (4) meta considerations and matchup-specific insights referencing perArchetypeWinRates, and (5) prioritized list of improvements ranked by expected impact on win rate"
 }}
 
 Do NOT include any text outside the JSON object. No markdown fences, no preamble."""
@@ -102,6 +105,9 @@ Avg Game Length: {avg_game_length:.1f} turns
 
 ### Matchup Data
 {matchup_section}
+
+### Archetype Win Rates
+{archetype_section}
 
 ### Top Performing Cards (by Impact Score)
 {top_cards}
@@ -152,28 +158,38 @@ def _format_curve(buckets: List[int]) -> str:
 
 
 def _format_top_cards(cards: List[CardPerformance], top_n: int = 10) -> str:
-    """Format the best performing cards."""
+    """Format the best performing cards with extended stats."""
     sorted_cards = sorted(cards, key=lambda c: c.impactScore, reverse=True)
     lines = []
     for c in sorted_cards[:top_n]:
         tags = f" [{', '.join(c.tags)}]" if c.tags else ""
-        lines.append(f"- {c.name}: impact={c.impactScore:.3f}, "
-                     f"castRate={c.castRate:.1%}, drawnRate={c.drawnRate:.1%}{tags}")
+        turn_str = f", avgTurnCast={c.avgTurnCast:.1f}" if c.avgTurnCast is not None else ""
+        lines.append(
+            f"- {c.name}: impact={c.impactScore:.3f}, "
+            f"castRate={c.castRate:.1%}, drawnRate={c.drawnRate:.1%}, "
+            f"synergy={c.synergyScore:.3f}{turn_str}{tags}"
+        )
     return "\n".join(lines) if lines else "No card performance data available."
 
 
 def _format_underperformers(cards: List[CardPerformance],
-                            underperformer_names: List[str]) -> str:
-    """Format underperforming cards with their stats."""
+                             underperformer_names: List[str]) -> str:
+    """Format underperforming cards with full available stats."""
     card_map = {c.name: c for c in cards}
     lines = []
     for name in underperformer_names[:MAX_UNDERPERFORMERS]:
         c = card_map.get(name)
         if c:
-            lines.append(f"- {c.name}: impact={c.impactScore:.3f}, "
-                         f"deadCardRate={c.deadCardRate:.1%}, "
-                         f"castRate={c.castRate:.1%}, "
-                         f"clunkiness={c.clunkinessScore:.3f}")
+            turn_str = f", avgTurnCast={c.avgTurnCast:.1f}" if c.avgTurnCast is not None else ""
+            lines.append(
+                f"- {c.name}: impact={c.impactScore:.3f}, "
+                f"deadCardRate={c.deadCardRate:.1%}, "
+                f"castRate={c.castRate:.1%}, "
+                f"clunkiness={c.clunkinessScore:.3f}, "
+                f"synergy={c.synergyScore:.3f}, "
+                f"keptInOpeningHand={c.keptInOpeningHandRate:.1%}"
+                f"{turn_str}"
+            )
         else:
             lines.append(f"- {name}: (no detailed stats)")
     return "\n".join(lines) if lines else "No clear underperformers identified."
@@ -182,11 +198,13 @@ def _format_underperformers(cards: List[CardPerformance],
 def _format_candidates(candidates: Dict[str, List[dict]]) -> str:
     """Format replacement candidates grouped by the card they'd replace."""
     if not candidates:
-        return ("No embedding-based candidates available. "
-                "Use your MTG knowledge to suggest cards that fit the deck's "
-                "color identity, strategy, and missing functional roles. "
-                "Suggest at least 3 different cards across different roles "
-                "(ramp, draw, removal, threats, utility).")
+        return (
+            "No embedding-based candidates available. "
+            "Use your MTG knowledge to suggest cards that fit the deck's "
+            "color identity, strategy, and missing functional roles. "
+            "Suggest at least 3 different cards across different roles "
+            "(ramp, draw, removal, threats, utility)."
+        )
 
     lines = []
     for underperformer, replacements in list(candidates.items())[:MAX_UNDERPERFORMERS]:
@@ -207,13 +225,26 @@ def _format_candidates(candidates: Dict[str, List[dict]]) -> str:
 
 
 def _format_matchups(report: DeckReport) -> str:
-    """Format matchup data."""
+    """Format per-opponent matchup data."""
     if not report.matchups:
         return "No matchup data available."
     lines = []
     for m in report.matchups:
-        lines.append(f"- vs {m.opponentDeck}: {m.winRate:.1%} "
-                     f"({m.gamesPlayed} games)")
+        lines.append(
+            f"- vs {m.opponentDeck}: {m.winRate:.1%} "
+            f"({m.gamesPlayed} games)"
+        )
+    return "\n".join(lines)
+
+
+def _format_archetypes(report: DeckReport) -> str:
+    """Format per-archetype win rates from DeckMeta."""
+    rates = report.meta.perArchetypeWinRates
+    if not rates:
+        return "No archetype breakdown available."
+    lines = []
+    for archetype, wr in sorted(rates.items(), key=lambda x: x[1]):
+        lines.append(f"- vs {archetype}: {wr:.1%}")
     return "\n".join(lines)
 
 
@@ -224,8 +255,10 @@ def _format_combos(report: DeckReport) -> str:
     lines = ["### Known Combos"]
     for combo in report.knownCombos:
         cards = " + ".join(combo.cardNames)
-        lines.append(f"- {cards}: winRate={combo.winRateWhenAssembled:.1%}, "
-                     f"assemblyRate={combo.assemblyRate:.1%}")
+        lines.append(
+            f"- {cards}: winRate={combo.winRateWhenAssembled:.1%}, "
+            f"assemblyRate={combo.assemblyRate:.1%}"
+        )
     return "\n".join(lines)
 
 
@@ -266,6 +299,7 @@ def build_user_prompt(report: DeckReport,
         type_summary=", ".join(type_parts),
         role_summary=", ".join(role_parts),
         matchup_section=_format_matchups(report),
+        archetype_section=_format_archetypes(report),
         top_cards=_format_top_cards(report.cards),
         underperformer_section=_format_underperformers(
             report.cards, report.underperformers),
