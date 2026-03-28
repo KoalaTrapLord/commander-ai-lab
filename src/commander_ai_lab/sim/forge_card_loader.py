@@ -39,10 +39,22 @@ _FORGE_CACHE_LOADED: bool = False
 
 
 def _get_cards_folder() -> Path:
-    """Resolve the Forge cardsfolder directory from CFG.forge_dir."""
+    """Resolve the Forge cardsfolder directory from CFG.forge_dir.
+
+    Supports two layouts:
+      A) forge_dir = .../forge-repo          -> forge-gui/res/cardsfolder
+      B) forge_dir = .../forge-repo/forge-gui -> res/cardsfolder
+    """
     if not CFG.forge_dir:
         return Path("")
-    return Path(CFG.forge_dir) / "forge-gui" / "res" / "cardsfolder"
+    base = Path(CFG.forge_dir)
+    candidate_a = base / "forge-gui" / "res" / "cardsfolder"
+    candidate_b = base / "res" / "cardsfolder"
+    if candidate_a.is_dir():
+        return candidate_a
+    if candidate_b.is_dir():
+        return candidate_b
+    return candidate_a  # fall back so warning shows the expected path
 
 
 def _parse_forge_file(filepath: Path) -> Optional[ForgeCardData]:
@@ -58,7 +70,6 @@ def _parse_forge_file(filepath: Path) -> Optional[ForgeCardData]:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-
         # Name
         if line.startswith("Name:"):
             data.name = line.split(":", 1)[1].strip()
@@ -150,3 +161,11 @@ def lookup_forge_card(card_name: str) -> Optional[ForgeCardData]:
     """Look up a card by name from the Forge cache. Returns None on miss."""
     _load_forge_cache()
     return _FORGE_CACHE.get((card_name or "").lower().strip())
+
+
+def reset_forge_cache() -> None:
+    """Force a reload of the Forge card cache on next lookup."""
+    global _FORGE_CACHE_LOADED
+    _FORGE_CACHE.clear()
+    _FORGE_CACHE_LOADED = False
+    _log.info("Forge card cache cleared — will reload on next lookup")
