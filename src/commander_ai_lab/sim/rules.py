@@ -24,7 +24,7 @@ from commander_ai_lab.sim.forge_card_loader import lookup_forge_card, ForgeCardD
 
 
 # ══════════════════════════════════════════════════════════════
-# AI Weights (ported from AI_DEFAULT_WEIGHTS in app.js)
+AI Weights (ported from AI_DEFAULT_WEIGHTS in app.js)
 # ══════════════════════════════════════════════════════════════
 
 AI_DEFAULT_WEIGHTS: dict[str, float] = {
@@ -141,6 +141,21 @@ _KNOWN_CARDS: list[tuple[re.Pattern, dict]] = [
 ]
 
 
+# Nonbasic land name guard — compiled once at module load, not inside enrich_card().
+# Catches common land names that Forge may return with cmc=0 (causing has_real_data
+# to stay False) or that arrive with no Scryfall data at all.
+# Extended per Bug 3 to cover fetchlands, shocklands, filter lands, pain lands, etc.
+_land_kw = re.compile(
+    r"\b(grove|garden|glade|falls|summit|crag|chapel|retreat|harbor|cemetery|"
+    r"pool|fountain|shrine|foundry|vents|grave|crypt|tomb|ground|ruins|mesa|"
+    r"tarn|delta|strand|heath|mire|bog|den|lair|hollow|flats|wastes|expanse|"
+    r"vista|nexus|spire|sanctum|citadel|reaches|keeps|gate|springs|crossing|"
+    r"command tower|path of ancestry|evolving wilds|terramorphic|"
+    r"exotic orchard|mana confluence|city of brass|reflecting pool|"
+    r"fabled passage|prismatic vista|command beacon|ash barrens)\b",
+    re.IGNORECASE,
+)
+
 
 def _apply_forge_data(card: Card, forge_data: ForgeCardData) -> None:
     """
@@ -182,6 +197,7 @@ def _apply_forge_data(card: Card, forge_data: ForgeCardData) -> None:
     if forge_data.oracle_text and not card.oracle_text:
         card.oracle_text = forge_data.oracle_text
 
+
 def enrich_card(card: Card) -> Card:
     """
     Enrich a card with type/cost heuristics if it lacks Scryfall data.
@@ -198,8 +214,12 @@ def enrich_card(card: Card) -> Card:
         if forge_data:
             _apply_forge_data(card, forge_data)  # sets oracle_text, keywords, etc.
             card.forge_enriched = True
-            # Re-check: if Forge provided sufficient data, apply flags and return
+            # Re-check: if Forge provided sufficient data, apply flags and return.
+            # Bug 3 fix: lands always have cmc=0, so explicitly allow type_line
+            # containing "land" to satisfy has_real_data even when cmc is 0.
             has_real_data = card.cmc > 0 or (card.type_line and len(card.type_line) > 5)
+            if not has_real_data and card.type_line and "land" in card.type_line.lower():
+                has_real_data = True  # lands are valid cards even with cmc=0
             if has_real_data:
                 _apply_oracle_flags(card)
                 return card
@@ -223,15 +243,8 @@ def enrich_card(card: Card) -> Card:
                 _apply_oracle_flags(card)
                 return card
 
-
-                # ── Nonbasic land name guard (Issue #118) ──────────────────
-        # Catch common nonbasic lands BEFORE the creature fallback
-        _land_kw = re.compile(
-            r"\b(grove|garden|glade|falls|summit|crag|chapel|retreat|harbor|cemetery|"
-            r"pool|fountain|shrine|foundry|vents|grave|crypt|tomb|ground|"
-            r"command tower|path of ancestry|evolving wilds|terramorphic|expanse|"
-            r"exotic orchard|mana confluence|city of brass|reflecting pool|"
-            r"fabled passage|prismatic vista)\b", re.IGNORECASE)
+        # Nonbasic land name guard — catches fetchlands, shocklands, filter lands,
+        # pain lands, and other common nonbasic lands BEFORE the creature fallback.
         if _land_kw.search(name_lower):
             card.type_line = "Land"
             card.cmc = 0
@@ -299,7 +312,7 @@ def _apply_oracle_flags(card: Card) -> None:
             card.is_ramp = True
 
 
-# ── Direct-damage (burn spell) detection ──────────────────────
+# ── Direct-damage (burn spell) detection ────────────────────────────
 
 # Regex: "deals N damage to target|any target" (not "each creature" — that's a wipe)
 _DIRECT_DAMAGE_RE = re.compile(
@@ -357,7 +370,7 @@ def _detect_direct_damage(card: Card, oracle: str) -> None:
         card.direct_damage_amount = int(m.group(1))
 
 
-# ── Multi-opponent scaling factors ────────────────────────────
+# ── Multi-opponent scaling factors ────────────────────────────────
 # Keywords / effects that become more valuable in larger pods.
 # Each entry maps a weight key → the extra bonus *per additional
 # opponent* beyond 1.  1v1 uses base weights; 4-player FFA adds
