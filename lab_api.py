@@ -26,7 +26,7 @@ except ImportError:
     print("ERROR: FastAPI not installed. Run: pip install fastapi uvicorn")
     import sys; sys.exit(1)
 
-from models.state import CFG, COMMANDER_META, load_commander_meta
+from models.state import CFG, COMMANDER_META, load_commander_meta, validate_forge_config
 from services.database import init_collection_db
 from services.logging import setup_logging
 from services.precon_service import PRECON_INDEX, download_precon_database
@@ -57,6 +57,7 @@ async def _lifespan(application: FastAPI):
     if not CFG.precon_dir:
         CFG.precon_dir = _resolve_precon_dir()
     init_collection_db()
+    validate_forge_config()
     if not PRECON_INDEX:
         download_precon_database()
     if not COMMANDER_META:
