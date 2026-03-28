@@ -15,7 +15,9 @@ Unity connects to the WebSocket endpoint and receives:
 """
 from __future__ import annotations
 
+import copy
 import logging
+import time
 import uuid
 from typing import Optional
 
@@ -69,11 +71,8 @@ async def game_ws(websocket: WebSocket, game_id: str):
 
             elif msg_type == "request_snapshot":
                 if tracker.has_baseline:
-                    # Re-send current state as full snapshot
-                    import copy
                     snap = copy.deepcopy(tracker._last_snapshot)
                     tracker._seq += 1
-                    import time
                     await websocket.send_json({
                         "type": "snapshot",
                         "seq": tracker._seq,
@@ -128,12 +127,7 @@ class GameOverEvent(BaseModel):
 
 @router.post("/api/ws/game/{game_id}/push")
 async def push_game_state(game_id: str, req: PushStateRequest):
-    """Push a game state update to all connected Unity clients.
-
-    Called by the Forge IPC bridge or policy server after each
-    state change. The delta engine diffs against the previous
-    state and broadcasts only what changed.
-    """
+    """Push a game state update to all connected Unity clients."""
     tracker = get_tracker(game_id)
     snapshot = req.dict()
     delta_msg = tracker.update(snapshot)
