@@ -208,7 +208,34 @@ def build_deck(request: BuildRequest) -> BuildResult:
             "duplicates were silently dropped before singleton validation."
         )
 
-    all_card_names = list(seen_names.keys())
+      # -- Backfill after cross-category dedup to reach 99 ----------------
+    _DEDUP_COLOR_TO_BASIC = {
+        "W": "Plains", "U": "Island", "B": "Swamp",
+        "R": "Mountain", "G": "Forest",
+    }
+    _target_99 = sum(target_ratios.values())
+    _shortfall = _target_99 - len(seen_names)
+    if _shortfall > 0:
+        logger.warning(
+            "Cross-category dedup dropped %d cards -- backfilling with basic lands",
+            _shortfall,
+        )
+        warnings.append(
+            f"Backfilled {_shortfall} basic land(s) after cross-category dedup"
+        )
+        _basics = [
+            _DEDUP_COLOR_TO_BASIC[c]
+            for c in sorted(commander_ci)
+            if c in _DEDUP_COLOR_TO_BASIC
+        ] or ["Wastes"]
+        for _i in range(_shortfall):
+            _bname = _basics[_i % len(_basics)]
+            if _bname not in seen_names:
+                seen_names[_bname] = "lands"
+            # If basic already in seen_names, the quantity gets handled
+            # during CardEntry assembly (basics are exempt from singleton)
+  
+  all_card_names = list(seen_names.keys())
 
     card_entries = scryfall.get_cards_by_names(all_card_names)
 
