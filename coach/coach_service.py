@@ -257,7 +257,7 @@ class CoachService:
         try:
             from services.rag_store import query_cards
             query_text = f"{report.commander} {' '.join(report.colorIdentity)} commander deck"
-            rag_cards = query_cards(query_text, n=15, colors=report.colorIdentity)
+            rag_cards = query_cards(query_text, n_results=15, color_identity=report.colorIdentity)
             logger.info("RAG returned %d cards for '%s'", len(rag_cards), deck_id)
         except Exception as e:
             logger.warning("RAG query failed (non-fatal): %s", e)
@@ -347,7 +347,7 @@ class CoachService:
         try:
             from services.rag_store import query_cards
             query_text = f"{report.commander} {' '.join(report.colorIdentity)}"
-            rag_cards = query_cards(query_text, n=8, colors=report.colorIdentity)
+            rag_cards = query_cards(query_text, n_results=8, color_identity=report.colorIdentity)
         except Exception:
             pass
         from .prompt_template import build_quick_system_prompt, build_user_prompt
