@@ -15,6 +15,14 @@ def _detect_card_roles(oracle_text: str, type_line: str, keywords) -> list:
             kw_raw = []
     kw = " ".join(str(k).lower() for k in kw_raw)
 
+    # Land check must come first — basic lands have empty oracle_text so every
+    # other check below would silently miss them, leaving them as Unknown role.
+    if "land" in tl:
+        roles.append("Land")
+        if not ot:
+            # Basic lands have no oracle text; no other role applies.
+            return roles
+
     if ("add {" in ot or "add one mana" in ot
             or ("search your library for a" in ot and "land" in ot)
             or "treasure token" in ot or "add mana" in ot):
