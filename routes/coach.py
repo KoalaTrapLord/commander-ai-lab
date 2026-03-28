@@ -59,6 +59,14 @@ _coach_llm = None
 _deck_gen_v3 = None
 _deck_gen_v3_error = None
 
+# Known basic land names whose type_line may be absent when the card was added
+# via plain-text import and has no matching collection_entries row yet.
+_BASIC_LAND_NAMES: frozenset[str] = frozenset({
+    "plains", "island", "swamp", "mountain", "forest", "wastes",
+    "snow-covered plains", "snow-covered island", "snow-covered swamp",
+    "snow-covered mountain", "snow-covered forest",
+})
+
 
 def init_coach_service():
     """Initialize the coach service with LLM client and embeddings."""
@@ -272,6 +280,13 @@ async def _build_deck_report_from_db(deck_slug: str):
         cmc = cr["cmc"] or 0
         qty = cr["quantity"] or 1
         role_tag = cr["role_tag"] or ""
+
+        # Fallback for cards added via plain-text import that have no
+        # collection_entries row yet (type_line comes back empty from the LEFT JOIN).
+        # Basic lands are identified by name so their land_count is never lost.
+        if not type_line and card_name.lower() in _BASIC_LAND_NAMES:
+            type_line = "Basic Land"
+
         tags = []
         if role_tag:
             tags.append(role_tag)
