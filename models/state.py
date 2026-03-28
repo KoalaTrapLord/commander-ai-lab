@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import logging
+import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -25,9 +26,14 @@ class Config:
     port: int = 8080
     ximilar_api_key: str = ""
     pplx_api_key: str = ""
+    anthropic_api_key: str = ""
 
 
 CFG = Config()
+# Pre-populate from env so ASGI mode (uvicorn lab_api:app) works without main()
+CFG.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+CFG.ximilar_api_key = os.environ.get("XIMILAR_API_KEY", "")
+CFG.pplx_api_key = os.environ.get("PPLX_API_KEY", "")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -49,7 +55,9 @@ class BatchState:
         self.sims_per_sec: float = 0.0
 
 
+import asyncio as _asyncio
 active_batches: dict[str, BatchState] = {}
+active_batches_lock = _asyncio.Lock()
 
 
 COMMANDER_META: dict = {}
