@@ -50,7 +50,7 @@ _allowed = os.environ.get("ALLOWED_ORIGINS", _DEFAULT_ORIGINS)
 allowed_origins = [o.strip() for o in _allowed.split(",") if o.strip()]
 
 
-# ── Lifespan (replaces deprecated @app.on_event) ─────────────────────────────────
+# ── Lifespan (replaces deprecated @app.on_event) ───────────────────────────────────────
 @asynccontextmanager
 async def _lifespan(application: FastAPI):
     # ──── STARTUP ────
@@ -62,38 +62,48 @@ async def _lifespan(application: FastAPI):
     if not COMMANDER_META:
         load_commander_meta()
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     # RAG Phase 1: kick off Scryfall bulk download in background thread.
-    # run_in_executor returns a Future; we do NOT await it so startup
-    # completes immediately and the download runs concurrently.
     from services.scryfall_bulk import ensure_bulk_db
     loop.run_in_executor(None, ensure_bulk_db)
 
     # RAG Phase 2: kick off ChromaDB vector store build in background thread.
-    # Runs after Phase 1 completes inside ensure_rag_store() (it checks bulk_count > 0).
-    # Safe under both `uvicorn lab_api:app` and `python lab_api.py` — the
-    # _rag_ready flag + _rag_lock in rag_store.py make it idempotent.
     from services.rag_store import ensure_rag_store
     loop.run_in_executor(None, ensure_rag_store)
 
-        # RAG Phase 3: background staleness monitor (rebuilds if >14 days old)
-        async def _rag_staleness_monitor():
-            """Periodically check if the RAG index needs rebuilding."""
-            import time as _time
-            while True:
-                await asyncio.sleep(6 * 3600)  # check every 6 hours
-                try:
-                    from services.rag_store import check_staleness, build_index
-                    info = check_staleness()
-                    if info.get("stale"):
-                        log.info("RAG staleness monitor: %s — triggering rebuild.", info["reason"])
-                        loop.run_in_executor(None, lambda: build_index(force=True))
-                    else:
-                        log.debug("RAG staleness monitor: index is current (%.1f days).", info.get("age_days", 0))
-                except Exception as exc:
-                    log.warning("RAG staleness monitor failed: %s", exc)
-        asyncio.ensure_future(_rag_staleness_monitor())
+    # RAG Phase 3: background staleness monitor (rebuilds if >14 days old)
+    async def _rag_staleness_monitor():
+        """Periodically check if the RAG index needs rebuilding."""
+        import time as _time
+        while True:
+            await asyncio.sleep(6 * 3600)  # check every 6 hours
+            try:
+                from services.rag_store import check_staleness, build_index
+                info = check_staleness()
+                if info.get("stale"):
+                    log.info("RAG staleness monitor: %s — triggering rebuild.", info["reason"])
+                    loop.run_in_executor(None, lambda: build_index(force=True))
+                else:
+                    log.debug("RAG staleness monitor: index is current (%.1f days).", info.get("age_days", 0))
+            except Exception as exc:
+                log.warning("RAG staleness monitor failed: %s", exc)
+    asyncio.ensure_future(_rag_staleness_monitor())
+
+    # Policy routes: register if ML policy model is available
+    try:
+        from ml.serving.policy_server import PolicyInferenceService
+        from routes.policy import register_policy_routes
+        _policy_svc = PolicyInferenceService()
+        if _policy_svc.load():
+            register_policy_routes(application, _policy_svc)
+            log.info("Policy routes registered (/api/policy/*)")
+        else:
+            log.warning("Policy model not loaded — /api/policy/* routes inactive")
+    except ImportError:
+        log.info("Policy service not available (ml.serving not installed)")
+    except Exception as e:
+        log.warning("Policy route registration failed (non-fatal): %s", e)
 
     yield  # ← server is running
 
@@ -102,7 +112,7 @@ async def _lifespan(application: FastAPI):
     await async_close_db()
 
 
-# ── App ────────────────────────────────────────────────────────────────────
+# ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="Commander AI Lab API", version="3.0.0", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
@@ -157,7 +167,7 @@ elif _spa_dir.exists():
         return FileResponse(str(_spa_dir / "index.html"))
 
 
-# ── Argument parsing + auto-detection helpers ───────────────────────────────────
+# ── Argument parsing + auto-detection helpers ───────────────────────────────────────
 def _parse_args():
     p = argparse.ArgumentParser(description="Commander AI Lab API Server")
     p.add_argument("--forge-jar", default=os.environ.get("FORGE_JAR", ""))
@@ -324,15 +334,8 @@ def main():
     init_collection_db()
     init_coach_service()
 
-    # RAG Phase 1: synchronous boot-time check so logs are visible.
-    from services.scryfall_bulk import ensure_bulk_db
-    ensure_bulk_db()
-
-    # RAG Phase 2: synchronous boot-time ChromaDB build.
-    # The lifespan handler also fires this in a thread for uvicorn ASGI mode;
-    # calling here ensures it runs before the first request when using python lab_api.py.
-    from services.rag_store import ensure_rag_store
-    ensure_rag_store()
+    # RAG Phase 1 + 2 are handled by _lifespan when uvicorn starts.
+    # No need to call them here — doing so causes a double-run.
 
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=CFG.port, log_level="info")
