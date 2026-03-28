@@ -5,7 +5,6 @@ Main orchestrator: loads deck reports, identifies underperformers,
 finds replacement candidates via embeddings, builds prompts,
 calls the LLM, parses responses, and persists coaching sessions.
 """
-
 import json
 import logging
 import uuid
@@ -65,8 +64,7 @@ class CoachService:
         self.embeddings = embeddings
         ensure_dirs()
 
-    # ── Deck Report I/O ────────────────────────────────────
-
+    # ── Deck Report I/O ──────────────────────
     def load_deck_report(self, deck_id: str) -> Optional[DeckReport]:
         """Load a deck report from disk."""
         report_path = DECK_REPORTS_DIR / f"{deck_id}.json"
@@ -92,8 +90,7 @@ class CoachService:
             return []
         return [f.stem for f in DECK_REPORTS_DIR.glob("*.json")]
 
-    # ── Coach Session I/O ──────────────────────────────
-
+    # ── Coach Session I/O ──────────────────
     def save_session(self, session: CoachSession) -> Path:
         """Persist a coaching session to disk and SQLite."""
         COACH_SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -187,8 +184,7 @@ class CoachService:
                 continue
         return sessions
 
-    # ── Main Coaching Pipeline ───────────────────────────────
-
+    # ── Main Coaching Pipeline ───────────────────────
     async def run_coaching_session(
         self,
         deck_id: str,
@@ -224,7 +220,6 @@ class CoachService:
             raise ValueError(f"Deck report not found for: {deck_id}")
 
         deck_card_names = [c.name for c in report.cards]
-
         candidates: Dict[str, List[dict]] = {}
         underperformers = report.underperformers[:MAX_UNDERPERFORMERS]
         if not underperformers:
@@ -252,22 +247,43 @@ class CoachService:
                     candidates[card_name] = [m.to_dict() for m in matches]
         else:
             logger.warning("Embeddings not loaded — skipping candidate search")
-        # Phase 3: RAG vector search for additional card context
+
+        # Phase 4a: behavior-aware RAG — primary + replacement-effect secondary query
         rag_cards: List[dict] = []
         try:
             from services.rag_store import query_cards
-            query_text = f"{report.commander} {' '.join(report.colorIdentity)} commander deck"
-            rag_cards = query_cards(query_text, n_results=15, color_identity=report.colorIdentity)
+            # Primary: commander synergy context
+            base_query = f"{report.commander} {' '.join(report.colorIdentity)} commander deck"
+            rag_cards = query_cards(base_query, n_results=10, color_identity=report.colorIdentity)
+            # Secondary: replacement effects / graveyard hate / protection
+            if len(rag_cards) < 15:
+                repl_cards = query_cards(
+                    f"replacement effect graveyard {' '.join(report.colorIdentity)}",
+                    n_results=5,
+                    color_identity=report.colorIdentity,
+                    require_replacement=True,
+                )
+                # Deduplicate by name before merging
+                existing_names = {c["name"] for c in rag_cards}
+                rag_cards += [c for c in repl_cards if c["name"] not in existing_names]
             logger.info("RAG returned %d cards for '%s'", len(rag_cards), deck_id)
         except Exception as e:
             logger.warning("RAG query failed (non-fatal): %s", e)
 
+        # Phase 4b: rules context for grounding the coach prompt
+        rules_context: List[dict] = []
+        try:
+            from services.rag_store import query_rules
+            rules_context = query_rules(
+                f"Commander rules {report.commander} {' '.join(report.colorIdentity)}",
+                n_results=3,
+            )
+        except Exception:
+            pass
 
         system_prompt = build_system_prompt(report, goals)
-        user_prompt = build_user_prompt(report, candidates, rag_cards=rag_cards)
-
+        user_prompt = build_user_prompt(report, candidates, rag_cards=rag_cards, rules_context=rules_context)
         logger.info("Calling LLM for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
-
         if COACH_PROVIDER == "anthropic":
             import anthropic as _anthropic
             anthropic_key = ANTHROPIC_API_KEY
@@ -283,7 +299,7 @@ class CoachService:
             ) as stream:
                 content = await stream.get_final_text()
                 final_msg = await stream.get_final_message()
-            usage = getattr(final_msg, "usage", None)
+                usage = getattr(final_msg, "usage", None)
             from types import SimpleNamespace
             llm_response = SimpleNamespace(
                 content=content,
@@ -316,19 +332,16 @@ class CoachService:
             completionTokens=llm_response.completion_tokens,
             goals=goals,
         )
-
         if llm_response.parsed_json:
             self._populate_session_from_json(session, llm_response.parsed_json)
         else:
             session.rawTextExplanation = llm_response.content
             session.summary = "LLM returned non-JSON response. See raw explanation."
-
         self.save_session(session)
         logger.info("Coaching session saved: %s", session_id)
         return session
 
-    # ── Quick Digest ──────────────────────────────────────────
-
+    # ── Quick Digest ──────────────────────────────
     async def run_quick_digest(
         self,
         deck_id: str,
@@ -342,7 +355,7 @@ class CoachService:
         if report is None:
             raise ValueError(f"Deck report not found for: {deck_id}")
 
-        # Phase 3: light RAG query for quick digest too
+        # Phase 4a: light RAG query for quick digest
         rag_cards: List[dict] = []
         try:
             from services.rag_store import query_cards
@@ -350,10 +363,10 @@ class CoachService:
             rag_cards = query_cards(query_text, n_results=8, color_identity=report.colorIdentity)
         except Exception:
             pass
+
         from .prompt_template import build_quick_system_prompt, build_user_prompt
         system_prompt = build_quick_system_prompt(report, goals)
-        user_prompt = build_user_prompt(report, {}, rag_cards=rag_cards)  # RAG-enriched quick digest  # no candidates for speed
-
+        user_prompt = build_user_prompt(report, {}, rag_cards=rag_cards)  # no candidates for speed
         logger.info("Quick digest for deck: %s (provider=%s)", deck_id, COACH_PROVIDER)
 
         if COACH_PROVIDER == "anthropic":
@@ -410,18 +423,15 @@ class CoachService:
         else:
             session.rawTextExplanation = llm_response.content
             session.summary = "Quick digest returned non-JSON. See raw explanation."
-
         self.save_session(session)
         return session
 
-    # ── JSON Parser ───────────────────────────────────────────
-
+    # ── JSON Parser ───────────────────────────────
     def _populate_session_from_json(self, session: CoachSession, data: dict):
         """Parse LLM JSON response into CoachSession fields."""
         session.summary = data.get("summary", "")
         session.rawTextExplanation = data.get("rawTextExplanation", "")
         session.manaBaseAdvice = data.get("manaBaseAdvice")
-
         hints = data.get("heuristicHints", [])
         session.heuristicHints = hints if isinstance(hints, list) else [str(hints)]
 
@@ -432,7 +442,6 @@ class CoachService:
                     reason=cut_data.get("reason", ""),
                     replacementOptions=cut_data.get("replacementOptions", []),
                 ))
-
         for add_data in data.get("suggestedAdds", []):
             if isinstance(add_data, dict):
                 session.suggestedAdds.append(SuggestedAdd(
@@ -441,8 +450,6 @@ class CoachService:
                     reason=add_data.get("reason", ""),
                     synergyWith=add_data.get("synergyWith", []),
                 ))
-
-        # Phase 2
         for item in data.get("upgradePriority", []):
             if isinstance(item, dict):
                 session.upgradePriority.append(UpgradePriorityItem(
@@ -452,7 +459,6 @@ class CoachService:
                     reasoning=item.get("reasoning", ""),
                     expectedImpact=item.get("expectedImpact", ""),
                 ))
-
         cd = data.get("commanderDependency")
         if isinstance(cd, dict):
             session.commanderDependency = CommanderDependency(
@@ -460,7 +466,6 @@ class CoachService:
                 dependentCards=cd.get("dependentCards", []),
                 recoveryPlan=cd.get("recoveryPlan", ""),
             )
-
         ma = data.get("mulliganAnalysis")
         if isinstance(ma, dict):
             session.mulliganAnalysis = MulliganAnalysis(
@@ -468,23 +473,17 @@ class CoachService:
                 worstOffenders=ma.get("worstOffenders", []),
                 recommendation=ma.get("recommendation", ""),
             )
-
-        # Phase 3: Removal coverage
         rc = data.get("removalCoverage")
         if isinstance(rc, dict):
             session.removalCoverage = RemovalCoverage(**{
                 k: rc.get(k, "" if k != "gaps" else [])
                 for k in ["creatures", "artifacts", "enchantments", "planeswalkers", "lands", "massRemoval", "gaps"]
             })
-
-        # Phase 3: Ramp quality
         rq = data.get("rampQuality")
         if isinstance(rq, dict):
             session.rampQuality = RampQuality(**{
                 k: rq.get(k, "") for k in ["manaRocks", "landFetch", "manaDorks", "costReducers", "fragility", "canReachFourByTurnThree"]
             })
-
-        # Phase 3: Draw engine profile
         dep = data.get("drawEngineProfile")
         if isinstance(dep, dict):
             session.drawEngineProfile = DrawEngineProfile(
@@ -493,8 +492,6 @@ class CoachService:
                 assessment=dep.get("assessment", ""),
                 sustainability=dep.get("sustainability", ""),
             )
-
-        # Phase 3: Win conditions
         for wc in data.get("winConditions", []):
             if isinstance(wc, dict):
                 session.winConditions.append(WinCondition(
@@ -503,8 +500,6 @@ class CoachService:
                     independence=wc.get("independence", ""),
                     description=wc.get("description", ""),
                 ))
-
-        # Phase 3: Anti-synergy flags
         for af in data.get("antiSynergyFlags", []):
             if isinstance(af, dict):
                 session.antiSynergyFlags.append(AntiSynergyFlag(
@@ -512,8 +507,6 @@ class CoachService:
                     conflict=af.get("conflict", ""),
                     severity=af.get("severity", ""),
                 ))
-
-        # Phase 5: Pod presence
         pp = data.get("podPresence")
         if isinstance(pp, dict):
             session.podPresence = PodPresence(
@@ -522,8 +515,6 @@ class CoachService:
                 adversarialRating=pp.get("adversarialRating", ""),
                 recommendation=pp.get("recommendation", ""),
             )
-
-        # Phase 5: Tempo assessment
         ta = data.get("tempoAssessment")
         if isinstance(ta, dict):
             session.tempoAssessment = TempoAssessment(
@@ -532,8 +523,6 @@ class CoachService:
                 survivalWindow=ta.get("survivalWindow", ""),
                 assessment=ta.get("assessment", ""),
             )
-
-        # Phase 5: Meta matchups
         for mm in data.get("metaMatchups", []):
             if isinstance(mm, dict):
                 session.metaMatchups.append(MetaMatchup(
@@ -544,12 +533,10 @@ class CoachService:
                     overallRating=mm.get("overallRating", ""),
                 ))
 
-    # ── Status Check ─────────────────────────────────────────
-
+    # ── Status Check ──────────────────────────────
     def get_status(self) -> CoachStatus:
         """Check the health of all coach subsystems."""
         status = CoachStatus()
-
         if COACH_PROVIDER == "anthropic":
             anthropic_key = ANTHROPIC_API_KEY
             if anthropic_key:
@@ -568,7 +555,6 @@ class CoachService:
             status.llmModels = llm_status.get("models", [])
             if not status.llmConnected:
                 status.error = llm_status.get("error", "Local LLM not reachable")
-
         status.embeddingsLoaded = self.embeddings.loaded
         status.embeddingCards = self.embeddings.card_count
         status.deckReportsAvailable = len(self.list_deck_reports())
