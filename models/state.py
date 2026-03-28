@@ -32,6 +32,27 @@ class Config:
 CFG = Config()
 # Pre-populate from env so ASGI mode (uvicorn lab_api:app) works without main()
 CFG.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+
+
+def validate_forge_config() -> None:
+    """Warn clearly at startup if FORGE_DIR is misconfigured."""
+    if not CFG.forge_dir:
+        log.warning("FORGE_DIR not set -- Forge card enrichment disabled. "
+                    "Set FORGE_DIR to your forge-repo root or forge-gui directory.")
+        return
+    base = Path(CFG.forge_dir)
+    a = base / "forge-gui" / "res" / "cardsfolder"
+    b = base / "res" / "cardsfolder"
+    if not a.is_dir() and not b.is_dir():
+        log.warning(
+            "FORGE_DIR=%s is set but cardsfolder not found at:\n"
+            "  %s\n  %s\n"
+            "Check that FORGE_DIR points to forge-repo root or forge-gui/.",
+            CFG.forge_dir, a, b
+        )
+    else:
+        resolved = a if a.is_dir() else b
+        log.info("Forge cardsfolder confirmed at %s", resolved)
 CFG.ximilar_api_key = os.environ.get("XIMILAR_API_KEY", "")
 CFG.pplx_api_key = os.environ.get("PPLX_API_KEY", "")
 
