@@ -23,9 +23,9 @@ from commander_ai_lab.sim.models import Card
 from commander_ai_lab.sim.forge_card_loader import lookup_forge_card, ForgeCardData
 
 
-# ══════════════════════════════════════════════════════════════
-AI Weights (ported from AI_DEFAULT_WEIGHTS in app.js)
-# ══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
+# AI Weights (ported from AI_DEFAULT_WEIGHTS in app.js)
+# ════════════════════════════════════════════════════════════
 
 AI_DEFAULT_WEIGHTS: dict[str, float] = {
     # Card scoring
@@ -107,10 +107,10 @@ def load_weights(path: Optional[str] = None) -> dict[str, float]:
     return dict(AI_DEFAULT_WEIGHTS)
 
 
-# ══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 # Card Enrichment — guess type/cost for cards without Scryfall data
 # Ported from enrichCardForSim() in deck_tester_js.txt
-# ══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 
 _BASIC_LAND_COLORS = {
     "plains": "W",
@@ -312,7 +312,7 @@ def _apply_oracle_flags(card: Card) -> None:
             card.is_ramp = True
 
 
-# ── Direct-damage (burn spell) detection ────────────────────────────
+# ── Direct-damage (burn spell) detection ────────────────────────────────────
 
 # Regex: "deals N damage to target|any target" (not "each creature" — that's a wipe)
 _DIRECT_DAMAGE_RE = re.compile(
@@ -370,7 +370,7 @@ def _detect_direct_damage(card: Card, oracle: str) -> None:
         card.direct_damage_amount = int(m.group(1))
 
 
-# ── Multi-opponent scaling factors ────────────────────────────────
+# ── Multi-opponent scaling factors ─────────────────────────────────────────────
 # Keywords / effects that become more valuable in larger pods.
 # Each entry maps a weight key → the extra bonus *per additional
 # opponent* beyond 1.  1v1 uses base weights; 4-player FFA adds
