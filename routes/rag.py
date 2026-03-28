@@ -119,3 +119,53 @@ async def rag_status_detail():
     except Exception as exc:
         log.exception("RAG status check failed")
         return {"status": "error", "error": str(exc)}
+
+
+# ── Phase 5: Rules RAG endpoints ───────────────────────────────────────────
+class RulesBuildRequest(BaseModel):
+    rules_path: str = Field(
+        ...,
+        description="Absolute or repo-relative path to MagicCompRules.txt",
+    )
+    chunk_size: int = Field(400, ge=100, le=2000, description="Approx characters per chunk")
+
+
+@router.post("/api/rag/build-rules")
+async def rag_build_rules(body: RulesBuildRequest):
+    """
+    Build the mtgrules ChromaDB collection from the MTG Comprehensive Rules text file.
+
+    Download MagicCompRules.txt from https://magic.wizards.com/en/rules and pass the
+    local path as `rules_path`.  This is a one-time or yearly operation.
+    """
+    try:
+        from services.rag_store import build_rules_index
+        stats = build_rules_index(body.rules_path, chunk_size=body.chunk_size)
+        return {"status": "ok", **stats}
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        log.exception("Rules RAG build failed")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/api/rag/query-rules")
+async def rag_query_rules(
+    q: str,
+    n: int = 5,
+):
+    """
+    Semantic search over the MTG Comprehensive Rules (mtgrules collection).
+
+    Args:
+        q: Natural-language rules question, e.g. "Does Teferi stop split second?"
+        n: Number of rule chunks to return (default 5, max 20).
+
+    Returns list of {rule_id, text, distance}.
+    """
+    try:
+        from services.rag_store import query_rules
+        return {"results": query_rules(q, n_results=min(n, 20))}
+    except Exception as exc:
+        log.exception("Rules RAG query failed")
+        raise HTTPException(status_code=500, detail=str(exc))
