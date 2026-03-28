@@ -564,3 +564,148 @@ def check_staleness() -> dict:
     except Exception as exc:
         logger.warning("check_staleness card count check failed: %s", exc)
     return {"stale": False, "reason": "index is current", "age_days": round(age_days, 1)}
+
+
+# ── Phase 3: Rules RAG ── second ChromaDB collection (mtgrules) ──────────────────
+RULES_COLLECTION_NAME = "mtgrules"
+RULES_META_PATH = RAG_CHROMA_DIR / "rules_meta.json"
+_rules_collection = None
+
+
+def _get_rules_collection():
+    """Return the mtgrules ChromaDB collection singleton."""
+    global _rules_collection
+    if _rules_collection is not None:
+        return _rules_collection
+    client = _get_chromadb_client()
+    embed_fn = _get_ollama_embedding_fn()
+    _rules_collection = client.get_or_create_collection(
+        name=RULES_COLLECTION_NAME,
+        embedding_function=embed_fn,
+        metadata={"hnsw:space": "cosine"},
+    )
+    return _rules_collection
+
+
+def build_rules_index(rules_text_path: str, chunk_size: int = 400) -> dict:
+    """Build a rules RAG collection from a plain-text Comprehensive Rules document.
+
+    Chunks the document by rule number boundaries (e.g. 100., 903.),
+    embeds each chunk, and inserts into the mtgrules ChromaDB collection.
+
+    Args:
+        rules_text_path: Path to MagicCompRules.txt (download from WotC).
+        chunk_size: Approximate characters per chunk; splits on rule breaks.
+
+    Returns:
+        Dict with keys: indexed (int), failed (int).
+    """
+    import re
+    global _rules_collection
+
+    path = Path(rules_text_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Rules file not found: {rules_text_path}")
+
+    text = path.read_text(encoding="utf-8", errors="replace")
+
+    # Split on lines that start with a rule number like 100., 903.4a, etc.
+    rule_pattern = re.compile(r"(?m)^\d{3,4}\.")
+    raw_chunks = rule_pattern.split(text)
+
+    # Merge very short fragments into the previous chunk
+    chunks: list[str] = []
+    buffer = ""
+    for chunk in raw_chunks:
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        buffer = buffer + " " + chunk if buffer else chunk
+        if len(buffer) >= chunk_size:
+            chunks.append(buffer)
+            buffer = ""
+    if buffer:
+        chunks.append(buffer)
+
+    client = _get_chromadb_client()
+    embed_fn = _get_ollama_embedding_fn()
+
+    # Drop and recreate for a clean build
+    try:
+        client.delete_collection(RULES_COLLECTION_NAME)
+    except Exception:
+        pass
+    _rules_collection = None
+    collection = client.create_collection(
+        name=RULES_COLLECTION_NAME,
+        embedding_function=embed_fn,
+        metadata={"hnsw:space": "cosine"},
+    )
+
+    inserted = 0
+    failed = 0
+    batch_ids: list[str] = []
+    batch_docs: list[str] = []
+
+    for idx, chunk in enumerate(chunks):
+        rule_id_match = re.match(r"[\d\.a-z]+", chunk)
+        rule_id = rule_id_match.group(0) if rule_id_match else str(idx)
+        batch_ids.append(f"rule-{rule_id}-{idx}")
+        batch_docs.append(chunk[:2000])  # hard cap per doc
+
+        if len(batch_ids) >= 100:
+            try:
+                collection.add(ids=batch_ids, documents=batch_docs)
+                inserted += len(batch_ids)
+            except Exception as exc:
+                failed += len(batch_ids)
+                logger.warning("Rules batch insert failed: %s", exc)
+            batch_ids.clear()
+            batch_docs.clear()
+
+    if batch_ids:
+        try:
+            collection.add(ids=batch_ids, documents=batch_docs)
+            inserted += len(batch_ids)
+        except Exception as exc:
+            failed += len(batch_ids)
+            logger.warning("Rules final batch failed: %s", exc)
+
+    RULES_META_PATH.write_text(
+        json.dumps({"built_at": time.time(), "chunk_count": inserted}),
+        encoding="utf-8",
+    )
+    logger.info("Rules RAG: %d chunks indexed, %d failed", inserted, failed)
+    return {"indexed": inserted, "failed": failed}
+
+
+def query_rules(query: str, n_results: int = 5) -> list[dict]:
+    """Semantic search over the MTG Comprehensive Rules.
+
+    Returns:
+        List of dicts with keys: rule_id, text, distance.
+    """
+    try:
+        collection = _get_rules_collection()
+        if collection.count() == 0:
+            return []
+        results = collection.query(
+            query_texts=[query],
+            n_results=min(n_results, 20),
+            include=["documents", "distances"],
+        )
+    except Exception as exc:
+        logger.error("Rules RAG query failed: %s", exc)
+        return []
+
+    if not results or not results.get("ids") or not results["ids"][0]:
+        return []
+
+    out = []
+    for i, doc_id in enumerate(results["ids"][0]):
+        out.append({
+            "rule_id": doc_id,
+            "text": results["documents"][0][i] if results.get("documents") else "",
+            "distance": round(results["distances"][0][i], 4) if results.get("distances") else 0.0,
+        })
+    return out
