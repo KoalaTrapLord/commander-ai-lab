@@ -26,13 +26,13 @@ def build_deck(request: BuildRequest) -> BuildResult:
     Execute the full 7-step deck build pipeline.
 
     Steps:
-      1. Resolve commander via Scryfall
-      2. Fetch EDHrec recommendations
-      3. Fetch Scryfall candidates by category
-      4. Ollama: suggest additional cards + fill gaps
-      5. Filter by color identity + collection + ban list
-      6. Ollama: enforce deck ratios (trim/expand to 99)
-      7. Ollama: assemble final structured deck JSON
+        1. Resolve commander via Scryfall
+        2. Fetch EDHrec recommendations
+        3. Fetch Scryfall candidates by category
+        4. Ollama: suggest additional cards + fill gaps
+        5. Filter by color identity + collection + ban list
+        6. Ollama: enforce deck ratios (trim/expand to 99)
+        7. Ollama: assemble final structured deck JSON
     """
     start = time.time()
     warnings: List[str] = []
@@ -70,7 +70,7 @@ def build_deck(request: BuildRequest) -> BuildResult:
     else:
         warnings.append("EDHrec returned no data — relying on Scryfall + Ollama")
 
-    # ── Step 3: Fetch Scryfall candidates by category ────────────────────────
+    # ── Step 3: Fetch Scryfall candidates by category ──────────────────────
     logger.info("Step 3: Fetching Scryfall candidates by category")
     scryfall_candidates: Dict[str, List[CardEntry]] = {
         "ramp": scryfall.search_ramp(commander_ci),
@@ -81,7 +81,7 @@ def build_deck(request: BuildRequest) -> BuildResult:
     for cat, cards in scryfall_candidates.items():
         logger.info(f"  Scryfall {cat}: {len(cards)} candidates")
 
-    # ── Step 4: Ollama suggestions to fill gaps ────────────────────────────
+    # ── Step 4: Ollama suggestions to fill gaps ──────────────────────────
     logger.info("Step 4: Ollama suggesting additional cards")
 
     # Collect all names we already have
@@ -208,34 +208,7 @@ def build_deck(request: BuildRequest) -> BuildResult:
             "duplicates were silently dropped before singleton validation."
         )
 
-      # -- Backfill after cross-category dedup to reach 99 ----------------
-    _DEDUP_COLOR_TO_BASIC = {
-        "W": "Plains", "U": "Island", "B": "Swamp",
-        "R": "Mountain", "G": "Forest",
-    }
-    _target_99 = sum(target_ratios.values())
-    _shortfall = _target_99 - len(seen_names)
-    if _shortfall > 0:
-        logger.warning(
-            "Cross-category dedup dropped %d cards -- backfilling with basic lands",
-            _shortfall,
-        )
-        warnings.append(
-            f"Backfilled {_shortfall} basic land(s) after cross-category dedup"
-        )
-        _basics = [
-            _DEDUP_COLOR_TO_BASIC[c]
-            for c in sorted(commander_ci)
-            if c in _DEDUP_COLOR_TO_BASIC
-        ] or ["Wastes"]
-        for _i in range(_shortfall):
-            _bname = _basics[_i % len(_basics)]
-            if _bname not in seen_names:
-                seen_names[_bname] = "lands"
-            # If basic already in seen_names, the quantity gets handled
-            # during CardEntry assembly (basics are exempt from singleton)
-  
-  all_card_names = list(seen_names.keys())
+    all_card_names = list(seen_names.keys())
 
     card_entries = scryfall.get_cards_by_names(all_card_names)
 
@@ -255,6 +228,49 @@ def build_deck(request: BuildRequest) -> BuildResult:
     for entry in card_entries:
         if entry.name in seen_names:
             entry.category = seen_names[entry.name]
+
+    # -- Backfill basic lands to reach exactly 99 cards ----------------
+    _BACKFILL_COLOR_TO_BASIC = {
+        "W": "Plains", "U": "Island", "B": "Swamp",
+        "R": "Mountain", "G": "Forest",
+    }
+    _BASIC_LAND_NAMES = set(_BACKFILL_COLOR_TO_BASIC.values()) | {"Wastes"}
+    _current_total = sum(e.quantity for e in card_entries)
+    _shortfall = 99 - _current_total
+    if _shortfall > 0:
+        logger.warning(
+            "Deck has %d cards after dedup -- backfilling %d basic land(s)",
+            _current_total, _shortfall,
+        )
+        warnings.append(
+            f"Backfilled {_shortfall} basic land(s) to reach 99 cards"
+        )
+        _basics = [
+            _BACKFILL_COLOR_TO_BASIC[c]
+            for c in sorted(commander_ci)
+            if c in _BACKFILL_COLOR_TO_BASIC
+        ] or ["Wastes"]
+        # Distribute evenly across colors
+        _per_color = _shortfall // len(_basics)
+        _remainder = _shortfall % len(_basics)
+        for _i, _bname in enumerate(_basics):
+            _qty = _per_color + (1 if _i < _remainder else 0)
+            if _qty <= 0:
+                continue
+            # Check if this basic is already in card_entries
+            _found = False
+            for _ce in card_entries:
+                if _ce.name == _bname:
+                    _ce.quantity += _qty
+                    _found = True
+                    break
+            if not _found:
+                card_entries.append(CardEntry(
+                    name=_bname,
+                    quantity=_qty,
+                    category="lands",
+                    type_line="Basic Land",
+                ))
 
     # Build the deck
     elapsed = time.time() - start
