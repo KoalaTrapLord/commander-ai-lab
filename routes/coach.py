@@ -308,8 +308,12 @@ async def _build_deck_report_from_db(deck_slug: str):
         for t in ["Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land"]:
             if t in type_line:
                 type_counts[t] = type_counts.get(t, 0) + qty
+        # Mirrors deck_service._compute_deck_analysis(): lands are excluded from
+        # the mana curve so cmc=0 lands don't inflate the free-spell bucket and
+        # mislead the LLM coach into thinking the deck has many 0-cost spells.
         bucket = min(int(cmc), 7)
-        cmc_buckets[bucket] += qty
+        if "Land" not in type_line:
+            cmc_buckets[bucket] += qty
         cards.append(CardPerformance(name=card_name, drawnRate=0.0, castRate=0.0, impactScore=0.0, tags=tags))
     return DeckReport(
         deckId=deck_slug, commander=commander, colorIdentity=color_identity,
