@@ -198,6 +198,12 @@ def _write_build_meta(card_count: int, forge_coverage: int = 0) -> None:
         )
     except Exception as exc:
         logger.warning("Could not write build_meta.json: %s", exc)
+    # Fix #127: also persist built_at in ChromaDB collection metadata
+    try:
+        col = _get_collection()
+        col.modify(metadata={"hnsw:space": "cosine", "built_at": time.time()})
+    except Exception:
+        pass  # best-effort — sidecar is primary
 
 
 def _collection_is_current(collection, bulk_card_count: int) -> bool:
@@ -207,6 +213,13 @@ def _collection_is_current(collection, bulk_card_count: int) -> bool:
         return False
     meta = _read_build_meta()
     built_at = meta.get("built_at", 0)
+    # Fix #127: fallback to collection metadata if sidecar is missing
+    if not built_at:
+        try:
+            col_meta = collection.metadata or {}
+            built_at = col_meta.get("built_at", 0)
+        except Exception:
+            pass
     if built_at:
         age_days = (time.time() - float(built_at)) / 86400
         if age_days > 14:
