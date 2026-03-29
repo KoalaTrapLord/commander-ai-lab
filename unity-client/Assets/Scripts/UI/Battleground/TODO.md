@@ -1,5 +1,6 @@
 # Battleground UI — Task Tracker
 > Created: 2026-03-28  
+> Updated: 2026-03-29 — all 14 issues complete
 > Branch: `feat/battleground-ui`
 
 All issues below are part of the **4-player Commander Battleground** Unity 3D UI build.
@@ -18,17 +19,17 @@ Build in the numbered order — each step is independently testable before the n
 | 5 | [#142 — CardZone + CardView](https://github.com/KoalaTrapLord/commander-ai-lab/issues/142) | `CardZone.cs`, `CardView.cs` + `CardModel` runtime fields | ImageCache only | ✅ |
 | 6 | [#143 — CommanderZoneWidget](https://github.com/KoalaTrapLord/commander-ai-lab/issues/143) | `CommanderZoneWidget.cs` + `ImageCache.LoadArtCrop()` | ImageCache only | ✅ |
 | 7 | [#144 — Token System](https://github.com/KoalaTrapLord/commander-ai-lab/issues/144) | `TokenModel.cs`, `TokenPanelController.cs`, `TokenRowView.cs` | No | ✅ |
-| 8 | [#146 — StackZoneController + ManaPoolDisplay](https://github.com/KoalaTrapLord/commander-ai-lab/issues/146) | `StackZoneController.cs`, `ManaPoolDisplay.cs` | No (events only) | ⬜ |
-| 9 | [#147 — LobbySetupModal + ZoneViewerModal](https://github.com/KoalaTrapLord/commander-ai-lab/issues/147) | `LobbySetupModal.cs`, `ZoneViewerModal.cs` | `/api/decks`, `/api/game/start` | ⬜ |
+| 8 | [#146 — StackZoneController + ManaPoolDisplay](https://github.com/KoalaTrapLord/commander-ai-lab/issues/146) | `StackZoneController.cs`, `ManaPoolDisplay.cs` | No (events only) | ✅ |
+| 9 | [#147 — LobbySetupModal + ZoneViewerModal](https://github.com/KoalaTrapLord/commander-ai-lab/issues/147) | `LobbySetupModal.cs`, `ZoneViewerModal.cs` | `/api/decks`, `/api/game/start` | ✅ |
 | 10 | [#148 — GameStateManager + GameState POCOs](https://github.com/KoalaTrapLord/commander-ai-lab/issues/148) | `GameStateManager.cs`, `GameState.cs` | No | ✅ |
-| 11 | [#149 — GameWebSocketClient](https://github.com/KoalaTrapLord/commander-ai-lab/issues/149) | `GameWebSocketClient.cs` | Yes — `/ws/game` | ⬜ |
-| 12 | [#145 — HumanActionBar](https://github.com/KoalaTrapLord/commander-ai-lab/issues/145) | `HumanActionBar.cs` | Yes — `/api/game/action` | ⬜ |
-| 13 | [#150 — EliminationHandler + Grayscale Shader](https://github.com/KoalaTrapLord/commander-ai-lab/issues/150) | `EliminationHandler.cs`, `EliminatedGrayscale` ShaderGraph | No | ⬜ |
-| 14 | [#151 — SimulationController: Play Live button](https://github.com/KoalaTrapLord/commander-ai-lab/issues/151) | `SimulationController.cs` (modify) | No | ⬜ |
+| 11 | [#149 — GameWebSocketClient](https://github.com/KoalaTrapLord/commander-ai-lab/issues/149) | `GameWebSocketClient.cs` | Yes — `/ws/game` | ✅ |
+| 12 | [#145 — HumanActionBar](https://github.com/KoalaTrapLord/commander-ai-lab/issues/145) | `HumanActionBar.cs`, `ApiClient.PostGameAction()` | Yes — `/api/game/action` | ✅ |
+| 13 | [#150 — EliminationHandler + Grayscale Shader](https://github.com/KoalaTrapLord/commander-ai-lab/issues/150) | `EliminationHandler.cs`, `EliminatedGrayscale` ShaderGraph | No | ✅ |
+| 14 | [#151 — SimulationController: Play Live button](https://github.com/KoalaTrapLord/commander-ai-lab/issues/151) | `SimulationController.cs` (modify) | No | ✅ |
 
 ---
 
-## Files Committed (Issues 1–7, 10)
+## All Files Committed
 
 ### `Assets/Scripts/UI/Battleground/` (new folder)
 - ✅ `BattlegroundController.cs` — scene orchestrator, seat rotations, event subscriptions
@@ -45,6 +46,13 @@ Build in the numbered order — each step is independently testable before the n
 - ✅ `CommanderZoneWidget.cs` — art crop, cast count, tax (+2 per cast)
 - ✅ `TokenPanelController.cs` — token creation panel
 - ✅ `TokenRowView.cs` — token row (qty, tap, counters, delete)
+- ✅ `StackZoneController.cs` — LIFO stack display, hidden when empty
+- ✅ `StackItemView.cs` — individual stack item row
+- ✅ `ManaPoolDisplay.cs` — 6-pip mana display, hides zero labels
+- ✅ `LobbySetupModal.cs` — 4-seat lobby config, loads decks from API, POSTs to /api/game/start
+- ✅ `ZoneViewerModal.cs` — fullscreen graveyard/exile viewer with search filter
+- ✅ `HumanActionBar.cs` — priority-gated action buttons + targeting mode
+- ✅ `EliminationHandler.cs` — overlay + grayscale material on elimination
 
 ### `Assets/Scripts/Models/`
 - ✅ `GameState.cs` — `GameState` + `SeatState` POCOs
@@ -53,18 +61,31 @@ Build in the numbered order — each step is independently testable before the n
 
 ### `Assets/Scripts/Services/`
 - ✅ `ImageCache.cs` — modified: added `LoadCard(RawImage)` + `LoadArtCrop(name, RawImage)`
+- ✅ `GameWebSocketClient.cs` — WS connect/reconnect, ping, ConcurrentQueue main-thread dispatch
+- ✅ `ApiClient.cs` — modified: added `PostGameAction()` + `PostGameStart()`
+
+### `Assets/Scenes/`
+- ✅ `Battleground.unity` — new scene
+
+### `Assets/Materials/`
+- ✅ `EliminatedGrayscale` — URP Shader Graph
+
+### Modified Existing Files
+- ✅ `SimulationController.cs` — Play Live button + `OnPlayLive()` + `BuildSeatsJson()`
+- ✅ `MainMenuController.cs` — Play Live nav button
 
 ---
 
-## Remaining — Issues 8, 9, 11–14
+## Backend Endpoints Required
 
-- **#146** — `StackZoneController.cs` + `ManaPoolDisplay.cs`
-- **#147** — `LobbySetupModal.cs` + `ZoneViewerModal.cs` (needs `/api/game/start` backend endpoint)
-- **#148** — done (GameStateManager already committed)
-- **#149** — `GameWebSocketClient.cs` (needs `/ws/game` Python endpoint)
-- **#145** — `HumanActionBar.cs` (needs `/api/game/action` backend)
-- **#150** — `EliminationHandler.cs` + URP Shader Graph (done in Unity Editor)
-- **#151** — `SimulationController.cs` modification (Play Live button)
+These Python routes must exist before end-to-end testing:
+
+| Endpoint | Used By | Status |
+|----------|---------|--------|
+| `GET /api/decks` | `LobbySetupModal` | verify |
+| `POST /api/game/start` | `LobbySetupModal` | verify |
+| `POST /api/game/action` | `HumanActionBar` | verify |
+| `WS /ws/game` | `GameWebSocketClient` | verify (PR #107) |
 
 ---
 

@@ -283,5 +283,15 @@ namespace CommanderAILab.Services
             }
             onSuccess?.Invoke(request.downloadHandler.text);
         }
+
+        // -- Game (Live Battleground) ---------------------------------------
+
+        /// <summary>POST /api/game/action — submit a human player action during a live game.</summary>
+        public Coroutine PostGameAction(string json, Action<string> onSuccess, Action<string> onError = null)
+            => PostRaw("/api/game/action", json, onSuccess, onError);
+
+        /// <summary>POST /api/game/start — start a new live game with the given lobby config.</summary>
+        public Coroutine PostGameStart(string json, Action<string> onSuccess, Action<string> onError = null)
+            => PostRaw("/api/game/start", json, onSuccess, onError);
     }
 }
