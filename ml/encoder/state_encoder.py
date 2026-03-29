@@ -178,6 +178,23 @@ class StateEncoder:
       [0:29]     - Global features (life, mana, turn, phase, etc.)
       [29:6173]  - Zone embeddings (4 zones × 2 players × 768)
       [6173:6177] - Playstyle one-hot (4 dims)
+
+    Global feature layout per player block (14 features × 2 players + 1 turn = 29):
+      idx 0  life           (normalised /40)
+      idx 1  cmdr_dmg       (normalised /21)
+      idx 2  mana           (normalised /20, clamped)
+      idx 3  cmdr_tax       (normalised /10, clamped)
+      idx 4  hand_size      (normalised /15, clamped)
+      idx 5  graveyard_size (normalised /100, clamped)
+      idx 6  creatures      (normalised /30, clamped)
+      idx 7  total_power    (normalised /100, clamped)
+                            └─ real Forge value when present;
+                               falls back to creatures*3 heuristic
+      idx 8  is_active      (binary 0/1)
+      idx 9-12 phase one-hot (4 dims: main_1/combat/main_2/end)
+      idx 13  lands          (normalised /15, clamped)
+      --- repeat for player 1 at idx 14-27 ---
+      idx 28 turn           (normalised /max_turns)
     """
 
     def __init__(self, card_index: CardEmbeddingIndex):
@@ -197,7 +214,6 @@ class StateEncoder:
         """
         players = decision.get("players", [])
         if len(players) < 2:
-            # Pad to 2 players for 1v1
             while len(players) < 2:
                 players.append(self._empty_player(len(players)))
 
@@ -218,55 +234,71 @@ class StateEncoder:
         return state.astype(np.float32)
 
     def _encode_global(self, decision: dict, players: list) -> np.ndarray:
-        """Encode global scalar features. Shape: (29,)"""
+        """Encode global scalar features. Shape: (29,)
+
+        Per-player block (14 features each, 2 players = 28) + 1 turn feature.
+
+        Index 7 priority for total_power:
+          1. p['total_power']  — real Forge value from Step 4 / _build_encoder_snapshot()
+          2. p['creatures'] * 3  — legacy heuristic for old JSONL snapshots
+        """
         features = []
 
-        for p in players[:2]:  # Exactly 2 players for 1v1
-            # Per-player scalars (10 each)
+        for p in players[:2]:
+            # idx 0: life
             life = p.get("life", 40)
-            features.append(life / 40.0)  # Normalized life
+            features.append(life / 40.0)
 
+            # idx 1: commander damage taken
             cmdr_dmg = p.get("cmdr_dmg", 0)
-            features.append(cmdr_dmg / 21.0)  # Normalized commander damage
+            features.append(cmdr_dmg / 21.0)
 
+            # idx 2: mana available
             mana = p.get("mana", 0)
-            features.append(min(mana / 20.0, 1.0))  # Normalized mana
+            features.append(min(mana / 20.0, 1.0))
 
+            # idx 3: commander tax
             cmdr_tax = p.get("cmdr_tax", 0)
-            features.append(min(cmdr_tax / 10.0, 1.0))  # Normalized tax
+            features.append(min(cmdr_tax / 10.0, 1.0))
 
+            # idx 4: cards in hand
             hand_size = len(p.get("hand", []))
             features.append(min(hand_size / 15.0, 1.0))
 
+            # idx 5: graveyard size
             grave_size = len(p.get("graveyard", []))
             features.append(min(grave_size / 100.0, 1.0))
 
+            # idx 6: creatures on battlefield
             creatures = p.get("creatures", 0)
             features.append(min(creatures / 30.0, 1.0))
 
-            # Total power on board (not yet tracked accurately; use creatures as proxy)
-            total_power = creatures * 3  # rough heuristic: avg 3 power
+            # idx 7: total power on board
+            # Use real Forge value when available (Step 4); fall back to heuristic
+            # for legacy JSONL snapshots that predate Step 4.
+            raw_power = p.get("total_power", 0)
+            total_power = raw_power if raw_power > 0 else creatures * 3
             features.append(min(total_power / 100.0, 1.0))
 
-            # Is active player
+            # idx 8: is active player
             is_active = 1.0 if p.get("seat") == decision.get("active_seat") else 0.0
             features.append(is_active)
 
-            # Land count (extra feature — helps distinguish ramp strategies)
-            lands = p.get("lands", 0)
-            features.append(min(lands / 15.0, 1.0))
-
-            # Phase one-hot (4 dims per player)
+            # idx 9-12: phase one-hot (4 dims)
             phase_str = decision.get("phase", "main_1")
             phase_oh = [0.0] * 4
             try:
                 phase_enum = GamePhase(phase_str)
                 phase_oh[PHASE_TO_IDX[phase_enum]] = 1.0
             except (ValueError, KeyError):
-                phase_oh[0] = 1.0  # Default to main_1
+                phase_oh[0] = 1.0  # default to main_1
             features.extend(phase_oh)
 
-        # Turn number (1 feature, shared)
+            # idx 13: land count
+            lands = p.get("lands", 0)
+            features.append(min(lands / 15.0, 1.0))
+
+        # idx 28: turn number (shared, 1 feature)
         turn = decision.get("turn", 1)
         features.append(min(turn / GAME_SCOPE.max_turns, 1.0))
 
@@ -290,8 +322,6 @@ class StateEncoder:
         for p in players[:2]:
             for zone_key in zone_keys:
                 cards = p.get(zone_key, [])
-                # mean_pool_zone returns a zero vector when cards is empty,
-                # preserving the fixed 768-dim slot size.
                 pooled = self.card_index.mean_pool_zone(cards)
                 vectors.append(pooled)
 
@@ -304,24 +334,27 @@ class StateEncoder:
             style = Playstyle(playstyle_str.lower())
             vec[PLAYSTYLE_TO_IDX[style]] = 1.0
         except (ValueError, KeyError):
-            # Default: midrange
             vec[PLAYSTYLE_TO_IDX[Playstyle.MIDRANGE]] = 1.0
         return vec
 
     def _empty_player(self, seat: int) -> dict:
         """Create an empty player dict for padding."""
         return {
-            "seat": seat,
-            "life": 40,
-            "cmdr_dmg": 0,
-            "mana": 0,
-            "cmdr_tax": 0,
-            "creatures": 0,
-            "lands": 0,
-            "hand": [],
-            "battlefield": [],
-            "graveyard": [],
-            "command_zone": [],
+            "seat":            seat,
+            "life":            40,
+            "cmdr_dmg":        0,
+            "mana":            0,
+            "cmdr_tax":        0,
+            "creatures":       0,
+            "total_power":     0,
+            "total_toughness": 0,
+            "artifacts":       0,
+            "enchantments":    0,
+            "lands":           0,
+            "hand":            [],
+            "battlefield":     [],
+            "graveyard":       [],
+            "command_zone":    [],
         }
 
 
