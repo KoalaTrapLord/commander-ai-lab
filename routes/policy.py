@@ -1,6 +1,5 @@
 """Commander AI Lab — Policy Decision Routes (Phase 2)
 ════════════════════════════════════════════════════
-
 Live Forge ↔ policy server IPC endpoints for online training.
 These endpoints are purpose-built for the real-time decision loop
 where Forge's Java side calls the Python policy server at each
@@ -13,7 +12,7 @@ Endpoints:
     GET  /api/policy/health    — Readiness check for the live IPC loop
     GET  /api/policy/stats     — Online learning session statistics
 
-Refs: Issue #83 Phase 2.2
+Refs: Issue #83 Phase 2.2, Step 4 (real Forge board stats)
 """
 import logging
 import math
@@ -38,17 +37,30 @@ _EXPECTED_STATE_VECTOR_LEN = 29
 # ================================================================
 
 class PlayerZoneState(BaseModel):
-    """Per-player zone state from Forge / GameSession."""
+    """Per-player zone state from Forge / GameSession.
+
+    Fields match DecisionSnapshot.PlayerSnapshot (Java) so the same JSON
+    deserialises on both the live IPC path and the JSONL training path.
+    All board-stat fields are optional with a default of 0 so older
+    snapshots (pre-Step-4) continue to deserialise without errors.
+    """
     seat: int = 0
     name: str = ""
     life: int = 40
     poison: int = 0
     # GameSession sends cmdr_dmg as a dict keyed by opponent seat str
     cmdr_dmg: Dict[str, int] = Field(default_factory=dict)
+
+    # Commander tax / casts
     cmdr_tax: int = 0
-    commanderTax: int = 0      # GameSession alias for cmdr_tax
+    commanderTax: int = 0       # GameSession alias for cmdr_tax
+    commanderCasts: int = 0
+
+    # Mana
     mana_available: int = 0
+    manaAvailable: int = 0      # DecisionSnapshot alias
     mana_pool: Dict[str, int] = Field(default_factory=dict)
+
     # Full zone contents
     hand: List[str] = Field(default_factory=list)
     hand_count: int = 0
@@ -60,26 +72,41 @@ class PlayerZoneState(BaseModel):
     commandZone: List[str] = Field(default_factory=list)  # GameSession alias
     library_count: int = 0
 
+    # ── Real Forge board stats (DecisionSnapshot.PlayerSnapshot) ──────────
+    # These are pre-computed by Forge/DecisionExtractor and are more accurate
+    # than inferring them from zone card-name lists.
+    creaturesOnField: int = 0       # actual creature count on battlefield
+    totalPowerOnBoard: int = 0      # sum of power of all creatures
+    totalToughnessOnBoard: int = 0  # sum of toughness of all creatures
+    artifactsOnField: int = 0       # artifact permanents
+    enchantmentsOnField: int = 0    # enchantment permanents
+    landCount: int = 0              # lands on battlefield
+
+    # Legacy snake_case aliases (JSONL training path uses these)
+    creatures_on_field: int = 0
+    total_power_on_board: int = 0
+    total_toughness_on_board: int = 0
+    artifacts_on_field: int = 0
+    enchantments_on_field: int = 0
+    land_count: int = 0
+
+    # ── Resolver helpers ──────────────────────────────────────────────────
+
     def resolved_hand(self) -> List[str]:
-        """Return hand card names from whichever field is populated."""
         return self.hand if self.hand else []
 
     def resolved_hand_count(self) -> int:
-        """Return hand count from whichever alias is set."""
         if self.hand:
             return len(self.hand)
         return self.handCount or self.hand_count
 
     def resolved_cmdr_tax(self) -> int:
-        """Return commander tax from whichever alias is set."""
         return self.cmdr_tax or self.commanderTax
 
     def resolved_command_zone(self) -> List[str]:
-        """Return command zone from whichever alias is set."""
         return self.command_zone if self.command_zone else self.commandZone
 
     def resolved_battlefield_names(self) -> List[str]:
-        """Return battlefield as a flat list of card name strings."""
         names = []
         for entry in self.battlefield:
             if isinstance(entry, str):
@@ -87,6 +114,38 @@ class PlayerZoneState(BaseModel):
             elif isinstance(entry, dict):
                 names.append(entry.get("name", entry.get("id", "unknown")))
         return names
+
+    def resolved_mana(self) -> int:
+        """Return mana from whichever alias is populated."""
+        return self.manaAvailable or self.mana_available
+
+    def resolved_creatures(self) -> int:
+        """Real creature count from Forge; falls back to battlefield name count."""
+        real = self.creaturesOnField or self.creatures_on_field
+        if real > 0:
+            return real
+        # Fallback: count non-land names on battlefield (rough)
+        return len(self.resolved_battlefield_names())
+
+    def resolved_lands(self) -> int:
+        """Real land count from Forge; falls back to 0."""
+        return self.landCount or self.land_count
+
+    def resolved_total_power(self) -> int:
+        """Real total power from Forge; falls back to creatures * 3 heuristic."""
+        real = self.totalPowerOnBoard or self.total_power_on_board
+        if real > 0:
+            return real
+        return self.resolved_creatures() * 3  # legacy heuristic
+
+    def resolved_total_toughness(self) -> int:
+        return self.totalToughnessOnBoard or self.total_toughness_on_board
+
+    def resolved_artifacts(self) -> int:
+        return self.artifactsOnField or self.artifacts_on_field
+
+    def resolved_enchantments(self) -> int:
+        return self.enchantmentsOnField or self.enchantments_on_field
 
 
 class DecideRequest(BaseModel):
@@ -129,7 +188,9 @@ class DecideRequest(BaseModel):
     state_vector: Optional[List[float]] = None
     state_vector_dim: Optional[int] = None
     # Schema version (GameSession 1.1.0+ includes state_vector)
-    schema: str = "1.0.0"
+    snapshot_schema: str = Field(default="1.0.0", alias="schema")
+
+    model_config = {"populate_by_name": True}
 
     def resolved_turn(self) -> int:
         return self.turnNumber if self.turnNumber > 0 else self.turn
@@ -235,9 +296,6 @@ async def decide(req: DecideRequest):
     vector_source = "encoder"
 
     if req.has_precomputed_vector():
-        # Fast path: Java already computed and normalised the global scalars.
-        # Only run zone embedding pooling and playstyle one-hot, then
-        # concatenate with the precomputed global block.
         try:
             state_vec = _encode_with_precomputed_global(
                 precomputed_global=req.state_vector,
@@ -249,17 +307,15 @@ async def decide(req: DecideRequest):
             _session_stats["precomputed_vector_hits"] += 1
             logger.debug(
                 "[decide] precomputed global block used (schema=%s, turn=%d)",
-                req.schema, req.resolved_turn(),
+                req.snapshot_schema, req.resolved_turn(),
             )
         except Exception as e:
-            # Fall through to the full encoder on any error
             logger.warning("Precomputed vector encode failed (%s) — falling back", e)
             state_vec = None
     else:
         state_vec = None
 
     if state_vec is None:
-        # Standard path: build snapshot dict and run full StateEncoder.encode()
         _session_stats["encoder_fallbacks"] += 1
         snapshot = _build_encoder_snapshot(req)
         result = _policy_service.predict(
@@ -269,7 +325,6 @@ async def decide(req: DecideRequest):
             greedy=req.greedy,
         )
     else:
-        # Run inference directly on the pre-built state tensor
         result = _infer_from_vector(
             state_vec=state_vec,
             policy_service=_policy_service,
@@ -436,7 +491,6 @@ def _encode_with_precomputed_global(
         }
         for p in players[:2]
     ]
-    # Pad to 2 players if needed
     while len(player_dicts) < 2:
         player_dicts.append({
             "hand": [], "battlefield": [], "graveyard": [], "command_zone": []
@@ -507,32 +561,48 @@ def _infer_from_vector(state_vec: np.ndarray, policy_service, temperature: float
 
 def _build_encoder_snapshot(req: DecideRequest) -> Dict:
     """Convert a DecideRequest to the flat snapshot dict expected by
-    StateEncoder.encode() — normalises GameSession field name aliases.
+    StateEncoder.encode() — normalises GameSession field name aliases
+    and wires real Forge board stats (Step 4).
+
+    Board stat priority (highest to lowest):
+      1. Real Forge values from DecisionSnapshot.PlayerSnapshot fields
+         (creaturesOnField, landCount, totalPowerOnBoard, etc.)
+      2. Inferred from zone card-name lists (battlefield length)
+      3. Hardcoded fallback (0)
     """
     players_out = []
     for p in req.players:
         bf_names = p.resolved_battlefield_names()
         players_out.append({
-            "seat": p.seat,
-            "life": p.life,
-            "cmdr_dmg": sum(p.cmdr_dmg.values()) if p.cmdr_dmg else 0,
-            "mana": p.mana_available,
-            "cmdr_tax": p.resolved_cmdr_tax(),
-            "creatures": len(bf_names),
-            "lands": 0,  # stub — wire from Forge in Step 4
-            "hand": p.resolved_hand(),
-            "battlefield": bf_names,
-            "graveyard": p.graveyard,
+            "seat":        p.seat,
+            "life":        p.life,
+            "cmdr_dmg":    sum(p.cmdr_dmg.values()) if p.cmdr_dmg else 0,
+            # Step 4: real mana from Forge instead of mana_available stub
+            "mana":        p.resolved_mana(),
+            "cmdr_tax":    p.resolved_cmdr_tax(),
+            # Step 4: real board counts from Forge pre-computed stats
+            "creatures":   p.resolved_creatures(),
+            "lands":       p.resolved_lands(),
+            # Step 4: real total power replaces the `creatures * 3` heuristic
+            # in StateEncoder._encode_global() index 7
+            "total_power": p.resolved_total_power(),
+            "total_toughness": p.resolved_total_toughness(),
+            "artifacts":   p.resolved_artifacts(),
+            "enchantments": p.resolved_enchantments(),
+            # Zone contents for embedding pooling (unchanged)
+            "hand":         p.resolved_hand(),
+            "battlefield":  bf_names,
+            "graveyard":    p.graveyard,
             "command_zone": p.resolved_command_zone(),
         })
 
     return {
-        "turn": req.resolved_turn(),
-        "phase": _map_forge_phase(req.phase),
+        "turn":        req.resolved_turn(),
+        "phase":       _map_forge_phase(req.phase),
         "active_seat": req.resolved_active_seat(),
-        "players": players_out,
-        "game_id": req.game_id,
-        "archetype": req.playstyle,
+        "players":     players_out,
+        "game_id":     req.game_id,
+        "archetype":   req.playstyle,
     }
 
 
