@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Commander AI Lab — full benchmark pipeline (Issue #153)
+    Commander AI Lab - full benchmark pipeline (Issue #153)
 
 .DESCRIPTION
     Chains all four steps of the Forge-vs-Synthetic eval benchmark:
@@ -15,7 +15,7 @@
       ml/models/checkpoints/forge-trained/
       results/eval-baseline.json
       results/eval-forge.json
-      results/compare-result.json   ← pass/fail verdict
+      results/compare-result.json   <- pass/fail verdict
 
 .PARAMETER Iterations
     PPO training iterations for each model. Default: 100
@@ -51,21 +51,18 @@
     Significance level for Fisher's exact test. Default: 0.05
 
 .PARAMETER SkipTraining
-    Skip both training steps (use existing checkpoints). Useful for re-running eval only.
+    Skip both training steps (use existing checkpoints).
 
 .PARAMETER SkipEval
-    Skip both eval steps (use existing result JSONs). Useful for re-running compare only.
+    Skip both eval steps (use existing result JSONs).
 
 .EXAMPLE
-    # Full overnight run
     .\run_benchmark.ps1
 
 .EXAMPLE
-    # Quick smoke-test with fewer iterations
-    .\run_benchmark.ps1 -Iterations 10 -EpisodePerIter 16 -EvalGames 50
+    .\run_benchmark.ps1 -Iterations 10 -EpisodesPerIter 16 -EvalGames 50
 
 .EXAMPLE
-    # Re-run only the comparison from existing JSONs
     .\run_benchmark.ps1 -SkipTraining -SkipEval
 #>
 
@@ -85,18 +82,16 @@ param(
     [switch] $SkipEval
 )
 
-Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# ── Paths ──────────────────────────────────────────────────────────────
-$BaselineDir    = "ml/models/checkpoints/baseline-synthetic"
-$ForgeDir       = "ml/models/checkpoints/forge-trained"
-$BaselineJson   = "results/eval-baseline.json"
-$ForgeJson      = "results/eval-forge.json"
-$CompareJson    = "results/compare-result.json"
-$LogDir         = "logs/benchmark"
+# Paths
+$BaselineDir  = "ml/models/checkpoints/baseline-synthetic"
+$ForgeDir     = "ml/models/checkpoints/forge-trained"
+$BaselineJson = "results/eval-baseline.json"
+$ForgeJson    = "results/eval-forge.json"
+$CompareJson  = "results/compare-result.json"
 
-# ── Helpers ────────────────────────────────────────────────────────────
+# Helpers
 function Banner([string]$msg) {
     $line = "=" * 62
     Write-Host ""
@@ -111,11 +106,11 @@ function Step([string]$msg) {
 }
 
 function Ok([string]$msg) {
-    Write-Host "  ✓ $msg" -ForegroundColor Green
+    Write-Host "  OK  $msg" -ForegroundColor Green
 }
 
-function Fail([string]$msg) {
-    Write-Host "  ✗ $msg" -ForegroundColor Red
+function Err([string]$msg) {
+    Write-Host "  FAIL  $msg" -ForegroundColor Red
 }
 
 function Run([string[]]$cmd) {
@@ -123,19 +118,19 @@ function Run([string[]]$cmd) {
     Step "Running: $display"
     & $cmd[0] $cmd[1..($cmd.Length-1)]
     if ($LASTEXITCODE -ne 0) {
-        Fail "Command failed (exit $LASTEXITCODE): $display"
+        Err "Command failed (exit $LASTEXITCODE): $display"
         exit $LASTEXITCODE
     }
 }
 
-# ── Setup ──────────────────────────────────────────────────────────────
-$null = New-Item -ItemType Directory -Force -Path $LogDir, "results" | Out-Null
+# Setup
+$null = New-Item -ItemType Directory -Force -Path "logs/benchmark", "results" | Out-Null
 
 $SeedArgs = @()
 if ($Seed -ge 0) { $SeedArgs = @("--seed", "$Seed") }
 
 $StartTime = Get-Date
-Banner "Commander AI Lab — Benchmark Pipeline (Issue #153)"
+Banner "Commander AI Lab - Benchmark Pipeline (Issue #153)"
 
 Write-Host "  Iterations      : $Iterations"
 Write-Host "  Episodes/iter   : $EpisodesPerIter"
@@ -148,35 +143,31 @@ Write-Host "  Skip training   : $SkipTraining"
 Write-Host "  Skip eval       : $SkipEval"
 Write-Host ""
 
-# ══════════════════════════════════════════════════════════════════════
-# STEP 1 — Train baseline (synthetic self-play)
-# ══════════════════════════════════════════════════════════════════════
+# STEP 1 - Train baseline
 if (-not $SkipTraining) {
-    Banner "Step 1/4 — Training baseline (synthetic)"
+    Banner "Step 1/4 - Training baseline (synthetic)"
     $t0 = Get-Date
 
     Run @(
         "python", "-m", "ml.training.ppo_trainer",
-        "--data-source",      "synthetic",
-        "--iterations",       "$Iterations",
-        "--episodes-per-iter","$EpisodesPerIter",
-        "--checkpoint-dir",   $BaselineDir,
-        "--save-every",       "10",
-        "--eval-every",       "5"
+        "--data-source",       "synthetic",
+        "--iterations",        "$Iterations",
+        "--episodes-per-iter", "$EpisodesPerIter",
+        "--checkpoint-dir",    $BaselineDir,
+        "--save-every",        "10",
+        "--eval-every",        "5"
     )
 
-    $elapsed = ((Get-Date) - $t0).TotalMinutes
-    Ok "Baseline training complete in $([math]::Round($elapsed,1)) min"
+    $elapsed = [math]::Round(((Get-Date) - $t0).TotalMinutes, 1)
+    Ok "Baseline training complete in $elapsed min"
     Ok "Checkpoints in: $BaselineDir"
 } else {
-    Step "Skipping training (--SkipTraining)"
+    Step "Skipping training (-SkipTraining flag set)"
 }
 
-# ══════════════════════════════════════════════════════════════════════
-# STEP 2 — Train Forge model
-# ══════════════════════════════════════════════════════════════════════
+# STEP 2 - Train Forge model
 if (-not $SkipTraining) {
-    Banner "Step 2/4 — Training Forge model"
+    Banner "Step 2/4 - Training Forge model"
     $t0 = Get-Date
 
     Run @(
@@ -192,20 +183,17 @@ if (-not $SkipTraining) {
         "--eval-every",        "5"
     )
 
-    $elapsed = ((Get-Date) - $t0).TotalMinutes
-    Ok "Forge training complete in $([math]::Round($elapsed,1)) min"
+    $elapsed = [math]::Round(((Get-Date) - $t0).TotalMinutes, 1)
+    Ok "Forge training complete in $elapsed min"
     Ok "Checkpoints in: $ForgeDir"
 } else {
-    Step "Skipping training (--SkipTraining)"
+    Step "Skipping training (-SkipTraining flag set)"
 }
 
-# ══════════════════════════════════════════════════════════════════════
-# STEP 3 — Eval baseline checkpoint
-# ══════════════════════════════════════════════════════════════════════
+# STEP 3 - Eval
 if (-not $SkipEval) {
-    Banner "Step 3a/4 — Evaluating baseline checkpoint"
+    Banner "Step 3a/4 - Evaluating baseline checkpoint"
 
-    # Prefer best_ppo.pt, fall back to latest numbered checkpoint
     $BaselinePt = "$BaselineDir/best_ppo.pt"
     if (-not (Test-Path $BaselinePt)) {
         $BaselinePt = Get-ChildItem "$BaselineDir/ppo_iter_*.pt" |
@@ -213,7 +201,7 @@ if (-not $SkipEval) {
                       Select-Object -First 1 -ExpandProperty FullName
     }
     if (-not $BaselinePt -or -not (Test-Path $BaselinePt)) {
-        Fail "No checkpoint found in $BaselineDir — run training first or remove --SkipTraining"
+        Err "No checkpoint found in $BaselineDir - run training first"
         exit 1
     }
     Step "Using checkpoint: $BaselinePt"
@@ -221,18 +209,17 @@ if (-not $SkipEval) {
 
     Run (@(
         "python", "scripts/eval_policy.py",
-        "--model",       $BaselinePt,
-        "--games",       "$EvalGames",
-        "--run-id",      "baseline-synthetic",
-        "--out",         $BaselineJson,
-        "--threads",     "$Threads"
+        "--model",   $BaselinePt,
+        "--games",   "$EvalGames",
+        "--run-id",  "baseline-synthetic",
+        "--out",     $BaselineJson,
+        "--threads", "$Threads"
     ) + $SeedArgs)
 
-    $elapsed = ((Get-Date) - $t0).TotalMinutes
-    Ok "Baseline eval complete in $([math]::Round($elapsed,1)) min -> $BaselineJson"
+    $elapsed = [math]::Round(((Get-Date) - $t0).TotalMinutes, 1)
+    Ok "Baseline eval complete in $elapsed min -> $BaselineJson"
 
-    # ── Eval Forge checkpoint ──────────────────────────────────────────
-    Banner "Step 3b/4 — Evaluating Forge checkpoint"
+    Banner "Step 3b/4 - Evaluating Forge checkpoint"
 
     $ForgePt = "$ForgeDir/best_ppo.pt"
     if (-not (Test-Path $ForgePt)) {
@@ -241,7 +228,7 @@ if (-not $SkipEval) {
                    Select-Object -First 1 -ExpandProperty FullName
     }
     if (-not $ForgePt -or -not (Test-Path $ForgePt)) {
-        Fail "No checkpoint found in $ForgeDir — run training first or remove --SkipTraining"
+        Err "No checkpoint found in $ForgeDir - run training first"
         exit 1
     }
     Step "Using checkpoint: $ForgePt"
@@ -256,23 +243,21 @@ if (-not $SkipEval) {
         "--threads", "$Threads"
     ) + $SeedArgs)
 
-    $elapsed = ((Get-Date) - $t0).TotalMinutes
-    Ok "Forge eval complete in $([math]::Round($elapsed,1)) min -> $ForgeJson"
+    $elapsed = [math]::Round(((Get-Date) - $t0).TotalMinutes, 1)
+    Ok "Forge eval complete in $elapsed min -> $ForgeJson"
 } else {
-    Step "Skipping eval (--SkipEval)"
+    Step "Skipping eval (-SkipEval flag set)"
 }
 
-# ══════════════════════════════════════════════════════════════════════
-# STEP 4 — Compare results
-# ══════════════════════════════════════════════════════════════════════
-Banner "Step 4/4 — Comparing results"
+# STEP 4 - Compare
+Banner "Step 4/4 - Comparing results"
 
 if (-not (Test-Path $BaselineJson)) {
-    Fail "Baseline result not found: $BaselineJson"
+    Err "Baseline result not found: $BaselineJson"
     exit 1
 }
 if (-not (Test-Path $ForgeJson)) {
-    Fail "Forge result not found: $ForgeJson"
+    Err "Forge result not found: $ForgeJson"
     exit 1
 }
 
@@ -285,7 +270,6 @@ python scripts/compare_eval.py `
 
 $exitCode = $LASTEXITCODE
 
-# ── Final summary ──────────────────────────────────────────────────────
 $totalMin = [math]::Round(((Get-Date) - $StartTime).TotalMinutes, 1)
 Banner "Benchmark Complete"
 Write-Host "  Total wall time : $totalMin min"
@@ -295,14 +279,14 @@ Write-Host "  Compare JSON    : $CompareJson"
 Write-Host ""
 
 if ($exitCode -eq 0) {
-    Ok "PASSED — Forge model meets the benchmark threshold."
+    Ok "PASSED - Forge model meets the benchmark threshold."
     Write-Host ""
     Write-Host "  Next steps:" -ForegroundColor Cyan
     Write-Host "    git add results/eval-baseline.json results/eval-forge.json results/compare-result.json"
     Write-Host "    git commit -m 'results: forge-vs-synthetic benchmark run'"
     Write-Host "    git push"
 } else {
-    Fail "FAILED — Forge model did not meet the benchmark threshold."
+    Err "FAILED - Forge model did not meet the benchmark threshold."
     Write-Host "  Check $CompareJson for details." -ForegroundColor Yellow
 }
 
