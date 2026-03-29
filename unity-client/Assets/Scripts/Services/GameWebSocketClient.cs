@@ -11,30 +11,38 @@ using CommanderAILab.UI;
 namespace CommanderAILab.Services
 {
     /// <summary>
-    /// WebSocket client for the live game backend (ws://localhost:8080/ws/game).
-    /// - Connects on Start and auto-reconnects on disconnect.
-    /// - Sends a ping every 15 s to keep the connection alive.
-    /// - All GameStateManager.ApplyServerEvent calls are dispatched
-    ///   on the Unity main thread via a thread-safe queue.
+    /// WebSocket client for the live game backend.
+    /// Connects to ws://{serverHost}/ws/game/{gameId}.
+    ///
+    /// game_id is written to PlayerPrefs["GameId"] by LobbySetupModal
+    /// after a successful POST /api/game/start response.
+    ///
+    /// ServerUrl PlayerPref should be the HTTP base URL, e.g.
+    /// "http://localhost:8080" — this client converts it to ws://.
     /// </summary>
     public class GameWebSocketClient : MonoBehaviour
     {
-        [SerializeField] private string serverUrl = "ws://localhost:8080/ws/game";
-        [SerializeField] private float  reconnectDelay  = 3f;
-        [SerializeField] private float  pingIntervalSec = 15f;
+        [SerializeField] private string defaultServerUrl   = "http://localhost:8080";
+        [SerializeField] private float  reconnectDelay     = 3f;
+        [SerializeField] private float  pingIntervalSec    = 15f;
 
         private System.Net.WebSockets.ClientWebSocket _ws;
         private CancellationTokenSource _cts;
         private readonly ConcurrentQueue<(string type, string payload)> _mainThreadQueue = new();
         private bool _running;
         private float _pingTimer;
+        private string _wsUrl;
 
         // ── Lifecycle ────────────────────────────────────────────────────────
         private void Start()
         {
-            // Allow override via PlayerPrefs so users can point at a remote server
-            string saved = PlayerPrefs.GetString("ServerUrl", "");
-            if (!string.IsNullOrEmpty(saved)) serverUrl = saved.TrimEnd('/') + "/ws/game";
+            _wsUrl = BuildWsUrl();
+            if (string.IsNullOrEmpty(_wsUrl))
+            {
+                Debug.LogError("[GameWebSocketClient] Could not build WS URL — PlayerPrefs 'GameId' is missing. " +
+                               "LobbySetupModal must set it after /api/game/start.");
+                return;
+            }
 
             _running = true;
             StartCoroutine(ConnectLoop());
@@ -62,6 +70,28 @@ namespace CommanderAILab.Services
             _ws?.Dispose();
         }
 
+        // ── URL construction ────────────────────────────────────────────────
+        /// <summary>
+        /// Builds ws://{host}/ws/game/{gameId} from PlayerPrefs.
+        /// ServerUrl pref stores the HTTP base URL (e.g. http://localhost:8080).
+        /// GameId pref stores the game_id returned by /api/game/start.
+        /// </summary>
+        private string BuildWsUrl()
+        {
+            string gameId = PlayerPrefs.GetString("GameId", "");
+            if (string.IsNullOrEmpty(gameId))
+                return string.Empty;
+
+            string httpBase = PlayerPrefs.GetString("ServerUrl", defaultServerUrl).TrimEnd('/');
+
+            // Convert http(s):// to ws(s)://
+            string wsBase = httpBase
+                .Replace("https://", "wss://")
+                .Replace("http://",  "ws://");
+
+            return $"{wsBase}/ws/game/{gameId}";
+        }
+
         // ── Connection loop ──────────────────────────────────────────────────
         private IEnumerator ConnectLoop()
         {
@@ -71,19 +101,19 @@ namespace CommanderAILab.Services
                 _ws  = new System.Net.WebSockets.ClientWebSocket();
 
                 bool connected = false;
-                var connectTask = _ws.ConnectAsync(new Uri(serverUrl), _cts.Token);
+                var connectTask = _ws.ConnectAsync(new Uri(_wsUrl), _cts.Token);
 
                 yield return new WaitUntil(() => connectTask.IsCompleted);
 
                 if (!connectTask.IsFaulted && !connectTask.IsCanceled)
                 {
                     connected = true;
-                    Debug.Log("[GameWebSocketClient] Connected to " + serverUrl);
+                    Debug.Log("[GameWebSocketClient] Connected to " + _wsUrl);
                     _ = ReceiveLoop();
                 }
                 else
                 {
-                    Debug.LogWarning($"[GameWebSocketClient] Connect failed: {connectTask.Exception?.Message}");
+                    Debug.LogWarning($"[GameWebSocketClient] Connect failed ({_wsUrl}): {connectTask.Exception?.Message}");
                 }
 
                 if (!connected)
@@ -92,7 +122,6 @@ namespace CommanderAILab.Services
                 }
                 else
                 {
-                    // Stay here until the WS closes
                     yield return new WaitUntil(() =>
                         _ws.State != System.Net.WebSockets.WebSocketState.Open);
 
@@ -123,8 +152,7 @@ namespace CommanderAILab.Services
                         System.Net.WebSockets.WebSocketMessageType.Close)
                         break;
 
-                    string raw = sb.ToString();
-                    ParseAndEnqueue(raw);
+                    ParseAndEnqueue(sb.ToString());
                 }
             }
             catch (OperationCanceledException) { }
@@ -141,9 +169,7 @@ namespace CommanderAILab.Services
             {
                 var env = JsonConvert.DeserializeObject<WsEnvelope>(raw);
                 if (env == null) return;
-
-                if (env.type == "pong") return;  // ignore keepalive responses
-
+                if (env.type == "pong") return;
                 _mainThreadQueue.Enqueue((env.type, env.payload ?? raw));
             }
             catch
@@ -152,7 +178,7 @@ namespace CommanderAILab.Services
             }
         }
 
-        // ── Send (public for HumanActionBar fallback) ────────────────────────
+        // ── Send (public for external callers) ───────────────────────────────
         public async Task SendRawAsync(string json)
         {
             if (_ws == null ||
@@ -170,7 +196,7 @@ namespace CommanderAILab.Services
             }
         }
 
-        // ── POCO ─────────────────────────────────────────────────────────────
+        // ── POCO ────────────────────────────────────────────────────────────────
         [Serializable]
         private class WsEnvelope
         {

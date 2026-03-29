@@ -42,6 +42,7 @@ from routes.deckgen import router as deckgen_router
 from routes.coach import router as coach_router, init_coach_service
 from routes.ml import router as ml_router
 from routes.ws_game import router as ws_game_router
+from routes.game import router as game_router
 
 log = logging.getLogger("commander_ai_lab.api")
 
@@ -50,7 +51,7 @@ _allowed = os.environ.get("ALLOWED_ORIGINS", _DEFAULT_ORIGINS)
 allowed_origins = [o.strip() for o in _allowed.split(",") if o.strip()]
 
 
-# ── Lifespan (replaces deprecated @app.on_event) ───────────────────────────────────────
+# ── Lifespan (replaces deprecated @app.on_event) ────────────────────────────────────────────────────────
 @asynccontextmanager
 async def _lifespan(application: FastAPI):
     # ──── STARTUP ────
@@ -113,7 +114,7 @@ async def _lifespan(application: FastAPI):
     await async_close_db()
 
 
-# ── App ───────────────────────────────────────────────────────────────────────
+# ── App ─────────────────────────────────────────────────────────────────────────────
 app = FastAPI(title="Commander AI Lab API", version="3.0.0", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
@@ -135,9 +136,10 @@ app.include_router(deckgen_router)
 app.include_router(coach_router)
 app.include_router(ws_game_router)
 app.include_router(ml_router)
+app.include_router(game_router)   # live game session routes
 
 
-# ── API endpoints ────────────────────────────────────────────────────────────────
+# ── API endpoints ─────────────────────────────────────────────────────────────────────────────
 # NOTE: all @app.get routes MUST be registered before app.mount() calls.
 # Once StaticFiles is mounted at "/", it registers a wildcard catch-all that
 # shadows any routes added after it.
@@ -147,7 +149,7 @@ async def health_check():
     """Health check endpoint for load balancers and Unity client polling."""
     return {"status": "ok"}
 
-# ── Static UI (MUST come after all @app.get routes) ────────────────────────────
+# ── Static UI (MUST come after all @app.get routes) ──────────────────────────────────────────
 from pathlib import Path as _Path
 _legacy_ui_dir = _Path(__file__).parent / "ui"
 _spa_dir = _Path(__file__).parent / "frontend" / "commander-ai-lab-ui" / "dist"
@@ -168,7 +170,7 @@ elif _spa_dir.exists():
         return FileResponse(str(_spa_dir / "index.html"))
 
 
-# ── Argument parsing + auto-detection helpers ───────────────────────────────────────
+# ── Argument parsing + auto-detection helpers ────────────────────────────────────────────────────────
 def _parse_args():
     p = argparse.ArgumentParser(description="Commander AI Lab API Server")
     p.add_argument("--forge-jar", default=os.environ.get("FORGE_JAR", ""))
