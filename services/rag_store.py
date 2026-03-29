@@ -39,6 +39,8 @@ OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 EMBEDDING_MODEL = os.environ.get("RAG_EMBEDDING_MODEL", "nomic-embed-text")
 COLLECTION_NAME = "mtg_oracle"
 DEFAULT_BATCH_SIZE = 500
+BATCH_RETRY_LIMIT = 3   # Fix #126: retry failed batches before dropping
+BATCH_RETRY_DELAY = 2.0  # seconds between retries (doubles each attempt)
 _rag_lock = threading.Lock()
 _rag_ready = False
 
@@ -219,6 +221,29 @@ def _collection_is_current(collection, bulk_card_count: int) -> bool:
         return False
     return True
 
+
+def _insert_batch_with_retry(collection, ids, docs, metas):
+    """Insert a batch into ChromaDB with exponential backoff retry. (Fix #126)"""
+    delay = BATCH_RETRY_DELAY
+    for attempt in range(1, BATCH_RETRY_LIMIT + 1):
+        try:
+            collection.add(ids=ids, documents=docs, metadatas=metas)
+            return len(ids), 0  # (inserted, failed)
+        except Exception as exc:
+            if attempt == BATCH_RETRY_LIMIT:
+                logger.error(
+                    "Batch insert permanently failed after %d attempts (%d cards): %s",
+                    BATCH_RETRY_LIMIT, len(ids), exc,
+                )
+                return 0, len(ids)
+            logger.warning(
+                "Batch insert attempt %d/%d failed, retrying in %.1fs: %s",
+                attempt, BATCH_RETRY_LIMIT, delay, exc,
+            )
+            time.sleep(delay)
+            delay *= 2
+    return 0, len(ids)  # unreachable but safe
+
 # ── Build pipeline ────────────────────────────────────────────────────────────────
 def _build_collection_from_bulk(batch_size: int = DEFAULT_BATCH_SIZE) -> dict:
     """Read all cards from the bulk SQLite DB and insert into ChromaDB."""
@@ -267,37 +292,22 @@ def _build_collection_from_bulk(batch_size: int = DEFAULT_BATCH_SIZE) -> dict:
         batch_docs.append(doc)
         batch_metas.append(meta)
         if len(batch_ids) >= batch_size:
-            try:
-                collection.add(
-                    ids=batch_ids,
-                    documents=batch_docs,
-                    metadatas=batch_metas,
-                )
-                inserted += len(batch_ids)
-                if inserted % 2000 == 0:
-                    logger.info(" RAG indexed %d / %d cards...", inserted, total_rows)
-            except Exception as exc:
-                failed_cards += len(batch_ids)
+            ok, bad = _insert_batch_with_retry(collection, batch_ids, batch_docs, batch_metas)
+            inserted += ok
+            failed_cards += bad
+            if bad:
                 failed_batches += 1
-                logger.warning(
-                    "RAG batch insert failed (batch #%d, %d cards lost): %s",
-                    failed_batches, len(batch_ids), exc,
-                )
+            if ok and inserted % 2000 == 0:
+                logger.info("  RAG indexed %d / %d cards...", inserted, total_rows)
             batch_ids.clear()
             batch_docs.clear()
             batch_metas.clear()
     if batch_ids:
-        try:
-            collection.add(
-                ids=batch_ids,
-                documents=batch_docs,
-                metadatas=batch_metas,
-            )
-            inserted += len(batch_ids)
-        except Exception as exc:
-            failed_cards += len(batch_ids)
+        ok, bad = _insert_batch_with_retry(collection, batch_ids, batch_docs, batch_metas)
+        inserted += ok
+        failed_cards += bad
+        if bad:
             failed_batches += 1
-            logger.warning("RAG final batch insert failed: %s", exc)
     logger.info(
         "RAG vector store complete: %d indexed, %d failed (%d batches). Forge-enriched: %d",
         inserted, failed_cards, failed_batches, forge_enriched_count,
