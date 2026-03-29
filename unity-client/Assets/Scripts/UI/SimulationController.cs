@@ -15,6 +15,7 @@ namespace CommanderAILab.UI
     /// <summary>
     /// Simulator scene — configure and run multi-player simulations,
     /// poll status, display results per deck.
+    /// Also provides a Play Live button that routes to the Battleground scene.
     /// </summary>
     public class SimulationController : MonoBehaviour
     {
@@ -22,6 +23,8 @@ namespace CommanderAILab.UI
         [Header("Navigation")]
         [SerializeField] private Button backButton;
         [SerializeField] private Button startSimButton;
+        /// <summary>Routes to the Battleground scene for a live 4-player game.</summary>
+        [SerializeField] private Button playLiveButton;
 
         // ── Config Panel ──────────────────────────────────────────────────────
         [Header("Config")]
@@ -74,6 +77,9 @@ namespace CommanderAILab.UI
             startSimButton.onClick.AddListener(OnStartSim);
             retryButton.onClick.AddListener(OnStartSim);
 
+            // Play Live: save current deck selections and load Battleground scene
+            playLiveButton?.onClick.AddListener(OnPlayLive);
+
             numPlayersSlider.minValue = 2;
             numPlayersSlider.maxValue = 4;
             numPlayersSlider.wholeNumbers = true;
@@ -83,17 +89,38 @@ namespace CommanderAILab.UI
 
             errorPanel.SetActive(false);
 
-            // Check for a deck exported from DeckBuilder
             string simDeck = PlayerPrefs.GetString("SimDeck", "");
             if (!string.IsNullOrEmpty(simDeck))
             {
                 PlayerPrefs.DeleteKey("SimDeck");
-                // Pre-populate deck dropdown 0 after decks load — stored for later
                 PlayerPrefs.SetString("_SimDeckPending", simDeck);
             }
 
             LoadDecks();
             LoadAiProfiles();
+        }
+
+        // ── Play Live ─────────────────────────────────────────────────────────
+        private void OnPlayLive()
+        {
+            // Persist current deck selections so LobbySetupModal can pre-populate
+            var seats = new List<object>();
+            void AddSeat(TMP_Dropdown dd, bool isHuman, int seatIdx)
+            {
+                string deckName = "";
+                if (dd != null && dd.value > 0 && (dd.value - 1) < _decks.Count)
+                    deckName = _decks[dd.value - 1].name;
+                seats.Add(new { isHuman, deckName, aiStyle = "Aggro" });
+            }
+
+            AddSeat(deckDropdown0, true,  0);
+            AddSeat(deckDropdown1, false, 1);
+            AddSeat(deckDropdown2, false, 2);
+            AddSeat(deckDropdown3, false, 3);
+
+            PlayerPrefs.SetString("BattleSeats", JsonConvert.SerializeObject(seats));
+            PlayerPrefs.Save();
+            SceneManager.LoadScene("Battleground");
         }
 
         // ── Player Count ──────────────────────────────────────────────────────
@@ -103,7 +130,6 @@ namespace CommanderAILab.UI
             if (numPlayersLabel != null)
                 numPlayersLabel.text = $"Players: {count}";
 
-            // Show/hide optional deck dropdowns based on count
             if (deckDropdown2 != null) deckDropdown2.gameObject.SetActive(count >= 3);
             if (deckDropdown3 != null) deckDropdown3.gameObject.SetActive(count >= 4);
         }
@@ -143,14 +169,12 @@ namespace CommanderAILab.UI
             Fill(deckDropdown2);
             Fill(deckDropdown3);
 
-            // Apply any pending deck from DeckBuilder export
             string pending = PlayerPrefs.GetString("_SimDeckPending", "");
             if (!string.IsNullOrEmpty(pending))
             {
                 PlayerPrefs.DeleteKey("_SimDeckPending");
                 try
                 {
-                    // Try to match by name from the JSON
                     var exported = JsonConvert.DeserializeObject<LabDeckEntry>(pending);
                     if (exported != null && !string.IsNullOrEmpty(exported.name))
                     {
@@ -179,7 +203,6 @@ namespace CommanderAILab.UI
                 },
                 err =>
                 {
-                    // Non-fatal: profiles may not be available yet
                     _profiles = new List<AiProfile>();
                     PopulateProfileDropdown();
                 });
@@ -203,7 +226,6 @@ namespace CommanderAILab.UI
 
             int numPlayers = Mathf.RoundToInt(numPlayersSlider.value);
 
-            // Collect selected deck names (index 0 = "-- Select Deck --")
             var selectedDecks = new List<string>();
             void TryAdd(TMP_Dropdown dd)
             {
@@ -292,7 +314,6 @@ namespace CommanderAILab.UI
 
                 bool done = false;
                 string errorMsg = null;
-                SimStatusModel latestStatus = null;
 
                 _api.GetSimStatus(batchId,
                     json =>
@@ -301,7 +322,6 @@ namespace CommanderAILab.UI
                         {
                             var status = JsonConvert.DeserializeObject<SimStatusModel>(json);
                             if (status == null) { done = true; errorMsg = "Empty status response."; return; }
-                            latestStatus = status;
 
                             if (!string.IsNullOrEmpty(status.error))
                             {
@@ -316,10 +336,10 @@ namespace CommanderAILab.UI
                                           : status.gamesCompleted;
 
                             float progress = total > 0 ? (float)completed / total : 0f;
-                            if (progressBar) progressBar.value = progress;
-                            if (progressText) progressText.text = $"{Mathf.RoundToInt(progress * 100)}%";
-                            if (statusText)   statusText.text = $"Running... {completed}/{total} games";
-                            if (elapsedText)  elapsedText.text = $"Elapsed: {status.elapsedMs / 1000f:F1}s";
+                            if (progressBar)    progressBar.value   = progress;
+                            if (progressText)   progressText.text   = $"{Mathf.RoundToInt(progress * 100)}%";
+                            if (statusText)     statusText.text     = $"Running... {completed}/{total} games";
+                            if (elapsedText)    elapsedText.text    = $"Elapsed: {status.elapsedMs / 1000f:F1}s";
                             if (simsPerSecText) simsPerSecText.text = $"{status.simsPerSec:F1} sims/s";
 
                             if (!status.running) done = true;
@@ -332,7 +352,6 @@ namespace CommanderAILab.UI
                     },
                     err => { done = true; errorMsg = err; });
 
-                // Wait one frame so callbacks have fired
                 yield return null;
 
                 if (!string.IsNullOrEmpty(errorMsg))
@@ -345,7 +364,7 @@ namespace CommanderAILab.UI
 
                 if (done)
                 {
-                    if (statusText) statusText.text = "Simulation complete!";
+                    if (statusText)  statusText.text  = "Simulation complete!";
                     if (progressBar) progressBar.value = 1f;
                     if (progressText) progressText.text = "100%";
                     startSimButton.interactable = true;
@@ -412,9 +431,9 @@ namespace CommanderAILab.UI
 
         private void SetResultsPanelVisible(bool visible)
         {
-            if (resultsParent)  resultsParent.gameObject.SetActive(visible);
-            if (winnerText)     winnerText.gameObject.SetActive(visible);
-            if (historyButton)  historyButton.gameObject.SetActive(visible);
+            if (resultsParent) resultsParent.gameObject.SetActive(visible);
+            if (winnerText)    winnerText.gameObject.SetActive(visible);
+            if (historyButton) historyButton.gameObject.SetActive(visible);
         }
 
         // ── Error ─────────────────────────────────────────────────────────────
@@ -424,19 +443,26 @@ namespace CommanderAILab.UI
             errorText.text = msg;
         }
 
-        // ── Helper Models (private inner classes) ─────────────────────────────
-        [Serializable] private class DecksWrapper { public List<LabDeckEntry> decks; }
-        [Serializable] private class LabDeckEntry { public string name; public string source; public string commander; }
+        // ── Helper Models ─────────────────────────────────────────────────────
+        [Serializable] private class DecksWrapper    { public List<LabDeckEntry> decks; }
+        [Serializable] private class LabDeckEntry    { public string name; public string source; public string commander; }
         [Serializable] private class ProfilesWrapper { public List<AiProfile> profiles; }
-        [Serializable] private class AiProfile { public string name; public string description; }
+        [Serializable] private class AiProfile       { public string name; public string description; }
         [Serializable] private class StartRequest
         {
             public List<string> decks; public int numGames; public int threads;
             public bool useLearnedPolicy; public string policyStyle;
             public int seed; public int clock;
         }
-        [Serializable] private class SimResult { public Summary summary; }
-        [Serializable] private class Summary { public List<ResultEntry> perDeck; }
+        [Serializable] private class SimStartResponse { public string batchId; }
+        [Serializable] private class SimStatusModel
+        {
+            public bool   running; public int total; public int completed;
+            public int    totalGames; public int gamesCompleted;
+            public float  elapsedMs; public float simsPerSec; public string error;
+        }
+        [Serializable] private class SimResult  { public Summary summary; }
+        [Serializable] private class Summary    { public List<ResultEntry> perDeck; }
         [Serializable] private class ResultEntry { public string deckName; public float winRate; public int wins; public int losses; }
     }
 }

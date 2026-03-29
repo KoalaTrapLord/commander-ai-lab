@@ -33,6 +33,24 @@ namespace CommanderAILab.Models
         [JsonProperty("roles")] public List<string> roles;
         [JsonProperty("source")] public string source;
 
+        // ── Battleground runtime state (not serialized to JSON) ───────────────
+        [NonSerialized] public bool isTapped;
+        [NonSerialized] public bool isSummoningSick;
+        [NonSerialized] public int ownerSeat = -1;
+        [NonSerialized] public BattleZone currentZone = BattleZone.Library;
+        [NonSerialized] public Dictionary<string, int> counters = new();
+
         public override string ToString() => $"{name} ({manaCost}) [{typeLine}]";
+    }
+
+    public enum BattleZone
+    {
+        Library,
+        Hand,
+        Battlefield,
+        Graveyard,
+        Exile,
+        CommandZone,
+        Stack
     }
 }
