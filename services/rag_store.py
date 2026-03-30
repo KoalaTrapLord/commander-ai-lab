@@ -290,7 +290,8 @@ def _build_collection_from_bulk(batch_size: int = DEFAULT_BATCH_SIZE) -> dict:
     batch_docs: list[str] = []
     batch_metas: list[dict] = []
     for row in all_rows:
-        card = dict(row)
+        # Support both sqlite3.Row (supports dict()) and SimpleNamespace (needs vars())
+        card = dict(row) if hasattr(row, "keys") else vars(row)
         doc = _build_document(card)
         if not doc.strip():
             continue
