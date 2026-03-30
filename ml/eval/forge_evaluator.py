@@ -219,9 +219,8 @@ class ForgeEvaluator:
                 embeddings_dir=self.cfg.embeddings_dir,
                 device=self.cfg.device,
             )
-            # Override the default checkpoint filename with the exact path
-            svc.checkpoint_dir = str(Path(self.cfg.checkpoint_path).parent)
-            ok = svc.load()
+                        # Use reload() with explicit checkpoint path (load() hardcodes best_policy.pt)
+ok = svc.reload(self.cfg.checkpoint_path)
             if not ok:
                 logger.warning("[Eval] Policy service load failed — entropy/latency metrics unavailable")
             return svc
