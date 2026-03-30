@@ -76,6 +76,26 @@ def _extract_json(raw: str) -> Any:
     raise json.JSONDecodeError("No valid JSON found in response", text, 0)
 
 
+def _parse_card_list_fallback(raw: str) -> List[str]:
+    """Last-resort parser for when the LLM ignores json_mode and returns
+    a plain comma-separated (or newline-separated) list of card names.
+
+    Strips common junk characters, splits on commas or newlines, and
+    returns non-empty tokens.  Returns an empty list if nothing useful
+    is found so the caller can decide how to handle it.
+    """
+    # Remove JSON brackets/quotes/backticks/numbering artefacts
+    cleaned = re.sub(r"[\[\]{}\"`]", "", raw)
+    # Remove leading bullet / numbering like "1." or "-"
+    cleaned = re.sub(r"(?m)^\s*[-*\d]+[.)]\s*", "", cleaned)
+    # Split on commas or newlines
+    tokens = re.split(r"[,\n]+", cleaned)
+    names = [t.strip().strip("'\"") for t in tokens if t.strip()]
+    # Filter out tokens that look like prose (>6 words) or are empty
+    names = [n for n in names if n and len(n.split()) <= 6]
+    return names
+
+
 def chat(
     messages: List[Dict[str, str]],
     model: str = DEFAULT_MODEL,
@@ -185,8 +205,16 @@ Only suggest cards that are legal in Commander and match the color identity.
 
 Return ONLY a JSON array of card name strings, like: ["Card A", "Card B", ...]"""
 
+    # One-shot example in the system prompt anchors small models to JSON output
     messages = [
-        {"role": "system", "content": "You are an expert MTG Commander deck builder. Respond with ONLY a JSON array of strings. No other text."},
+        {
+            "role": "system",
+            "content": (
+                "You are an expert MTG Commander deck builder. "
+                "You MUST respond with ONLY a JSON array of strings — nothing else. "
+                'Example of the required format: ["Sol Ring", "Arcane Signet", "Lightning Greaves"]'
+            ),
+        },
         {"role": "user", "content": prompt},
     ]
     raw = chat(messages, json_mode=True)
@@ -206,7 +234,26 @@ Return ONLY a JSON array of card name strings, like: ["Card A", "Card B", ...]""
             return [str(c) for c in result]
         return []
     except json.JSONDecodeError:
-        logger.error("Failed to parse suggestion response: %s", raw[:500])
+        # JSON parse failed — attempt plain-text CSV recovery before giving up
+        logger.warning(
+            "suggest_cards: JSON parse failed, attempting CSV fallback. "
+            "Raw (first 300 chars): %s",
+            raw[:300],
+        )
+        recovered = _parse_card_list_fallback(raw)
+        if recovered:
+            logger.warning(
+                "suggest_cards: CSV fallback recovered %d name(s) for category '%s'",
+                len(recovered),
+                category,
+            )
+            return recovered
+        logger.error(
+            "suggest_cards: CSV fallback also failed for category '%s'. "
+            "Returning empty list. Full raw: %s",
+            category,
+            raw[:500],
+        )
         return []
 
 
