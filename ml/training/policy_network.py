@@ -223,7 +223,8 @@ def load_checkpoint(path: str, device: str = "cpu"):
         num_layers=config.get("num_layers", TRAINING_CONFIG.num_layers),
         dropout=config.get("dropout", TRAINING_CONFIG.dropout),
     )
-    model.load_state_dict(checkpoint["model_state_dict"])
+    state = {k: v for k, v in checkpoint["model_state_dict"].items() if not k.startswith("value_head")}
+    model.load_state_dict(state, strict=False)
     model.to(device)
 
     return model, checkpoint
