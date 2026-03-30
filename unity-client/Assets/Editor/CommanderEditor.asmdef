@@ -1,0 +1,19 @@
+{
+    "name": "CommanderEditor",
+    "rootNamespace": "CommanderAILab.Editor",
+    "references": [
+        "CommanderCore",
+        "CommanderTabletop"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

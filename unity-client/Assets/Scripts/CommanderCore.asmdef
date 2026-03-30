@@ -1,0 +1,18 @@
+{
+    "name": "CommanderCore",
+    "rootNamespace": "CommanderAILab",
+    "references": [
+        "GUID:fc705f7e82bc6c14983f4469c96c0ddb"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
