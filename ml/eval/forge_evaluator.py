@@ -192,7 +192,7 @@ class ForgeEvaluator:
         forge_available = (
             self.cfg.forge_jar
             and Path(self.cfg.forge_jar).exists()
-            and len(self.cfg.deck_files) >= 2
+            and len(self.cfg.deck_files) >= 3
         )
 
         if forge_available:
