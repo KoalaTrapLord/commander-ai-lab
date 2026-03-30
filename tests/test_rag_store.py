@@ -73,12 +73,12 @@ class TestBuildDocument:
         from services.rag_store import _build_document
         card = {"name": "Unnamed"}
         doc = _build_document(card)
-        assert doc == "Unnamed"
+        assert doc == "Unnamed."
 
     def test_pipe_delimiter_format(self):
         from services.rag_store import _build_document
         card = {"name": "A", "mana_cost": "B", "type_line": "C", "oracle_text": "D"}
-        assert _build_document(card) == "A | B | C | D"
+        assert _build_document(card) == "A is a C. It costs B. D"
 
 
 # ---------------------------------------------------------------------------
