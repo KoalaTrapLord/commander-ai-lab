@@ -16,7 +16,6 @@ Usage:
         --games 200 \
         --run-id baseline-synthetic \
         --out results/eval-baseline.json \
-        --threads 4 \
         --seed 42
 
 Opts:
@@ -26,7 +25,7 @@ Opts:
     --out PATH           Output JSON path  [default: results/eval-{run-id}.json]
     --forge-jar PATH     Forge JAR path  [default: auto-detect]
     --forge-dir DIR      Forge working directory  [default: forge]
-    --decks D [D ...]    Deck .dck files to use (2-4)  [default: first 2 found in decks/]
+    --decks D [D ...]    Deck .dck files to use (2-4)  [default: first 2 found in precon-decks/]
     --threads N          Parallel Forge workers  [default: 4]
     --clock N            Per-game clock limit in seconds  [default: 120]
     --seed N             RNG seed for reproducibility
@@ -134,7 +133,7 @@ def main() -> int:
     # ── Resolve decks
     deck_files = args.decks
     if not deck_files:
-        deck_files = find_decks("decks", n=2)
+        deck_files = find_decks("precon-decks", n=2)
     if not deck_files:
         logger.warning("No .dck files found — synthetic fallback will be used.")
 
