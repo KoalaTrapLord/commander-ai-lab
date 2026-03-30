@@ -1,9 +1,11 @@
 {
   "dependencies": {
-    "com.unity.render-pipelines.universal": "14.0.11",
-    "com.unity.textmeshpro": "3.0.9",
+    "com.unity.render-pipelines.universal": "17.0.3",
+    "com.unity.textmeshpro": "3.2.0-pre.10",
     "com.unity.nuget.newtonsoft-json": "3.2.1",
-    "com.unity.inputsystem": "1.7.0",
+    "com.unity.inputsystem": "1.11.2",
+    "com.unity.netcode.gameobjects": "2.3.1",
+    "com.unity.cinemachine": "3.1.2",
     "com.unity.modules.animation": "1.0.0",
     "com.unity.modules.audio": "1.0.0",
     "com.unity.modules.imageconversion": "1.0.0",
