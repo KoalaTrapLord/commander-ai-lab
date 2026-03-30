@@ -39,6 +39,7 @@ import os
 import sys
 import time
 import uuid
+import subprocess
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -231,34 +232,45 @@ class ForgeEvaluator:
     # ── Real Forge game runner ───────────────
 
     def _run_forge_games(self, service) -> List[GameRecord]:
-        """Run games via MultiThreadBatchRunner + Forge subprocess."""
-        try:
-            from commanderailab.batch.MultiThreadBatchRunner import MultiThreadBatchRunner  # type: ignore
-            from commanderailab.schema.BatchResult import DeckInfo  # type: ignore
-            from commanderailab.ai.AiPolicy import AiPolicy  # type: ignore
-        except ImportError:
-            logger.warning("[Eval] Java bridge not importable from Python — using JSONL parsing fallback")
-            return self._run_forge_via_subprocess(service)
-
-        decks = [
-            DeckInfo(name=Path(f).stem, file=f)
-            for f in self.cfg.deck_files[:4]
+        """Launch LabCli Java subprocess with --ml-log, then parse JSONL output."""
+        logger.info("[Eval %s] Launching Forge CLI subprocess for %d games", self.cfg.run_id, self.cfg.num_games)
+        deck_args = []
+        for i, df in enumerate(self.cfg.deck_files[:4]):
+            deck_args.extend([f"--deck{i+1}", Path(df).stem])
+        # Resolve Java 17
+        java_exe = self.cfg.java_path
+        for c in [r"C:\Program Files\Eclipse Adoptium\jdk-17.0.18.8-hotspot\bin\java.exe",
+                   r"C:\Program Files\Java\jdk-17\bin\java.exe"]:
+            if Path(c).exists():
+                java_exe = c
+                break
+        lab_jar = os.path.join(project_root, "target", "commander-ai-lab-1.0.0-SNAPSHOT.jar")
+        if not Path(lab_jar).exists():
+            logger.error("[Eval] Lab JAR not found at %s -- run mvn package -DskipTests first", lab_jar)
+            return self._run_synthetic_eval(service)
+        cmd = [
+            java_exe, "-jar", lab_jar,
+            "--forge-jar", self.cfg.forge_jar,
+            "--forge-dir", self.cfg.forge_work_dir,
+            *deck_args,
+            "--games", str(self.cfg.num_games),
+            "--threads", str(self.cfg.num_threads),
+            "--clock", str(self.cfg.clock_seconds),
+            "--ml-log",
+            "--output", os.path.join(self.cfg.results_dir, f"eval-{self.cfg.run_id}-batch.json"),
         ]
-        runner = MultiThreadBatchRunner(
-            self.cfg.forge_jar, self.cfg.forge_work_dir,
-            decks, AiPolicy.MIDRANGE,
-            self.cfg.num_threads, True, self.cfg.clock_seconds, self.cfg.java_path
-        )
-        runner.enableMlLogging(self.cfg.results_dir, f"eval-{self.cfg.run_id}")
-        runner.warmPool()
-
+        if self.cfg.seed is not None:
+            cmd.extend(["--seed", str(self.cfg.seed)])
+        logger.info("[Eval %s] CMD: %s", self.cfg.run_id, " ".join(cmd))
         try:
-            results = runner.runBatch(self.cfg.num_games, self.cfg.seed)
-        finally:
-            runner.shutdownPool()
-
-        return self._java_results_to_records(results, service)
-
+            result = subprocess.run(cmd, capture_output=True, text=True,
+                timeout=self.cfg.clock_seconds * self.cfg.num_games + 300)
+            if result.returncode != 0:
+                logger.warning("[Eval %s] Forge CLI exit %d: %s", self.cfg.run_id, result.returncode, result.stderr[:500])
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            logger.error("[Eval %s] Forge CLI failed: %s -- falling back to synthetic", self.cfg.run_id, e)
+            return self._run_synthetic_eval(service)
+        return self._run_forge_via_subprocess(service)
     def _run_forge_via_subprocess(self, service) -> List[GameRecord]:
         """Parse JSONL files produced by a separately-launched Forge batch."""
         records = []
