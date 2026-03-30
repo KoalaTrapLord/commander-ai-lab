@@ -133,7 +133,7 @@ def main() -> int:
     # ── Resolve decks
     deck_files = args.decks
     if not deck_files:
-        deck_files = find_decks("precon-decks", n=2)
+        deck_files = find_decks("precon-decks", n=4)
     if not deck_files:
         logger.warning("No .dck files found — synthetic fallback will be used.")
 
