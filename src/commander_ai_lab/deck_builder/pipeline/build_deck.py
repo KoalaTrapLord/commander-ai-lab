@@ -8,8 +8,11 @@ Orchestrates: EDHrec data -> Scryfall -> Ollama suggestions ->
 from __future__ import annotations
 
 import logging
+import sqlite3
 import time
 from typing import Dict, List, Optional
+
+import httpx
 
 from ..api import edhrec, scryfall
 from ..api import ollama_client as ollama
@@ -19,6 +22,101 @@ from ..core.models import BuildRequest, BuildResult, CardEntry, CommanderDeck, D
 from ..core.rules_engine import check_ban_list, filter_by_color_identity, validate_deck
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Card-name validation helper
+# ---------------------------------------------------------------------------
+
+_SCRYFALL_NAMED_URL = "https://api.scryfall.com/cards/named"
+_SCRYFALL_HEADERS = {"User-Agent": "commander-ai-lab/1.0"}
+_SCRYFALL_TIMEOUT = 5.0  # seconds per lookup
+
+
+def validate_card_names(
+    names: List[str],
+    db_conn: Optional[sqlite3.Connection] = None,
+) -> List[str]:
+    """Return only names that resolve to real MTG cards.
+
+    Resolution order:
+      1. Exact match (case-insensitive) in ``collection_entries`` DB.
+      2. Scryfall ``/cards/named?fuzzy=<name>`` HTTP lookup.
+
+    Names that fail both checks are dropped and logged as hallucinations.
+    The returned list preserves the original order of surviving names.
+
+    Parameters
+    ----------
+    names:
+        Raw list of card name strings from ``suggest_cards()``.
+    db_conn:
+        Optional SQLite connection to the lab database.  When provided,
+        local collection lookups are attempted before hitting Scryfall,
+        which is faster and avoids unnecessary network calls for cards
+        the user already owns.
+    """
+    if not names:
+        return []
+
+    valid: List[str] = []
+    dropped: List[str] = []
+
+    for raw_name in names:
+        name = raw_name.strip()
+        if not name:
+            continue
+
+        resolved = False
+
+        # -- 1. Local DB check --
+        if db_conn is not None:
+            try:
+                row = db_conn.execute(
+                    "SELECT name FROM collection_entries "
+                    "WHERE name = ? COLLATE NOCASE LIMIT 1",
+                    (name,),
+                ).fetchone()
+                if row:
+                    valid.append(row[0])  # use canonical capitalisation from DB
+                    resolved = True
+            except Exception as db_err:
+                logger.debug("DB lookup failed for '%s': %s", name, db_err)
+
+        if resolved:
+            continue
+
+        # -- 2. Scryfall fuzzy lookup --
+        try:
+            import urllib.parse
+            url = f"{_SCRYFALL_NAMED_URL}?fuzzy={urllib.parse.quote(name)}"
+            resp = httpx.get(url, headers=_SCRYFALL_HEADERS, timeout=_SCRYFALL_TIMEOUT)
+            if resp.status_code == 200:
+                data = resp.json()
+                canonical = data.get("name", name)
+                valid.append(canonical)
+                resolved = True
+            # 404 = card not found; any other status = treat as unresolved
+        except Exception as sf_err:
+            logger.debug("Scryfall lookup failed for '%s': %s", name, sf_err)
+
+        if not resolved:
+            dropped.append(name)
+
+    if dropped:
+        examples = dropped[:5]
+        logger.warning(
+            "validate_card_names: dropped %d hallucinated/unresolvable name(s) "
+            "(showing up to 5): %s",
+            len(dropped),
+            examples,
+        )
+
+    return valid
+
+
+# ---------------------------------------------------------------------------
+# Pipeline
+# ---------------------------------------------------------------------------
 
 
 def build_deck(request: BuildRequest) -> BuildResult:
@@ -90,6 +188,14 @@ def build_deck(request: BuildRequest) -> BuildResult:
         all_names.extend(c.name for c in cards)
     all_names = list(set(all_names))
 
+    # Grab a DB connection once for the validation step (best-effort)
+    _db_conn: Optional[sqlite3.Connection] = None
+    if request.collection_path:
+        try:
+            _db_conn = sqlite3.connect(request.collection_path)
+        except Exception as e:
+            logger.debug("Could not open DB for name validation: %s", e)
+
     # Ask Ollama to suggest cards for categories that need more.
     # sim_context is forwarded so the LLM factors in what traits have
     # been statistically successful in our own game simulations.
@@ -106,9 +212,26 @@ def build_deck(request: BuildRequest) -> BuildResult:
             strategy_notes=request.strategy_notes,
             sim_context=sim_context,
         )
+
+        # ── Validation gate: drop hallucinated / unresolvable names ──────
+        before = len(suggested)
+        suggested = validate_card_names(suggested, db_conn=_db_conn)
+        after = len(suggested)
+        if before != after:
+            warnings.append(
+                f"Step 4 [{category}]: {before - after} suggested name(s) could not be "
+                f"resolved against DB/Scryfall and were dropped."
+            )
+
         ollama_suggestions[category] = suggested
         all_names.extend(suggested)
-        logger.info(f"  Ollama {category}: {len(suggested)} suggestions")
+        logger.info(f"  Ollama {category}: {after} valid suggestions ({before} raw)")
+
+    if _db_conn:
+        try:
+            _db_conn.close()
+        except Exception:
+            pass
 
     sources.append("ollama")
 
