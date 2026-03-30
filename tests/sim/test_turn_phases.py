@@ -510,6 +510,13 @@ class TestTurnManagerPhaseCompat:
         assert ACTION_PHASES == {"main1", "main2"}
 
     def test_turn_manager_response_phases(self):
-        """RESPONSE_PHASES should be upkeep, begin_combat, end_combat, end_step."""
+        """RESPONSE_PHASES contains the instant-speed windows dispatched via _apnap_priority_window.
+
+        begin_combat and end_combat are handled as named calls inside _phase_combat()
+        directly -- they are NOT in RESPONSE_PHASES. Only upkeep and end_step
+        are dispatched through the generic APNAP window in _run_player_turn().
+        """
         from commander_ai_lab.sim.turn_manager import RESPONSE_PHASES
-        assert RESPONSE_PHASES == {"upkeep", "begin_combat", "end_combat", "end_step"}
+        assert RESPONSE_PHASES == {"upkeep", "end_step"}
+        assert "begin_combat" not in RESPONSE_PHASES
+        assert "end_combat" not in RESPONSE_PHASES
