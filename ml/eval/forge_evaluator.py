@@ -219,9 +219,8 @@ class ForgeEvaluator:
                 embeddings_dir=self.cfg.embeddings_dir,
                 device=self.cfg.device,
             )
-                        # load() initializes embeddings + encoder; reload() loads the exact checkpoint file
-            svc.load()  # loads embeddings + encoder (checkpoint load will fail — that's OK)
-ok = svc.reload(self.cfg.checkpoint_path)
+            svc.load()
+            ok = svc.reload(self.cfg.checkpoint_path)
             if not ok:
                 logger.warning("[Eval] Policy service load failed — entropy/latency metrics unavailable")
             return svc
