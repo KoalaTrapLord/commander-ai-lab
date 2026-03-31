@@ -130,22 +130,15 @@ namespace CommanderAILab.Tabletop
 
         private IEnumerator DownloadTexture(string url)
         {
-            var request = UnityEngine.Networking.UnityWebRequestTexture.GetTexture(url);
+            using var request = UnityEngine.Networking.UnityWebRequestTexture.GetTexture(url);
             yield return request.SendWebRequest();
 
             if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
             {
-                var downloadedTex = UnityEngine.Networking.DownloadHandlerTexture.GetContent(request);
-
-                // Create an owned copy so it survives request disposal
-                var tex = new Texture2D(downloadedTex.width, downloadedTex.height, downloadedTex.format, false);
-                Graphics.CopyTexture(downloadedTex, tex);
-
+                var tex = UnityEngine.Networking.DownloadHandlerTexture.GetContent(request);
                 if (_frontMaterial != null)
                     _frontMaterial.mainTexture = tex;
             }
-
-            request.Dispose();
         }
 
         // ── State Updates ──────────────────────────────────────────
