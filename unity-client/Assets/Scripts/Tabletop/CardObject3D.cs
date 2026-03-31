@@ -35,6 +35,7 @@ namespace CommanderAILab.Tabletop
 
         private Vector3 _targetPosition;
         private Quaternion _targetRotation;
+        private Quaternion _baseRotation = Quaternion.identity;
         private bool _isHovered;
         private MeshRenderer _frontRenderer;
         private MeshRenderer _backRenderer;
@@ -43,7 +44,6 @@ namespace CommanderAILab.Tabletop
         private static readonly Color HighlightColor = new Color(1f, 0.9f, 0.3f, 1f);
         private static readonly Color SelectedColor = new Color(0.3f, 1f, 0.5f, 1f);
         private Color _baseEmission = Color.black;
-
         // ── Initialization ─────────────────────────────────────────
 
         public void Initialize(BoardCard data)
@@ -140,21 +140,35 @@ namespace CommanderAILab.Tabletop
                     _frontMaterial.mainTexture = tex;
             }
         }
+        // ── State Updates ────────────────────────────────────────
 
-        // ── State Updates ──────────────────────────────────────────
+        /// <summary>
+        /// Sets the base world rotation from the zone anchor.
+        /// Combined with tap angle to produce final target rotation.
+        /// </summary>
+        public void SetBaseRotation(Quaternion worldRotation)
+        {
+            _baseRotation = worldRotation;
+            RecalculateTargetRotation();
+        }
 
         public void SetTapped(bool tapped, bool instant = false)
         {
             IsTapped = tapped;
-            float yRot = tapped ? tapAngle : 0f;
-            _targetRotation = Quaternion.Euler(0f, yRot, 0f);
+            RecalculateTargetRotation();
             if (instant)
-                transform.localRotation = _targetRotation;
+                transform.rotation = _targetRotation;
         }
 
-        public void SetTargetPosition(Vector3 pos)
+        private void RecalculateTargetRotation()
         {
-            _targetPosition = pos;
+            float yRot = IsTapped ? tapAngle : 0f;
+            _targetRotation = _baseRotation * Quaternion.Euler(0f, yRot, 0f);
+        }
+
+        public void SetTargetPosition(Vector3 worldPos)
+        {
+            _targetPosition = worldPos;
         }
 
         public void SetSelected(bool selected)
@@ -193,24 +207,23 @@ namespace CommanderAILab.Tabletop
             _frontMaterial.EnableKeyword("_EMISSION");
         }
 
-        // ── Update Loop ────────────────────────────────────────────
+        // ── Update Loop (world-space lerp) ──────────────────────
 
         private void Update()
         {
-            // Smooth position lerp
+            // Smooth position lerp in world space
             float yOffset = _isHovered ? hoverLift : 0f;
             Vector3 target = _targetPosition + Vector3.up * yOffset;
-            transform.localPosition = Vector3.Lerp(transform.localPosition, target,
-                Time.deltaTime * lerpSpeed);
+            transform.position = Vector3.Lerp(transform.position, target, Time.deltaTime * lerpSpeed);
 
-            // Smooth rotation lerp
-            transform.localRotation = Quaternion.Slerp(transform.localRotation,
-                _targetRotation, Time.deltaTime * lerpSpeed);
+            // Smooth rotation lerp in world space
+            transform.rotation = Quaternion.Slerp(transform.rotation, _targetRotation, Time.deltaTime * lerpSpeed);
         }
 
         private void OnDestroy()
         {
-            if (_frontMaterial != null) Destroy(_frontMaterial);
+            if (_frontMaterial != null)
+                Destroy(_frontMaterial);
         }
     }
 }
