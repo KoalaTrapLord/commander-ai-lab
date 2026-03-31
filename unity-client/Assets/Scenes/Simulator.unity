@@ -276,6 +276,109 @@ LightingSettings:
   m_PVRFilteringAtrousPositionSigmaIndirect: 2
   m_PVRFilteringAtrousPositionSigmaAO: 1
   m_RespectSceneVisibilityWhenBakingGI: 0
+--- !u!1 &463781222
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 463781226}
+  - component: {fileID: 463781225}
+  - component: {fileID: 463781224}
+  - component: {fileID: 463781223}
+  m_Layer: 0
+  m_Name: GameplayController
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &463781223
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 463781222}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 135ea95160f02014baeee72e1b0a0cb7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CommanderAILab.Services.GameSessionService
+  baseUrl: http://localhost:8080
+  timeoutSeconds: 30
+--- !u!114 &463781224
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 463781222}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d1c9cc502ec72f645bd67738d64425ce, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CommanderAILab.Tabletop.BoardManager
+  battlefieldAnchors:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  handAnchors:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  commandZoneAnchors:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  graveyardAnchors:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  cardSpacingX: 0.75
+  cardSpacingZ: 1
+  maxCardsPerRow: 8
+  handFanAngle: 5
+  handCardSpacing: 0.55
+  tableRadius: 5
+--- !u!114 &463781225
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 463781222}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 807527c68dbd4bc4a969b0b697456b05, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CommanderAILab.Tabletop.GameplayController
+  boardManager: {fileID: 0}
+  hud: {fileID: 0}
+  cameraController: {fileID: 0}
+  aiTurnDelay: 1.5
+  autoAdvanceAI: 1
+--- !u!4 &463781226
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 463781222}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0, y: 0, z: -0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &531038259
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2439,8 +2542,33 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6356727806833526537, guid: c2c503c98541be54e98b0f954dfcf6a4,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6356727807455473992}
   m_SourcePrefab: {fileID: 100100000, guid: c2c503c98541be54e98b0f954dfcf6a4, type: 3}
+--- !u!1 &6356727807455473991 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6356727806833526537, guid: c2c503c98541be54e98b0f954dfcf6a4,
+    type: 3}
+  m_PrefabInstance: {fileID: 6356727807455473990}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &6356727807455473992
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6356727807455473991}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 87942bfd7795d1d45a1e26a087c64246, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CommanderAILab.Tabletop.CommanderGameBridge
+  gameplayController: {fileID: 0}
+  boardManager: {fileID: 0}
+  suppressTcgNetworking: 1
 --- !u!1001 &7426997187842496860
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2546,3 +2674,4 @@ SceneRoots:
   - {fileID: 679643787}
   - {fileID: 533642366}
   - {fileID: 1761608357}
+  - {fileID: 463781226}
