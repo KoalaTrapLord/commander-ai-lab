@@ -21,7 +21,7 @@ namespace CommanderAILab.Tabletop
     ///
     /// Setup (one-time in Unity Editor):
     ///   - Open TcgEngine/Scenes/Game/Game3D.unity
-    ///   - File → Save As → Assets/Scenes/Simulator.unity
+    ///   - File > Save As > Assets/Scenes/Simulator.unity
     ///   - Find the GameClient GameObject in the hierarchy
     ///   - Add this script as a component alongside GameClient
     ///   - Make sure GameplayController and BoardManager are also in the scene
@@ -37,7 +37,7 @@ namespace CommanderAILab.Tabletop
         [Tooltip("Disables TCGEngine's matchmaker so it won't try to reach its own server")]
         [SerializeField] private bool suppressTcgNetworking = true;
 
-        // ── Static session params passed from MainMenu ─────────────
+        // -- Static session params passed from MainMenu ----
         public static string PendingSessionId { get; private set; }
         public static int PendingHumanSeat { get; private set; } = 0;
 
@@ -51,7 +51,7 @@ namespace CommanderAILab.Tabletop
             PendingHumanSeat = humanSeat;
         }
 
-        // ── Lifecycle ───────────────────────────────────────────────
+        // -- Lifecycle ----
 
         private void Awake()
         {
@@ -74,7 +74,7 @@ namespace CommanderAILab.Tabletop
                 return;
             }
 
-            // Wire GameSessionService state updates → BoardManager
+            // Wire GameSessionService state updates > BoardManager
             var session = GameSessionService.Instance;
             if (session != null)
             {
@@ -97,11 +97,11 @@ namespace CommanderAILab.Tabletop
                 session.OnStateUpdated -= OnStateReceived;
         }
 
-        // ── State Forwarding ────────────────────────────────────────
+        // -- State Forwarding ----
 
         /// <summary>
         /// Receives game state from FastAPI backend and syncs the board.
-        /// This is the core bridge: FastAPI → GameStateResponse → TCGEngine scene.
+        /// This is the core bridge: FastAPI > GameStateResponse > TCGEngine scene.
         /// </summary>
         private void OnStateReceived(GameStateResponse state)
         {
@@ -113,11 +113,11 @@ namespace CommanderAILab.Tabletop
             // GameplayController already subscribes to OnStateUpdated directly,
             // so HUD updates happen automatically. No double-call needed.
 
-            Debug.Log($"[CommanderGameBridge] State synced — Turn {state.turn}, " +
+            Debug.Log($"[CommanderGameBridge] State synced -- Turn {state.turn}, " +
                       $"Active seat: {state.activeSeat}, Phase: {state.phase}");
         }
 
-        // ── TCGEngine Network Suppression ───────────────────────────
+        // -- TCGEngine Network Suppression ----
 
         /// <summary>
         /// Disables TCGEngine components that would try to connect to its
@@ -125,7 +125,7 @@ namespace CommanderAILab.Tabletop
         /// </summary>
         private void DisableTcgNetworking()
         {
-            // Disable the matchmaker — Commander AI Lab uses direct FastAPI sessions
+            // Disable the matchmaker -- Commander AI Lab uses direct FastAPI sessions
             var matchmaker = GetComponent<GameClientMatchmaker>();
             if (matchmaker != null)
             {
@@ -133,16 +133,15 @@ namespace CommanderAILab.Tabletop
                 Debug.Log("[CommanderGameBridge] Disabled GameClientMatchmaker");
             }
 
-            // Disable TCGEngine's built-in AI if present — your Python AI handles this
-            var tcgAI = FindObjectOfType<TcgEngine.AI.AIPlayer>();
-            if (tcgAI != null)
-            {
-                tcgAI.enabled = false;
-                Debug.Log("[CommanderGameBridge] Disabled TCGEngine AIPlayer");
-            }
+            // Note: TCGEngine's AIPlayer is an abstract class (not a MonoBehaviour),
+            // so it cannot be found via FindObjectOfType or disabled via .enabled.
+            // AI suppression is handled by not starting a TCGEngine game session;
+            // your Python AI backend handles all AI decisions instead.
+            Debug.Log("[CommanderGameBridge] TCGEngine networking suppressed. " +
+                      "AI is handled by the FastAPI/Python backend.");
         }
 
-        // ── Main Menu Integration ───────────────────────────────────
+        // -- Main Menu Integration ----
 
         /// <summary>
         /// Loads the Simulator scene. Call from MainMenuController's Play button.
