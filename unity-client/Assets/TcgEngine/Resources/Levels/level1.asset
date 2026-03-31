@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59e39d99af93c37489aff5e1e1333e20, type: 3}
+  m_Name: level1
+  m_EditorClassIdentifier: 
+  id: adventure1
+  level: 1
+  title: Wolf Pack
+  scene: Game
+  player_deck: {fileID: 11400000, guid: 413faefccb2016a4f8639e461e0f3259, type: 2}
+  ai_deck: {fileID: 11400000, guid: e003f1863b637b840b5504c627bb9427, type: 2}
+  ai_level: 5
+  first_player: 10
+  tuto_prefab: {fileID: 871187647601492094, guid: e1e303c91cb4c8a4e8e58c4d6cc73ab8,
+    type: 3}
+  mulligan: 0
+  reward_xp: 150
+  reward_coins: 250
+  reward_packs: []
+  reward_cards: []
+  reward_decks: []

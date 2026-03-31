@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7edf116efdfa73646a6de43812f81a4a, type: 3}
+  m_Name: silenced
+  m_EditorClassIdentifier: 
+  effect: 30
+  title: Silenced
+  icon: {fileID: 0}
+  desc: Cannot use abilities.
+  status_fx: {fileID: 8207343968682951967, guid: 0a2325e55f302f84aa511ce672526fad,
+    type: 3}
+  hvalue: -1

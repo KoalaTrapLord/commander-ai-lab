@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 83592925901bfac42a301332a4829af2
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Status/taunt.asset
+  uploadId: 793510

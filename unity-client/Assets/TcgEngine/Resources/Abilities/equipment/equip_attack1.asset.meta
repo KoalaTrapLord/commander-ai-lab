@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 14f603f8f999b6e4a8f583f001fdcfe9
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/equipment/equip_attack1.asset
+  uploadId: 793510

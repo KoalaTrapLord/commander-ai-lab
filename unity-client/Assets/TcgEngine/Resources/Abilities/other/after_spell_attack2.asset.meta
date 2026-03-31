@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: e3d40ecfce3c72347933eff9a42b95a0
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/other/after_spell_attack2.asset
+  uploadId: 793510

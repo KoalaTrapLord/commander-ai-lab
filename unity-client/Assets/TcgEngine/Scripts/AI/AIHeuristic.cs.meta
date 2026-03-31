@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: a435ad5e46007f5449dc8d627fbe175f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/AI/AIHeuristic.cs
+  uploadId: 793510

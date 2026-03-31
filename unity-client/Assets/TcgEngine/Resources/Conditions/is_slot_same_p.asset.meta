@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: fb9c92f3f6710bc45a9e9a4f60374e76
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/is_slot_same_p.asset
+  uploadId: 793510

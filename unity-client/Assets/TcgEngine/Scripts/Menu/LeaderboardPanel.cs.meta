@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 013b4a582c8245d4d806a612e1f40c5f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/Menu/LeaderboardPanel.cs
+  uploadId: 793510

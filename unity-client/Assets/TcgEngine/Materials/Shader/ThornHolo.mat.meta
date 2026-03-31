@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a7f64ff6f885caf4aab3452b5051a8ab
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Materials/Shader/ThornHolo.mat
+  uploadId: 793510

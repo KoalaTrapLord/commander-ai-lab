@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 3927d8fa4b4fe70448b73f7d8c336445
+timeCreated: 1524497808
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/Card_Sheet_01Y.mat
+  uploadId: 848228

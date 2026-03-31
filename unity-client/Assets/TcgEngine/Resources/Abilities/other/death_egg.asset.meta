@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: bbd458257afc3b143902562079df3124
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/other/death_egg.asset
+  uploadId: 793510

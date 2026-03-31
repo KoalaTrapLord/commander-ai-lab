@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 2f4ec8177de3b0246959cce1946b29ec
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/is_slot_in_range.asset
+  uploadId: 793510

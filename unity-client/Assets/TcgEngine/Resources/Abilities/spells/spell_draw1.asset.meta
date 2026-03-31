@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 2841093c6dacc2c419c03663c168fb72
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/spells/spell_draw1.asset
+  uploadId: 793510

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 14885a96dd1808e4a95a178583736899
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Summon/phoenix_egg.asset
+  uploadId: 793510

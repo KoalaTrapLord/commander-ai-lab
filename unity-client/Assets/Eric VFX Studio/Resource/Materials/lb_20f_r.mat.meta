@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 07543a6d70e8b024c867739555148175
+timeCreated: 1435135139
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/lb_20f_r.mat
+  uploadId: 848228

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: a9dd7f86c32fa924eba176b02f2cd9ea
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/ElectricFX.prefab
+  uploadId: 793510

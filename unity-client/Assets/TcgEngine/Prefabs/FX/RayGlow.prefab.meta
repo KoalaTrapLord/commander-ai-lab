@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 1d4c749ec61e83c42bc064bcc07d0030
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/RayGlow.prefab
+  uploadId: 793510

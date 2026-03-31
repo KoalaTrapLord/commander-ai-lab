@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 88ece03f2b185e7489c50fffb7fef73c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/is_in_hand.asset
+  uploadId: 793510

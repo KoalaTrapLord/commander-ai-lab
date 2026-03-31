@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a1fb3a7171663234280fdfb41c99ab0a
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/ai_is_enemy.asset
+  uploadId: 793510

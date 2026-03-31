@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7edf116efdfa73646a6de43812f81a4a, type: 3}
+  m_Name: spell_immunity
+  m_EditorClassIdentifier: 
+  effect: 18
+  title: Spell Immunity
+  icon: {fileID: 0}
+  desc: Cannot be targeted or damaged by spells and traps.
+  status_fx: {fileID: 2359911801270334615, guid: b3d90b2abb5dc0d419fa9393d64062fd,
+    type: 3}
+  hvalue: 1

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 168ce3c95f614e04cbbc4a5cb6fd86d9
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/other/attack_suffer_damage.asset
+  uploadId: 793510

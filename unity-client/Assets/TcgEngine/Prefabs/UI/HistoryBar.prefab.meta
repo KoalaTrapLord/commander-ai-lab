@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 8e86bc9d8a75a8a4db0b6fdf41cc501e
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/UI/HistoryBar.prefab
+  uploadId: 793510

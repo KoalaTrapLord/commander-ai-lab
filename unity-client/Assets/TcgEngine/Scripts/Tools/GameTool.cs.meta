@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: dfd2a611578d9e041a1be0c56f069c80
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/Tools/GameTool.cs
+  uploadId: 793510

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: bbe5bb65445eda14794157ae42758a1f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: -10
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/Network/TcgNetwork.cs
+  uploadId: 793510

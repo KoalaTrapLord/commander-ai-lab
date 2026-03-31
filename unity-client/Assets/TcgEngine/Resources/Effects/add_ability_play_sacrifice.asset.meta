@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f346e747330bcb64a9759d7dad31ef9f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Effects/add_ability_play_sacrifice.asset
+  uploadId: 793510

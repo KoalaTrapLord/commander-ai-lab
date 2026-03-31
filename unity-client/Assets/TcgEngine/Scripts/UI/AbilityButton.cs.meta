@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 4584e4c98c0662b42a3aabdae6d9a1af
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/UI/AbilityButton.cs
+  uploadId: 793510

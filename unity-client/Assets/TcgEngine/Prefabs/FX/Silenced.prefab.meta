@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 0a2325e55f302f84aa511ce672526fad
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/Silenced.prefab
+  uploadId: 793510

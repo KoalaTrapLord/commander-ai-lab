@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: d96d11f9cc5454a42bc0b5ed454e3320
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/DamageFX.prefab
+  uploadId: 793510

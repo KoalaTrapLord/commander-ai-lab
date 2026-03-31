@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f86a63b7816f61043aee385921bd6b99
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/traps/trap_damage_all2.asset
+  uploadId: 793510

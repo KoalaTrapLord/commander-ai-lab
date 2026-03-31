@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f78e51f35c9bfd943b4b86284b0d639f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/spells/spell_damage3.asset
+  uploadId: 793510

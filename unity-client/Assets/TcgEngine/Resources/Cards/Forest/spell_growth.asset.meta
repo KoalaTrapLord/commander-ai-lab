@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b28109cb7acac0c4e86d8b3d88ef6dad
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Forest/spell_growth.asset
+  uploadId: 793510

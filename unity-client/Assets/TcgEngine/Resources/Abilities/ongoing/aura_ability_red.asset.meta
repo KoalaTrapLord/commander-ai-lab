@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c53d5c0775fc87d4080b05c05dc62b23
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/ongoing/aura_ability_red.asset
+  uploadId: 793510

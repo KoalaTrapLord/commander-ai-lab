@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 5b2e0fb55ed6c6f49bb56bb604178576
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/spells/spell_dragon_create.asset
+  uploadId: 793510

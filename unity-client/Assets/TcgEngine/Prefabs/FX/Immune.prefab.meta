@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: b3d90b2abb5dc0d419fa9393d64062fd
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/Immune.prefab
+  uploadId: 793510

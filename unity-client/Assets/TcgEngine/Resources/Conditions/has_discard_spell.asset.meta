@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: e9d4463383241784aa51cdf783731bb5
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/has_discard_spell.asset
+  uploadId: 793510

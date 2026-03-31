@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4f48bef4a205519449e166c2d47e4337
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Materials/UI/GrayscaleUI.mat
+  uploadId: 793510

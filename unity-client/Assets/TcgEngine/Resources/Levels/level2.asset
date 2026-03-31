@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59e39d99af93c37489aff5e1e1333e20, type: 3}
+  m_Name: level2
+  m_EditorClassIdentifier: 
+  id: adventure2
+  level: 2
+  title: Tree Taunt
+  scene: Game
+  player_deck: {fileID: 11400000, guid: 65bd847f67d27c14dbc5209309fe29fb, type: 2}
+  ai_deck: {fileID: 11400000, guid: 9b795345998e0814185faf16594145c2, type: 2}
+  ai_level: 7
+  first_player: 10
+  tuto_prefab: {fileID: 0}
+  mulligan: 0
+  reward_xp: 150
+  reward_coins: 250
+  reward_packs: []
+  reward_cards: []
+  reward_decks: []

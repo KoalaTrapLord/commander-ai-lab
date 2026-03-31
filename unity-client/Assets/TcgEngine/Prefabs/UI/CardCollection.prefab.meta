@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 0cb2963f39e7f7c45ba2ad3c6de2e37c
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/UI/CardCollection.prefab
+  uploadId: 793510

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 898e8579d4957bd4e84681c7ddd7a178
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/UI/MenuCamera.prefab
+  uploadId: 793510

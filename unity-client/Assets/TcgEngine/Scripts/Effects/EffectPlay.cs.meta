@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 17b5dc1a9aa93f34190de14c3de7f490
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/Effects/EffectPlay.cs
+  uploadId: 793510

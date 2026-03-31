@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c361771bc0f771e48bb0a97fd2325564
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/play/play_boost2.asset
+  uploadId: 793510

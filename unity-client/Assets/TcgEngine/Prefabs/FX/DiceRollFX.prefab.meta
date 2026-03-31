@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 530aef1a1b389e549b7a1ac0514fc1ae
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/DiceRollFX.prefab
+  uploadId: 793510

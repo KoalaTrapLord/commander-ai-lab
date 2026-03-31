@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6331a109bcf6df44184546c712e1d68f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Materials/FX/FXGlow.mat
+  uploadId: 793510

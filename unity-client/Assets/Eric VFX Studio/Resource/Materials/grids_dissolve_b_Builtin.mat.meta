@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 260d137386a8ab04688bf338750eca14
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/grids_dissolve_b_Builtin.mat
+  uploadId: 848228

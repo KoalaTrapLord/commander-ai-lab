@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 3f1ce7ad4345302498938609214087b3
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Materials/FX/FXSlashVAdd.mat
+  uploadId: 793510

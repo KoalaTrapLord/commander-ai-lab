@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: e1e303c91cb4c8a4e8e58c4d6cc73ab8
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/Tutorials/Tutorial1.prefab
+  uploadId: 793510

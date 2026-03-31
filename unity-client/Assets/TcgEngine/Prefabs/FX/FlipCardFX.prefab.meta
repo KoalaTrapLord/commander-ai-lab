@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 88b4d80aa773dfa4db800c2c66c064cc
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/FlipCardFX.prefab
+  uploadId: 793510

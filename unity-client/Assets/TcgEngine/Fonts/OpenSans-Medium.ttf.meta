@@ -1,0 +1,31 @@
+fileFormatVersion: 2
+guid: df83a8ef8ec265d408cd57ce58f209bf
+TrueTypeFontImporter:
+  externalObjects: {}
+  serializedVersion: 4
+  fontSize: 16
+  forceTextureCase: -2
+  characterSpacing: 0
+  characterPadding: 1
+  includeFontData: 1
+  fontNames:
+  - Open Sans
+  fallbackFontReferences:
+  - {fileID: 12800000, guid: 3abd6633187af9c4c911d8c025f3da42, type: 3}
+  - {fileID: 12800000, guid: 294abb673bffdbb498170d01a73153e5, type: 3}
+  - {fileID: 12800000, guid: c56d3a307af0c8d48ae7d1adb958c922, type: 3}
+  customCharacters: 
+  fontRenderingMode: 0
+  ascentCalculationMode: 1
+  useLegacyBoundsCalculation: 0
+  shouldRoundAdvanceValue: 1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Fonts/OpenSans-Medium.ttf
+  uploadId: 793510

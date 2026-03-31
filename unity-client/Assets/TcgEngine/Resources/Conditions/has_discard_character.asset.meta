@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: cca8bbaef69235e45a8f13e01fee6581
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/has_discard_character.asset
+  uploadId: 793510

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 2c34f061b86d6264689e761297d106e8
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Shader/Builtin_AlphaBlendFlow_HDR.shader
+  uploadId: 848228

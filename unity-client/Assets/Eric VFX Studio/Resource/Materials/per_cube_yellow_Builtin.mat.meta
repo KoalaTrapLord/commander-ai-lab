@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: df13c1ff0f1eee24e8ea97203a4a6079
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/per_cube_yellow_Builtin.mat
+  uploadId: 848228

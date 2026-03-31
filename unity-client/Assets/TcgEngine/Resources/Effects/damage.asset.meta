@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4369324687c62ca488c57afd73a2be36
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Effects/damage.asset
+  uploadId: 793510

@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ce5f81e5cc37f547af6923758602c8c, type: 3}
+  m_Name: play_damage_all2
+  m_EditorClassIdentifier: 
+  id: play_damage_all2
+  trigger: 10
+  conditions_trigger: []
+  target: 10
+  conditions_target:
+  - {fileID: 11400000, guid: 47221d412dc0a014b8a33abb0cbfc773, type: 2}
+  filters_target: []
+  effects:
+  - {fileID: 11400000, guid: 4369324687c62ca488c57afd73a2be36, type: 2}
+  status: []
+  value: 2
+  duration: 0
+  chain_abilities: []
+  mana_cost: 0
+  exhaust: 0
+  board_fx: {fileID: 0}
+  caster_fx: {fileID: 0}
+  target_fx: {fileID: 9125387663047351618, guid: b66600b51774daa49964ead5c6a00c49,
+    type: 3}
+  cast_audio: {fileID: 0}
+  target_audio: {fileID: 0}
+  charge_target: 0
+  title: Fire Damage
+  desc: On play, deal 2 damage to all other cards.

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 683a057051c59804eb32a44954f69029
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/Gameplay/BoardSlot.prefab
+  uploadId: 793510

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 23152e0598f367e4f9e370ce267bcd2e
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Status/invicibility.asset
+  uploadId: 793510

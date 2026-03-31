@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 73965d73de1b01a4c8c2f1820472d53f
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/Zzz.prefab
+  uploadId: 793510

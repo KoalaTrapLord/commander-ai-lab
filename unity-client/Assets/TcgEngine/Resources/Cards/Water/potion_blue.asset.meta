@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b492fe697d5348c498fac4bffae6c98b
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Water/potion_blue.asset
+  uploadId: 793510

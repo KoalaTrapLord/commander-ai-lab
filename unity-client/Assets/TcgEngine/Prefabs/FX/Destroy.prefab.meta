@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 899a445106b612047b4d4ed24e9ea1c1
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/Destroy.prefab
+  uploadId: 793510

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 8dc0cf85047b7af41a6a18095ff0b14a
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/Tools/TimeToolMono.cs
+  uploadId: 793510

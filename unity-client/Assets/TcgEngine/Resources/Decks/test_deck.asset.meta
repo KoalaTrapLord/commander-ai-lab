@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 0e6326c43c0688e40bbf592cf3ea6dec
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Decks/test_deck.asset
+  uploadId: 793510

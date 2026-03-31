@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 8ba666eec6a849b41a54017d3352f6ca
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Render/URP-HIGH.asset
+  uploadId: 793510

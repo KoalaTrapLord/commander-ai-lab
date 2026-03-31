@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6d4a30ac10cf39043b33c47aa776a358
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/is_not_spell_immunity.asset
+  uploadId: 793510

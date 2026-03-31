@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1b2aac7ce4b92c1499688e34ec877ef2
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Animations/LineUpFX.controller
+  uploadId: 793510

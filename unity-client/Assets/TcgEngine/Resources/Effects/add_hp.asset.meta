@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: fc8261ce93dbc924e859751e098513ad
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Effects/add_hp.asset
+  uploadId: 793510

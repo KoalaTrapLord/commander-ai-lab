@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 07e0e128139485044b6ef6643300799a
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/ai_is_ally.asset
+  uploadId: 793510

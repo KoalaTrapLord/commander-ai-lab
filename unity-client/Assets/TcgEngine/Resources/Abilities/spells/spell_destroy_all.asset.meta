@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: dcc0676dad374d249a3827d7c27a89dc
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/spells/spell_destroy_all.asset
+  uploadId: 793510

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: c1cecc0185d61114495c8263f629dbc9
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/UI/ChatBubbleOther.prefab
+  uploadId: 793510

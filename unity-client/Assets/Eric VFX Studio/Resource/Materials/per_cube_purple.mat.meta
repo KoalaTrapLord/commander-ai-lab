@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 25654c1fae9f3e445bfe802a4d573ff9
+timeCreated: 1519279745
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/per_cube_purple.mat
+  uploadId: 848228

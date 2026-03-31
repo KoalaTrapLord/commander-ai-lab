@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: dbdc04150338c3c4e8a6552b66924448
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/activated/activate_send_hand.asset
+  uploadId: 793510

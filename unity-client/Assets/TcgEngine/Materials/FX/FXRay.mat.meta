@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 5d96e6ce65d15964aa7ef4e1eeaf7bc2
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Materials/FX/FXRay.mat
+  uploadId: 793510

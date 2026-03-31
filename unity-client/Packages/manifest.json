@@ -1,18 +1,27 @@
 {
   "dependencies": {
-    "com.unity.render-pipelines.universal": "14.0.11",
-    "com.unity.textmeshpro": "3.0.9",
-    "com.unity.nuget.newtonsoft-json": "3.2.1",
-    "com.unity.inputsystem": "1.7.0",
+    "com.unity.2d.sprite": "1.0.0",
+    "com.unity.inputsystem": "1.19.0",
+    "com.unity.multiplayer.center": "1.0.1",
+    "com.unity.netcode.gameobjects": "2.9.1",
+    "com.unity.nuget.newtonsoft-json": "3.2.2",
+    "com.unity.postprocessing": "3.5.1",
+    "com.unity.render-pipelines.universal": "17.3.0",
+    "com.unity.shadergraph": "17.3.0",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.modules.accessibility": "1.0.0",
+    "com.unity.modules.adaptiveperformance": "1.0.0",
     "com.unity.modules.animation": "1.0.0",
     "com.unity.modules.audio": "1.0.0",
     "com.unity.modules.imageconversion": "1.0.0",
     "com.unity.modules.imgui": "1.0.0",
     "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.particlesystem": "1.0.0",
     "com.unity.modules.physics": "1.0.0",
     "com.unity.modules.ui": "1.0.0",
     "com.unity.modules.uielements": "1.0.0",
     "com.unity.modules.unitywebrequest": "1.0.0",
-    "com.unity.modules.unitywebrequesttexture": "1.0.0"
+    "com.unity.modules.unitywebrequesttexture": "1.0.0",
+    "com.unity.modules.vectorgraphics": "1.0.0"
   }
 }

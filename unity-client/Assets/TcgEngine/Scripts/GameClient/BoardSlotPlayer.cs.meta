@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 4c1429011d3d53046b30acf29b7dbb24
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/GameClient/BoardSlotPlayer.cs
+  uploadId: 793510

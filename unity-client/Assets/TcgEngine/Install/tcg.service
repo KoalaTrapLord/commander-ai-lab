@@ -1,0 +1,15 @@
+[Unit]
+Description=TcgEngineServer
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=root
+WorkingDirectory=/server/game
+ExecStart=/server/game/TcgEngineServer.x86_64 -batchmode -nographics -logfile /server/game/tcg.log &
+
+[Install]
+WantedBy=multi-user.target

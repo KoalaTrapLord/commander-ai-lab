@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: fc6792c55ee627647876b2ecc202cb4a
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/Gameplay/SelectorCard.prefab
+  uploadId: 793510

@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 70dc9fcaed7d5274a8381edb4e206a92, type: 3}
+  m_Name: NetworkData
+  m_EditorClassIdentifier: 
+  url: server.tcgengine.com
+  port: 8777
+  api_url: api.tcgengine.com
+  api_https: 1
+  solo_type: 0
+  auth_type: 0

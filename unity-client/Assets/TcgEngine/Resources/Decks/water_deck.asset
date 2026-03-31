@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 87ecef176d27eb040a9770e0eefea2ec, type: 3}
+  m_Name: water_deck
+  m_EditorClassIdentifier: 
+  id: water_deck
+  title: Water Starter
+  hero: {fileID: 11400000, guid: 111d60b13ae137f4597da2789d94ecce, type: 2}
+  cards:
+  - {fileID: 11400000, guid: 89f3d73097f233148896600d94d482c0, type: 2}
+  - {fileID: 11400000, guid: f11bd6abea1b4c24ab733ae003dfa279, type: 2}
+  - {fileID: 11400000, guid: f11bd6abea1b4c24ab733ae003dfa279, type: 2}
+  - {fileID: 11400000, guid: 3eb5d82b098a31640981aa400ef099f0, type: 2}
+  - {fileID: 11400000, guid: 3eb5d82b098a31640981aa400ef099f0, type: 2}
+  - {fileID: 11400000, guid: 7522cb2b475fdca45aae97664d79e53c, type: 2}
+  - {fileID: 11400000, guid: fced434c254f6a94e8377864595757c8, type: 2}
+  - {fileID: 11400000, guid: fced434c254f6a94e8377864595757c8, type: 2}
+  - {fileID: 11400000, guid: b8b898ed060dea74794804ef9ac44b74, type: 2}
+  - {fileID: 11400000, guid: eb0010106a7f2a947a777580a7d9ce5d, type: 2}
+  - {fileID: 11400000, guid: ee0eb5f42cd646d4c92cc5bae97f8512, type: 2}
+  - {fileID: 11400000, guid: 74ffbe8087a7ec64696352b9013d5d21, type: 2}
+  - {fileID: 11400000, guid: c7c9d74d8c13e9a4b8407a0ca889b702, type: 2}
+  - {fileID: 11400000, guid: 0bf6205b77bb00e438451a6deb075060, type: 2}
+  - {fileID: 11400000, guid: 0bf6205b77bb00e438451a6deb075060, type: 2}
+  - {fileID: 11400000, guid: 31ca3a05927d28943babbf36b93e9a90, type: 2}
+  - {fileID: 11400000, guid: b492fe697d5348c498fac4bffae6c98b, type: 2}
+  - {fileID: 11400000, guid: b492fe697d5348c498fac4bffae6c98b, type: 2}
+  - {fileID: 11400000, guid: 6d25f87d5e8912e4aae6b2e8cdb51378, type: 2}
+  - {fileID: 11400000, guid: fd274eafa2afb8a47bdb49654df58d11, type: 2}

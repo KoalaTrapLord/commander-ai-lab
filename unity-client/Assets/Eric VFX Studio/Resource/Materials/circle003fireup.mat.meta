@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 99f30f97fbabeae439e4fc94155edd5b
+timeCreated: 1531811606
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/circle003fireup.mat
+  uploadId: 848228

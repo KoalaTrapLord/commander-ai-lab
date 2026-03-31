@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: be2ace95e45905b49ad984cce7ea70e5
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scenes/Game/Game.unity
+  uploadId: 793510

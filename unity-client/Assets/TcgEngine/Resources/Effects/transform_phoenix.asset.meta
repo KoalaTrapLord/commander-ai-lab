@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b923ff2abe94f5b42b104829ab9c5ac5
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Effects/transform_phoenix.asset
+  uploadId: 793510

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f9d1d9c71b22be34db42f9337434222b
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/Gameplay/HandCard.prefab
+  uploadId: 793510

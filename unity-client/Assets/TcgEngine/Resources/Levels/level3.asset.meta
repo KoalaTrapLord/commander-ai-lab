@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 97e9197dbbea4fb45a7b54579e49687a
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Levels/level3.asset
+  uploadId: 793510

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 40a42dae8d9fef74eb7f37c0093678eb
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Materials/FX/Dice.mat
+  uploadId: 793510

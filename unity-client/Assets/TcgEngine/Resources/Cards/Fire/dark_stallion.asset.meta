@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: d3e866161f45f03498b4098dbd8d968d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Fire/dark_stallion.asset
+  uploadId: 793510

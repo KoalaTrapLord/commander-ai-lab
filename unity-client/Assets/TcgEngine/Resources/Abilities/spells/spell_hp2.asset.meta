@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 16cdfeb08ea94fb4b8b65cd1bdbb6186
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/spells/spell_hp2.asset
+  uploadId: 793510

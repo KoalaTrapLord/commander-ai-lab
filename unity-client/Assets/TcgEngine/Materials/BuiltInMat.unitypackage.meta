@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 24401b89dd5f25f428465bf9a2e72af3
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Materials/BuiltInMat.unitypackage
+  uploadId: 793510

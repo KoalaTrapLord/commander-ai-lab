@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ab1fd2e7036d86041a4106f7e63ba256
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Forest/spell_hibernate.asset
+  uploadId: 793510

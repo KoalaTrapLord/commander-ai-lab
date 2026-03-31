@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ae584c437cecc314f844fc46b2f9718c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/grad10_09_Builtin.mat
+  uploadId: 848228

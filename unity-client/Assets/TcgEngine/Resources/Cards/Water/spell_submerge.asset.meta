@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: cbbbf1151021efd47bbe5e4c346365ff
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Water/spell_submerge.asset
+  uploadId: 793510

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 7a6b9e34b292c584fb9a76c0823947fd
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/GameLogic/GameLogic.cs
+  uploadId: 793510

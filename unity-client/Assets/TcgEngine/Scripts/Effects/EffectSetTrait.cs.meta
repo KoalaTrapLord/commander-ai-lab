@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 68bcb42ba7f34b0489fcbe3bb0bf518c
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/Effects/EffectSetTrait.cs
+  uploadId: 793510

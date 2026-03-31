@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 822f29e8198f50644acc881b86893bba
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Effects/add_growth.asset
+  uploadId: 793510

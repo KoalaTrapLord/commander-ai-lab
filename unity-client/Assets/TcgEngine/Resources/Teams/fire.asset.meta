@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6bbb96863ece0314fb318c0fce569afc
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Teams/fire.asset
+  uploadId: 793510

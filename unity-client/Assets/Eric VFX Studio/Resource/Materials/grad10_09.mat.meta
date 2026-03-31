@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: fb048d68207ead943a1f04285b56a58a
+timeCreated: 1435048583
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: fx_textures_line_materials.unity3d
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/grad10_09.mat
+  uploadId: 848228

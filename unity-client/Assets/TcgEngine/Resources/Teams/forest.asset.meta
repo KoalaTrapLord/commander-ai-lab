@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b80d8061c5bdb2e408e62a08e0e743ca
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Teams/forest.asset
+  uploadId: 793510

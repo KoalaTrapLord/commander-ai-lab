@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: cc5ac0aced0c65445a6ab4a06f422158
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Forest/spell_extinct.asset
+  uploadId: 793510

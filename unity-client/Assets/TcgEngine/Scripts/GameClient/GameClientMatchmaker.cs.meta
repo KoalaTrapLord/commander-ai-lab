@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: edceb3bb736f47a4aab07ab20b0d947a
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/GameClient/GameClientMatchmaker.cs
+  uploadId: 793510

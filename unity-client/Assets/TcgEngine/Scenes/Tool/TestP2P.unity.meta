@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 6f9ac14d723692947a10179c5a9df34b
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scenes/Tool/TestP2P.unity
+  uploadId: 793510

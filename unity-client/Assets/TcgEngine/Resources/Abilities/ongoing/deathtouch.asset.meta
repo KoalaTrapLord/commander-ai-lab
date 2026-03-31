@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1cf38265d50073740ac297c481077fb6
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/ongoing/deathtouch.asset
+  uploadId: 793510

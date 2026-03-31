@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c305420afda97f24fb7c0db56322caf3
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Animations/DamageFX.controller
+  uploadId: 793510

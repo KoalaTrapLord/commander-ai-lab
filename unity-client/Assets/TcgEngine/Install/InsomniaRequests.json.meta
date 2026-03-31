@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 6f9a549b564ff8a45a0528a1e1aca483
+TextScriptImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Install/InsomniaRequests.json
+  uploadId: 793510

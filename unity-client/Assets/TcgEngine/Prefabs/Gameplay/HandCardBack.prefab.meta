@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 808f2be6de276d542b77da203f6cc552
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/Gameplay/HandCardBack.prefab
+  uploadId: 793510

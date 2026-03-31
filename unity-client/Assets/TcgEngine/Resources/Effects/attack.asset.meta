@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 761342d48ffb19c46bb9d462a3b7e5bf
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Effects/attack.asset
+  uploadId: 793510

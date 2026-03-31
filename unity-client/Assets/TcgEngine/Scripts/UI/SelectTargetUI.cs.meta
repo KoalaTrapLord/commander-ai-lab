@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 200c15f6bde861a43b0c4704ebbd9df2
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/UI/SelectTargetUI.cs
+  uploadId: 793510

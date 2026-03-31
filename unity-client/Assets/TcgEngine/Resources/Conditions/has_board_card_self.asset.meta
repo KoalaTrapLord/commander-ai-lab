@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 7ae876c3919507b4abcd8de40acb0da2
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/has_board_card_self.asset
+  uploadId: 793510

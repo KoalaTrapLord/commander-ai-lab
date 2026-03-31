@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 34ad38a1f19e9cb4ca76806cc3001cbe
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/UI/DeckLine.prefab
+  uploadId: 793510

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f3d7d7e1ddc39dc43b93ae2c06f4babe
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Animator/FX_CardBrush_G.controller
+  uploadId: 848228

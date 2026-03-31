@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 2ee7b7313b6d8154c8a1a3d2dc1c301d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Forest/spell_roots.asset
+  uploadId: 793510

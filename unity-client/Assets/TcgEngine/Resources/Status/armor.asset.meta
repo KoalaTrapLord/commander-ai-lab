@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ffde6010d0075ca459a80820773ce5b9
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Status/armor.asset
+  uploadId: 793510

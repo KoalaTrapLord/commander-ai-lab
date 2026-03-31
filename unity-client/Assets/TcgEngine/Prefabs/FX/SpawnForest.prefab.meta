@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 1fa8fa11b2c6b9b4d976743e5bbb3956
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/SpawnForest.prefab
+  uploadId: 793510

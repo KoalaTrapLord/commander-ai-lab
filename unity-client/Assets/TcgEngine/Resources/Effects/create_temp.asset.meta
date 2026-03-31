@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 930e12eb8b768fc4ead6ae644a549bfc
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Effects/create_temp.asset
+  uploadId: 793510

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 96e8be4ff6967fa4998a703fdb33c632
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/Effects/EffectRemoveAbility.cs
+  uploadId: 793510

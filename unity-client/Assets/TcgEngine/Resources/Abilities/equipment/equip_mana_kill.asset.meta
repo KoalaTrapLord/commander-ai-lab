@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f72c8222671893c45a6148a35b7130e3
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/equipment/equip_mana_kill.asset
+  uploadId: 793510

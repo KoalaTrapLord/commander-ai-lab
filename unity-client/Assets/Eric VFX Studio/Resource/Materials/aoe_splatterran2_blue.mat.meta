@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: d7594612990049d44bbfd48b487393a0
+timeCreated: 1532945876
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/aoe_splatterran2_blue.mat
+  uploadId: 848228

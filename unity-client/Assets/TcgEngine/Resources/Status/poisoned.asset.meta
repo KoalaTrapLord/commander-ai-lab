@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 0575c2a0156c025489185876f380ee7e
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Status/poisoned.asset
+  uploadId: 793510

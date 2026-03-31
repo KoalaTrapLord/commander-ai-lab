@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1daf807454e1ade4da9a4d1dec6d58ca
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Status/trample.asset
+  uploadId: 793510

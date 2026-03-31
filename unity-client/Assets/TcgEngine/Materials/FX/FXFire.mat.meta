@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 8971619a163e5c64d9d2a6f94b559160
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Materials/FX/FXFire.mat
+  uploadId: 793510

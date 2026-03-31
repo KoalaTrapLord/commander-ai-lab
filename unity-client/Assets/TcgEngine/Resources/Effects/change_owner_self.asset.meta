@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 55a139b6ae4b3d148b315836ffb2939a
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Effects/change_owner_self.asset
+  uploadId: 793510

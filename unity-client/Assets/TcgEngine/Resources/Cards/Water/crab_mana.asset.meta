@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f11bd6abea1b4c24ab733ae003dfa279
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Water/crab_mana.asset
+  uploadId: 793510

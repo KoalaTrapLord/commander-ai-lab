@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6d25f87d5e8912e4aae6b2e8cdb51378
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Water/trap_fish.asset
+  uploadId: 793510

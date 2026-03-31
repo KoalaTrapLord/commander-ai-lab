@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 0bdf580aee2aca14883c19e0d6c5df44
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Water/equip_ring.asset
+  uploadId: 793510

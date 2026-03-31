@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: c0560a244fe3e0f4ca2ea65c54093d1c
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/UI/ManaBar.prefab
+  uploadId: 793510

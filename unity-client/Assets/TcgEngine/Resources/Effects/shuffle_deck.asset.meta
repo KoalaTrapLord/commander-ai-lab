@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c9e0916615751f040adb314815376f50
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Effects/shuffle_deck.asset
+  uploadId: 793510

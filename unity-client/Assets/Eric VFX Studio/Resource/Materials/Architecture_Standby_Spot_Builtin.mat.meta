@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: cc5ff30c4d5437b4d833e9c619b590b5
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/Architecture_Standby_Spot_Builtin.mat
+  uploadId: 848228

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 3d12108228a83c44f864468b6ae774fd
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/Shield.prefab
+  uploadId: 793510

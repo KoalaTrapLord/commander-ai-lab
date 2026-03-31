@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 5002ff12a5a38e44da5c64b941ba67c0
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Animations/LoadAnim.controller
+  uploadId: 793510

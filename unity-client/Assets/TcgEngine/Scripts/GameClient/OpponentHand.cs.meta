@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 4ee08f17e9a14a14fa9ceb86cd38989a
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/GameClient/OpponentHand.cs
+  uploadId: 793510

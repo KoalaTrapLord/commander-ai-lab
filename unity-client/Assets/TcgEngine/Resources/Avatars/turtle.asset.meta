@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 43f43aedb8f43ce4998b959a0867a621
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Avatars/turtle.asset
+  uploadId: 793510

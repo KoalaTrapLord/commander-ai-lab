@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f23ee072c0c19944d846e3591211b7a9
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/UI/RankLine.prefab
+  uploadId: 793510

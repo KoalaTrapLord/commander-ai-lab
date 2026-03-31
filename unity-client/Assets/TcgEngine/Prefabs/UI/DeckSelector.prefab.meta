@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 6b3155993a1341a49af0f02e2a29df66
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/UI/DeckSelector.prefab
+  uploadId: 793510

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 08ad2f4aab8ffdb40ace3902fe348812
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/Poisoned.prefab
+  uploadId: 793510

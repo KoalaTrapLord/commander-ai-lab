@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b23435532b933b74f8a1f53529f8e6b4
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Animator/FX_CardBrushLine.controller
+  uploadId: 848228

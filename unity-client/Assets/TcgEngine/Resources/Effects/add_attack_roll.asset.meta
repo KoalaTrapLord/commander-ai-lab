@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c40066b022ed7a94681f9a18b768e36f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Effects/add_attack_roll.asset
+  uploadId: 793510

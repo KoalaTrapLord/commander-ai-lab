@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 15eaa2a0fbd97f149b3aa87387c160d1
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Rarities/3-rare.asset
+  uploadId: 793510

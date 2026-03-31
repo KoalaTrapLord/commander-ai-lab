@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 11124608eb025ea4cb7f7e0f3d19a44b
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Install/TcgEngineAPI.zip
+  uploadId: 793510

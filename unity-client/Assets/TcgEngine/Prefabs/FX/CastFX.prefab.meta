@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: baadd1fc54b9b4f4fa6d0aee484bc9f8
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/CastFX.prefab
+  uploadId: 793510

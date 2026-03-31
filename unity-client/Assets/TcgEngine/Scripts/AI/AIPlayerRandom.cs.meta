@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 4f327588bb7c02141baa6fbeb0081e84
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/AI/AIPlayerRandom.cs
+  uploadId: 793510

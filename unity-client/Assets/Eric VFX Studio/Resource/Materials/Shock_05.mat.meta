@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 424d8f6b8cf4d0e41b00dc116cd1ab1e
+timeCreated: 1532934692
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: fx_textures_ring_materials.unity3d
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/Shock_05.mat
+  uploadId: 848228

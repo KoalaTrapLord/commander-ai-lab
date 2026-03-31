@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f67c760b31626d546bc62342c7ef52ce
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/is_not_your_turn.asset
+  uploadId: 793510

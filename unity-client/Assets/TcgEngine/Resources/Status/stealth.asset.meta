@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c09734b8821c2c245a43f67e9938cde7
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Status/stealth.asset
+  uploadId: 793510

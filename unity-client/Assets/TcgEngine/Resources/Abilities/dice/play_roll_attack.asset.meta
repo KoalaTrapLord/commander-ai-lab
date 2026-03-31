@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 26c48eded39b6444fb64b3fa43f10654
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/dice/play_roll_attack.asset
+  uploadId: 793510

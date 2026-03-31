@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: c2eb0f54505fb2346b944c589cdd2a3c
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Materials/UI/Grayscale.shader
+  uploadId: 793510

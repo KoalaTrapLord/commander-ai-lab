@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 0af8ce7f0f0acf4408922e1c9fe6d764
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/GameClient/GameBoard.cs
+  uploadId: 793510

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: eb0010106a7f2a947a777580a7d9ce5d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Water/killer_whale.asset
+  uploadId: 793510

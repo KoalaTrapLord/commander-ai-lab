@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 64278fbd6e4f92b4dbe964e579b37747
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Animations/DamageFXX.anim
+  uploadId: 793510

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6fa1da63c6fa1ce49a17c4017e8e9798
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/Card_glow01_Builtin.mat
+  uploadId: 848228

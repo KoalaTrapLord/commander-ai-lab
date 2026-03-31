@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: a1e1ec86d02e969408bf2a6c17010f46
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/SpawnWater.prefab
+  uploadId: 793510

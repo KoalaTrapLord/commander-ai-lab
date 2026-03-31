@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: dfc4c72f5486bcc43ab352a8182c72cf
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Animations/PlayCardFX.anim
+  uploadId: 793510

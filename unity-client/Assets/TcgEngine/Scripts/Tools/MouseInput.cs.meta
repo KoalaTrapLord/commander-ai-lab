@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 6841cf43a3f34eb4a9d09b12a4f8e424
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/Tools/MouseInput.cs
+  uploadId: 793510

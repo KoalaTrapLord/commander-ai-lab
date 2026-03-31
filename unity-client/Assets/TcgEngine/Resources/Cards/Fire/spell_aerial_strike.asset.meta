@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ad35fe7448fdfa2438d4fb121f86c5c3
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Fire/spell_aerial_strike.asset
+  uploadId: 793510

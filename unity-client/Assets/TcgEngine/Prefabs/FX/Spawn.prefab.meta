@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: caadb540421ddca4ba84bb173024079b
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/Spawn.prefab
+  uploadId: 793510

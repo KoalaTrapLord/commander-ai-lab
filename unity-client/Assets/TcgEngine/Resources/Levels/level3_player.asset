@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 069f5be85a1dcec46b083fc9c26e6870, type: 3}
+  m_Name: level3_player
+  m_EditorClassIdentifier: 
+  id: level3_player
+  title: 
+  hero: {fileID: 0}
+  cards:
+  - {fileID: 11400000, guid: 9f363479388a0c347b8a455c4f32a659, type: 2}
+  - {fileID: 11400000, guid: fa7053162e690c948a100b6cbcde7266, type: 2}
+  - {fileID: 11400000, guid: 715703be67fff2c4d92ff16751a9ad7b, type: 2}
+  - {fileID: 11400000, guid: 715703be67fff2c4d92ff16751a9ad7b, type: 2}
+  - {fileID: 11400000, guid: fa7053162e690c948a100b6cbcde7266, type: 2}
+  - {fileID: 11400000, guid: 9f363479388a0c347b8a455c4f32a659, type: 2}
+  board_cards:
+  - card: {fileID: 11400000, guid: 685188cde95b4274c9d959f68adc1bcd, type: 2}
+    slot:
+      x: 3
+      y: 1
+  start_cards: 3
+  start_mana: 2
+  start_hp: 10
+  dont_shuffle_deck: 1

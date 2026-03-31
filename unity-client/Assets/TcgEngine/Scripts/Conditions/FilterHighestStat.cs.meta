@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 26d6c56df3cf5e64d857568f0f8cc444
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scripts/Conditions/FilterHighestStat.cs
+  uploadId: 793510

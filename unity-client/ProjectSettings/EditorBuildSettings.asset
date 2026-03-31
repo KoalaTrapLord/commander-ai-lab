@@ -4,5 +4,17 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/TcgEngine/Scenes/Menu/LoginMenu.unity
+    guid: 35845f83f169a8249ba97386e43cc114
+  - enabled: 1
+    path: Assets/TcgEngine/Scenes/Menu/Menu.unity
+    guid: 4566b59cd2acb7347b68ebb689bbe171
+  - enabled: 1
+    path: Assets/TcgEngine/Scenes/Menu/OpenPack.unity
+    guid: dd0a2914a3401da438f8a990f15395d1
+  - enabled: 1
+    path: Assets/TcgEngine/Scenes/Game/Game.unity
+    guid: be2ace95e45905b49ad984cce7ea70e5
   m_configObjects: {}

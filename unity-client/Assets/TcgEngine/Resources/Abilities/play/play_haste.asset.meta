@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 3e633064b8ed24c4294c69cb519efd9f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/play/play_haste.asset
+  uploadId: 793510

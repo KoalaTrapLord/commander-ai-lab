@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 8faf0d78746617c4594039cb64dcca7c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Summon/dragon_egg.asset
+  uploadId: 793510

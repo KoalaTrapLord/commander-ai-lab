@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 4566b59cd2acb7347b68ebb689bbe171
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Scenes/Menu/Menu.unity
+  uploadId: 793510

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 90f1aa482afcc9c4f87470c4d4557bc4
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/UI/CardUI.prefab
+  uploadId: 793510

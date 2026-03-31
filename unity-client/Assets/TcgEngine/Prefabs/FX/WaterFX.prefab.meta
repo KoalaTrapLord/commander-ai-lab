@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 0a338e869785e474db7ea79bc0f3b554
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/WaterFX.prefab
+  uploadId: 793510

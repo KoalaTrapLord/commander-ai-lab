@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 59f2ead026d1359489dd0f5aab019769
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/spells/chain_projectile1.asset
+  uploadId: 793510

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a408e1ba15a6e2749ab7f643f1e437b9
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/Glow_ShockWave_W_Builtin.mat
+  uploadId: 848228

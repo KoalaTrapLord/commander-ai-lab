@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 222e6bd86406cb943855472954d7ec46
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/other/chain_draw.asset
+  uploadId: 793510

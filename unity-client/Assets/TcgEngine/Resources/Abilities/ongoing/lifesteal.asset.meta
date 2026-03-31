@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 9b8b1632c1e492346aebb62f91805a99
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/ongoing/lifesteal.asset
+  uploadId: 793510

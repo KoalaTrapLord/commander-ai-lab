@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 2bec862c6db29314c862115d2f84c37c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/is_attack_4L.asset
+  uploadId: 793510

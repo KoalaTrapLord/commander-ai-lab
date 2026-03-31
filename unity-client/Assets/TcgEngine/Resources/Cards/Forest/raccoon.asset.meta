@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4fc52d01f2883134ea1e6ea0d9ba82f2
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Forest/raccoon.asset
+  uploadId: 793510

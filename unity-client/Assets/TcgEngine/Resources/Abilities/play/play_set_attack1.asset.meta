@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6d42d2cab11ca0d4ea5bd65f049aee22
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/play/play_set_attack1.asset
+  uploadId: 793510

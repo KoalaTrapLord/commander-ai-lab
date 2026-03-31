@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6194ca0450582774ca001101a5e0e617
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Fire/cave.asset
+  uploadId: 793510

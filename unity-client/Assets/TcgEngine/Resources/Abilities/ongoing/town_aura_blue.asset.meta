@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f405476e6b47d6d498fe3d3211c16430
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/ongoing/town_aura_blue.asset
+  uploadId: 793510

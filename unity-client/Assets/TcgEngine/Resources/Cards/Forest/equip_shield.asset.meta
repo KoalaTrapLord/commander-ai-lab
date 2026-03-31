@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: fbc3a5d9ec653cb4ebae7898a20b57e0
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Forest/equip_shield.asset
+  uploadId: 793510

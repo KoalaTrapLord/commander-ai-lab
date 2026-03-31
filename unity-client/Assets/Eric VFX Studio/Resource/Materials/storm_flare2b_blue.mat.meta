@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 05381e9c8037f7c49beac1c56da15dd9
+timeCreated: 1532863644
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/storm_flare2b_blue.mat
+  uploadId: 848228

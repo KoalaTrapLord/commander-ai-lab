@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1e22d4647e903814d96f63a729e1f820
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Forest/wolf_alpha.asset
+  uploadId: 793510

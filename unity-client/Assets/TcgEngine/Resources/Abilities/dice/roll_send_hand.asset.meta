@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f9689ac1db63e254abb7841a336c5137
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/dice/roll_send_hand.asset
+  uploadId: 793510

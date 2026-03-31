@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 2c9143ff806e500428b30cf1a52ac9a9
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cardbacks/tcg_diamond.asset
+  uploadId: 793510

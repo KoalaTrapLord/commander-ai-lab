@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: be19380a491c8c245afe0dd96e02ba78
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/PotionFX.prefab
+  uploadId: 793510

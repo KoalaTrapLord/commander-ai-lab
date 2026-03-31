@@ -1,0 +1,12 @@
+[Unit]
+Description=NodeJsApi
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/server/api
+ExecStart=/usr/bin/node /server/api/server.js
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 3eb5d82b098a31640981aa400ef099f0
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Water/turtle.asset
+  uploadId: 793510

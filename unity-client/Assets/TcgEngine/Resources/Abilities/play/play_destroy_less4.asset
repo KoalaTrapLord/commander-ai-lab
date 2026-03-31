@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ce5f81e5cc37f547af6923758602c8c, type: 3}
+  m_Name: play_destroy_less4
+  m_EditorClassIdentifier: 
+  id: play_destroy_less4
+  trigger: 10
+  conditions_trigger: []
+  target: 30
+  conditions_target:
+  - {fileID: 11400000, guid: 47221d412dc0a014b8a33abb0cbfc773, type: 2}
+  - {fileID: 11400000, guid: 065da32cbd133734493695579723a718, type: 2}
+  - {fileID: 11400000, guid: 2bec862c6db29314c862115d2f84c37c, type: 2}
+  - {fileID: 11400000, guid: 41c58513071a53b4e9066a58c439760f, type: 2}
+  filters_target: []
+  effects:
+  - {fileID: 11400000, guid: f71d4af1506339149852f66291383dc4, type: 2}
+  status: []
+  value: 0
+  duration: 0
+  chain_abilities:
+  - {fileID: 11400000, guid: 222e6bd86406cb943855472954d7ec46, type: 2}
+  mana_cost: 0
+  exhaust: 0
+  board_fx: {fileID: 0}
+  caster_fx: {fileID: 0}
+  target_fx: {fileID: 0}
+  cast_audio: {fileID: 0}
+  target_audio: {fileID: 0}
+  charge_target: 0
+  title: Killer
+  desc: On play, destroy a character with 4 or less attack. If you do, draw a card.

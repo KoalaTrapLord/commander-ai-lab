@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 8ef16b3adcb5f8d468cb4d01f557e05c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: fx_textures_particle_materials.unity3d
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/Architecture_Standby_Spot.mat
+  uploadId: 848228

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4f0f5ca6a6481b84f9d5dc7a929952b2
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/spells/spell_kill_lowest_hp.asset
+  uploadId: 793510

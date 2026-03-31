@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: cededfd4febec0a40b22f99e2b9acb18
+timeCreated: 1513319284
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: fx_textures_ring_materials.unity3d
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355942
+  packageName: Game VFX - Card Effects Collection
+  packageVersion: 1.0
+  assetPath: Assets/Eric VFX Studio/Resource/Materials/ring_03a.mat
+  uploadId: 848228

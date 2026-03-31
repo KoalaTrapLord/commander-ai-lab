@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: fd274eafa2afb8a47bdb49654df58d11
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Cards/Water/town_underwater.asset
+  uploadId: 793510

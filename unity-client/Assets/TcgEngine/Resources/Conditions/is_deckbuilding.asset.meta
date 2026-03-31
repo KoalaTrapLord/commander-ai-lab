@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b2e82ef92df6a864389e18f594d08ab8
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/is_deckbuilding.asset
+  uploadId: 793510

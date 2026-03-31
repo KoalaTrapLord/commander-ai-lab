@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 8580d5669cd3e624c825c09fbba0b4f0
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Status/silenced.asset
+  uploadId: 793510

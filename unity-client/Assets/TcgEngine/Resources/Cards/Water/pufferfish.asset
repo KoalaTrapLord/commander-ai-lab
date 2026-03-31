@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 843a21f7f6f205741a0a7341aec8e84d, type: 3}
+  m_Name: pufferfish
+  m_EditorClassIdentifier: 
+  id: pufferfish
+  title: Pufferfish
+  art_full: {fileID: 21300000, guid: e2171587cdf01f345aafec22ae5ca887, type: 3}
+  art_board: {fileID: 21300000, guid: 6e6bb7509ba520a48be2b3298e2cfb85, type: 3}
+  type: 10
+  team: {fileID: 11400000, guid: ed6dfd9dc7797584994eaf1fba66535f, type: 2}
+  rarity: {fileID: 11400000, guid: fab1a52f5a36cc942985dea95be18ac9, type: 2}
+  mana: 3
+  attack: 2
+  hp: 5
+  traits: []
+  stats: []
+  abilities:
+  - {fileID: 11400000, guid: b2a7fee1995653144b929fb5251bc098, type: 2}
+  text: Has +3 attack during the opponent's turn.
+  desc: 
+  spawn_fx: {fileID: 2106287953758554471, guid: a1e1ec86d02e969408bf2a6c17010f46,
+    type: 3}
+  death_fx: {fileID: 0}
+  attack_fx: {fileID: 0}
+  damage_fx: {fileID: 0}
+  idle_fx: {fileID: 0}
+  spawn_audio: {fileID: 0}
+  death_audio: {fileID: 0}
+  attack_audio: {fileID: 0}
+  damage_audio: {fileID: 0}
+  availability: 10
+  cost: 100
+  packs:
+  - {fileID: 11400000, guid: bafca3757bf537c43b1d2ba696456e2c, type: 2}
+  - {fileID: 11400000, guid: 2db0d9f08bdfa57419101c08b8598c1a, type: 2}

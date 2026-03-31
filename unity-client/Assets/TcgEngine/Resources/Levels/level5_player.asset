@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 069f5be85a1dcec46b083fc9c26e6870, type: 3}
+  m_Name: level5_player
+  m_EditorClassIdentifier: 
+  id: level5_player
+  title: 
+  hero: {fileID: 0}
+  cards:
+  - {fileID: 11400000, guid: 2302f11d23015254dbb067255d70e738, type: 2}
+  - {fileID: 11400000, guid: d564bc13a3f2c2a459cfe492217d8d98, type: 2}
+  - {fileID: 11400000, guid: 2ee7b7313b6d8154c8a1a3d2dc1c301d, type: 2}
+  - {fileID: 11400000, guid: 4fc52d01f2883134ea1e6ea0d9ba82f2, type: 2}
+  - {fileID: 11400000, guid: fa7053162e690c948a100b6cbcde7266, type: 2}
+  - {fileID: 11400000, guid: 4a0f93237a2ae53468e29927c1b7c1ec, type: 2}
+  - {fileID: 11400000, guid: 1cec19f2b6532b246a5ed43c9ea966d1, type: 2}
+  board_cards:
+  - card: {fileID: 11400000, guid: 67c9ea5ccee610f4fa1681382134bb7a, type: 2}
+    slot:
+      x: 3
+      y: 1
+  start_cards: 5
+  start_mana: 4
+  start_hp: 20
+  dont_shuffle_deck: 1

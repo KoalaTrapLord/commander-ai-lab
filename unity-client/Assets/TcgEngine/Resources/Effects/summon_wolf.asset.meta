@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 7e70320b3ad09bb44ac88ebb0e4bf700
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Effects/summon_wolf.asset
+  uploadId: 793510

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 2ca645d57a4feee409d9793246812051
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Abilities/ongoing/aura_attack_m1.asset
+  uploadId: 793510

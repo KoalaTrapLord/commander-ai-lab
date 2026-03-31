@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 2b6247dc456251449bc19427a747a0af
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/FX/PlayCardFX.prefab
+  uploadId: 793510

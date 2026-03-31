@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 627b49b9cd7cfaa4fbaddc3f5397da38
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Resources/Conditions/selected_cost_greater_0.asset
+  uploadId: 793510

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 0accd4da4294124469730eded62c3d6c
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 253269
+  packageName: TCG Engine - Online Card Game
+  packageVersion: 1.15
+  assetPath: Assets/TcgEngine/Prefabs/UI/DeckDisplay.prefab
+  uploadId: 793510

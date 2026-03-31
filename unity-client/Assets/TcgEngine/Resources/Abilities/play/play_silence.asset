@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ce5f81e5cc37f547af6923758602c8c, type: 3}
+  m_Name: play_silence
+  m_EditorClassIdentifier: 
+  id: play_silence
+  trigger: 10
+  conditions_trigger: []
+  target: 30
+  conditions_target:
+  - {fileID: 11400000, guid: 47221d412dc0a014b8a33abb0cbfc773, type: 2}
+  - {fileID: 11400000, guid: 902733d12f434e94b904de5ebf4112de, type: 2}
+  - {fileID: 11400000, guid: a1fb3a7171663234280fdfb41c99ab0a, type: 2}
+  filters_target: []
+  effects:
+  - {fileID: 11400000, guid: c14a48b31a743494f983c03ec81a7f2d, type: 2}
+  - {fileID: 11400000, guid: 55165dd4996d59642a883f20c7b3e07f, type: 2}
+  status:
+  - {fileID: 11400000, guid: 8580d5669cd3e624c825c09fbba0b4f0, type: 2}
+  value: 0
+  duration: 0
+  chain_abilities: []
+  mana_cost: 0
+  exhaust: 0
+  board_fx: {fileID: 0}
+  caster_fx: {fileID: 0}
+  target_fx: {fileID: 8327183289831986084, guid: 8d68eb12f4dda644184359acd4008081,
+    type: 3}
+  cast_audio: {fileID: 0}
+  target_audio: {fileID: 0}
+  charge_target: 0
+  title: Silence
+  desc: Target abilities are canceled.
