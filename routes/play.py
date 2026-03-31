@@ -18,6 +18,7 @@ import uuid
 import random
 import time
 from typing import Optional
+from urllib.parse import quote as _urlquote
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -117,7 +118,7 @@ class _Card:
         self.toughness = kw.get("toughness", "")
         self.mana_cost = kw.get("mana_cost", "")
         self.oracle_text = kw.get("oracle_text", "")
-        self.image_uri = kw.get("image_uri", "")
+        self.image_uri = f"https://api.scryfall.com/cards/named?exact={_urlquote(name)}&format=image&version=normal"
         self.tapped = False
         self.is_commander = kw.get("is_commander", False)
         self.is_ramp = kw.get("is_ramp", False)
