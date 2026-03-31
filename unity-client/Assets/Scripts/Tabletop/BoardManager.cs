@@ -188,7 +188,7 @@ namespace CommanderAILab.Tabletop
                 cardObj.SetTargetPosition(worldPos);
 
                 // Rotation: face the seat direction + tapped offset
-                cardObj.transform.rotation = anchor.rotation;
+                cardObj.SetBaseRotation(anchor.rotation);
                 cardObj.SetTapped(data.tapped);
 
                 // Flip face-down cards
