@@ -94,6 +94,7 @@ namespace CommanderAILab.Tabletop
             body.transform.SetParent(transform, false);
             body.transform.localScale = new Vector3(cardWidth, cardThickness, cardHeight);
             body.transform.localPosition = Vector3.zero;
+
             var bodyRenderer = body.GetComponent<MeshRenderer>();
             bodyRenderer.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             bodyRenderer.material.color = new Color(0.95f, 0.93f, 0.88f);
@@ -129,14 +130,22 @@ namespace CommanderAILab.Tabletop
 
         private IEnumerator DownloadTexture(string url)
         {
-            using var request = UnityEngine.Networking.UnityWebRequestTexture.GetTexture(url);
+            var request = UnityEngine.Networking.UnityWebRequestTexture.GetTexture(url);
             yield return request.SendWebRequest();
+
             if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
             {
-                var tex = UnityEngine.Networking.DownloadHandlerTexture.GetContent(request);
+                var downloadedTex = UnityEngine.Networking.DownloadHandlerTexture.GetContent(request);
+
+                // Create an owned copy so it survives request disposal
+                var tex = new Texture2D(downloadedTex.width, downloadedTex.height, downloadedTex.format, false);
+                Graphics.CopyTexture(downloadedTex, tex);
+
                 if (_frontMaterial != null)
                     _frontMaterial.mainTexture = tex;
             }
+
+            request.Dispose();
         }
 
         // ── State Updates ──────────────────────────────────────────
@@ -178,6 +187,7 @@ namespace CommanderAILab.Tabletop
         private void UpdateEmission()
         {
             if (_frontMaterial == null) return;
+
             Color emission;
             if (IsSelected)
                 emission = SelectedColor * 0.5f;
