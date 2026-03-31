@@ -17,6 +17,8 @@ import logging
 import uuid
 import random
 import time
+import sqlite3
+import os
 from typing import Optional
 from urllib.parse import quote as _urlquote
 
@@ -25,6 +27,42 @@ from pydantic import BaseModel, Field
 
 log = logging.getLogger("commander_ai_lab.play")
 router = APIRouter(prefix="/api/play", tags=["play"])
+
+# -- Local DB image-URI resolver ----------------------------------------
+_COLLECTION_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "collection.db")
+_image_uri_cache: dict[str, str] = {}
+
+
+def _resolve_image_uri(card_name: str) -> str:
+    """Look up scryfall_id from local collection.db -> direct image URL."""
+    if card_name in _image_uri_cache:
+        return _image_uri_cache[card_name]
+    fallback = f"https://api.scryfall.com/cards/named?exact={_urlquote(card_name)}&format=image&version=normal"
+    if not os.path.exists(_COLLECTION_DB):
+        log.warning("collection.db not found at %s", _COLLECTION_DB)
+        _image_uri_cache[card_name] = fallback
+        return fallback
+    try:
+        conn = sqlite3.connect(_COLLECTION_DB, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT scryfall_id FROM collection_entries WHERE LOWER(name)=LOWER(?) AND scryfall_id != '' LIMIT 1",
+            (card_name,)
+        ).fetchone()
+        if not row:
+            row = conn.execute(
+                "SELECT scryfall_id FROM card_records WHERE LOWER(name)=LOWER(?) AND scryfall_id != '' LIMIT 1",
+                (card_name,)
+            ).fetchone()
+        conn.close()
+        if row and row["scryfall_id"]:
+            uri = f"https://api.scryfall.com/cards/{row['scryfall_id']}?format=image&version=normal"
+            _image_uri_cache[card_name] = uri
+            return uri
+    except Exception as exc:
+        log.warning("DB lookup failed for %s: %s", card_name, exc)
+    _image_uri_cache[card_name] = fallback
+    return fallback
 
 # ── In-memory session store ──────────────────────────────────────
 _sessions: dict[str, "GameSession"] = {}
@@ -118,7 +156,7 @@ class _Card:
         self.toughness = kw.get("toughness", "")
         self.mana_cost = kw.get("mana_cost", "")
         self.oracle_text = kw.get("oracle_text", "")
-        self.image_uri = f"https://api.scryfall.com/cards/named?exact={_urlquote(name)}&format=image&version=normal"
+        self.image_uri = kw.get("image_uri") or _resolve_image_uri(name)
         self.tapped = False
         self.is_commander = kw.get("is_commander", False)
         self.is_ramp = kw.get("is_ramp", False)
