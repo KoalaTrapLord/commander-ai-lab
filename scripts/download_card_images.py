@@ -35,16 +35,25 @@ log = logging.getLogger("download_card_images")
 SCRYFALL_BULK_API = "https://api.scryfall.com/bulk-data/default-cards"
 DEFAULT_IMAGE_SIZE = "normal"  # 488x680px — ideal for Unity card rendering
 DEFAULT_WORKERS = 6
-PLACEHOLDER_URL = "https://cards.scryfall.io/normal/front/0/0/placeholder.jpg"
+
+# Scryfall requires a descriptive User-Agent — returns HTTP 400 without it.
+# See: https://scryfall.com/docs/api#making-requests
+USER_AGENT = "CommanderAILab/1.0 (https://github.com/KoalaTrapLord/commander-ai-lab)"
 
 PROJECT_ROOT = Path(__file__).parent.parent
 OUTPUT_DIR = PROJECT_ROOT / "static" / "card-images"
 
 
+def _open(url: str, timeout: int = 30):
+    """urllib.request.urlopen with required Scryfall User-Agent header."""
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    return urllib.request.urlopen(req, timeout=timeout)
+
+
 def fetch_bulk_download_url(image_size: str) -> str:
     """Get the Scryfall bulk data download URL for default_cards."""
     log.info("Fetching Scryfall bulk data manifest...")
-    with urllib.request.urlopen(SCRYFALL_BULK_API, timeout=30) as resp:
+    with _open(SCRYFALL_BULK_API, timeout=30) as resp:
         meta = json.loads(resp.read())
     return meta["download_uri"]
 
@@ -52,7 +61,7 @@ def fetch_bulk_download_url(image_size: str) -> str:
 def load_bulk_data(download_url: str) -> list[dict]:
     """Stream-download and parse the bulk JSON (can be ~100MB)."""
     log.info("Downloading bulk card data from %s ...", download_url)
-    with urllib.request.urlopen(download_url, timeout=120) as resp:
+    with _open(download_url, timeout=120) as resp:
         cards = json.loads(resp.read())
     log.info("Loaded %d card entries.", len(cards))
     return cards
@@ -98,7 +107,10 @@ def get_image_jobs(cards: list[dict], image_size: str, resume: bool) -> list[tup
 def download_image(url: str, dest: str) -> tuple[bool, str]:
     """Download a single image. Returns (success, dest)."""
     try:
-        urllib.request.urlretrieve(url, dest)
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            with open(dest, "wb") as f:
+                f.write(resp.read())
         return True, dest
     except Exception as exc:
         log.warning("Failed to download %s -> %s: %s", url, dest, exc)
