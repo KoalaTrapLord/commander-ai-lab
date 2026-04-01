@@ -168,6 +168,61 @@ def reset_java17_cache():
     _JAVA17_PATH = None
 
 
+# ── Deck path resolution ─────────────────────────────────────────────────────
+
+def _resolve_deck_path(deck_name: str) -> str:
+    """Resolve a deck name to its full .dck path in CFG.precon_dir.
+
+    Resolution order:
+      1. Already an absolute path with .dck extension — return as-is.
+      2. Exact filename match in precon_dir (e.g. "Abzan_Armor.dck").
+      3. camelCase → snake_case conversion (e.g. "AbzanArmor" → "Abzan_Armor.dck").
+      4. Case-insensitive fuzzy match stripping underscores/spaces.
+      5. Fallback: return raw name and let the JAR fail with a clear error.
+    """
+    # Already a resolved path
+    if deck_name.endswith('.dck') and os.path.isfile(deck_name):
+        return deck_name
+
+    precon_dir = CFG.precon_dir
+    if not precon_dir or not os.path.isdir(precon_dir):
+        log.warning(f"[DeckResolver] precon_dir not set or missing — passing raw name '{deck_name}' to JAR")
+        return deck_name
+
+    # 1. Exact match
+    exact = os.path.join(precon_dir, f"{deck_name}.dck")
+    if os.path.isfile(exact):
+        return exact
+
+    # 2. camelCase → snake_case  (AbzanArmor → Abzan_Armor)
+    snake = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', deck_name)
+    snake_path = os.path.join(precon_dir, f"{snake}.dck")
+    if os.path.isfile(snake_path):
+        return snake_path
+
+    # 3. Space → underscore  (e.g. "Abzan Armor" → "Abzan_Armor.dck")
+    spaced = deck_name.replace(' ', '_')
+    spaced_path = os.path.join(precon_dir, f"{spaced}.dck")
+    if os.path.isfile(spaced_path):
+        return spaced_path
+
+    # 4. Case-insensitive fuzzy: strip underscores/spaces, compare lowercased stems
+    target = deck_name.lower().replace('_', '').replace(' ', '')
+    try:
+        for fname in os.listdir(precon_dir):
+            if fname.lower().endswith('.dck'):
+                stem = fname[:-4].lower().replace('_', '').replace(' ', '')
+                if stem == target:
+                    resolved = os.path.join(precon_dir, fname)
+                    log.info(f"[DeckResolver] Fuzzy match: '{deck_name}' → '{fname}'")
+                    return resolved
+    except OSError as e:
+        log.warning(f"[DeckResolver] Could not list precon_dir '{precon_dir}': {e}")
+
+    log.warning(f"[DeckResolver] Deck not found: '{deck_name}' (searched {precon_dir}) — passing raw name to JAR")
+    return deck_name
+
+
 def build_java_command(
     decks: list, num_games: int, threads: int, seed: Optional[int],
     clock: int, output_path: str, use_learned_policy: bool = False,
@@ -191,9 +246,11 @@ def build_java_command(
         '--clock', str(clock),
         '--output', output_path,
     ]
-    # Map deck list to --deck1 .. --deck4
+    # Map deck list to --deck1 .. --deck4, resolving names to full .dck paths
     for i, d in enumerate(decks[:4], start=1):
-        cmd += [f'--deck{i}', str(d)]
+        resolved = _resolve_deck_path(str(d))
+        log.info(f"[DeckResolver] deck{i}: '{d}' → '{resolved}'")
+        cmd += [f'--deck{i}', resolved]
     if seed is not None:
         cmd += ['--seed', str(seed)]
     if use_learned_policy:
