@@ -210,8 +210,44 @@ def build_java_command(
     return cmd
 
 
+# ── Draw-game life-at-timeout parser ─────────────────────────────────────────
+# Forge emits a summary line for each game that hits the wall-clock timeout:
+#
+#   [DRAW] [PARSE-SUMMARY] game=42 turns=28 time_ms=61200
+#           seat0=AdaptiveEnchantment:life=46 seat1=AbzanArmor:life=0
+#           seat2=AhoyMateys:life=0 seat3=20WaysToWin:life=8
+#
+# We capture these live so they're available before the process finishes.
+_DRAW_SUMMARY_RE = re.compile(
+    r'\[DRAW\].*?\[PARSE-SUMMARY\]'
+    r'.*?game=(\d+)'
+    r'.*?turns=(\d+)'
+    r'.*?time_ms=(\d+)'
+    r'((?:\s+seat\d+=\S+)*)'
+    , re.IGNORECASE
+)
+_SEAT_LIFE_RE = re.compile(r'seat(\d+)=([^:]+):life=([-\d]+)', re.IGNORECASE)
+
+
+def _parse_draw_summary_line(line: str) -> Optional[dict]:
+    """Return a draw-game snapshot dict if line matches, else None."""
+    m = _DRAW_SUMMARY_RE.search(line)
+    if not m:
+        return None
+    seats = {}
+    for sm in _SEAT_LIFE_RE.finditer(m.group(4) or ""):
+        seat_idx = int(sm.group(1))
+        seats[seat_idx] = {"deck_name": sm.group(2).strip(), "life": int(sm.group(3))}
+    return {
+        "game_id": int(m.group(1)),
+        "turns": int(m.group(2)),
+        "time_ms": int(m.group(3)),
+        "seats": seats,
+    }
+
+
 def _run_process_blocking(state: BatchState, cmd: list):
-    """Run Forge subprocess, parse progress, generate deck reports."""
+    """Run Forge subprocess, parse progress, collect draw-game snapshots."""
     log.info(f"Running: {' '.join(cmd)}")
 
     # Ensure Forge subprocesses use Java 17
@@ -237,10 +273,15 @@ def _run_process_blocking(state: BatchState, cmd: list):
 
     _register_batch(state.batch_id, state, proc)
 
+    # ── Live stdout parsing ───────────────────────────────────────────
+    draw_snapshots: list = []
+
     for line in proc.stdout:
         _touch_batch(state.batch_id)
         line = line.rstrip()
         state.log_lines.append(line)
+
+        # Progress counters
         gm = re.match(r'\[Game (\d+)/(\d+)\]', line)
         if gm:
             state.completed_games = int(gm.group(1))
@@ -249,13 +290,26 @@ def _run_process_blocking(state: BatchState, cmd: list):
         if pm:
             state.sims_per_sec = float(pm.group(1))
 
+        # ── Draw-game capture (fix #176) ──────────────────────────────
+        snap = _parse_draw_summary_line(line)
+        if snap:
+            draw_snapshots.append(snap)
+
     proc.wait()
     _unregister_batch(state.batch_id)
     elapsed = (_datetime.now() - state.start_time).total_seconds() * 1000
     state.elapsed_ms = int(elapsed)
+
+    # Persist draw snapshots on state for routes/lab.py to embed in JSON
+    state.draw_game_snapshots = draw_snapshots
+    if draw_snapshots:
+        log.info(
+            f"[DrawGames] Captured {len(draw_snapshots)} draw-game snapshots "
+            f"for batch {state.batch_id}"
+        )
+
     if proc.returncode != 0:
         state.running = False
-        # Include last few log lines in error for easier diagnosis
         tail = '  |  '.join(state.log_lines[-5:]) if state.log_lines else '(no output)'
         state.error = f"Exit code {proc.returncode} — last output: {tail}"
     else:
@@ -263,9 +317,6 @@ def _run_process_blocking(state: BatchState, cmd: list):
         state.completed_games = state.total_games
 
     # ── Post-process: detect alternate win conditions in the Java log ──
-    # Runs after the process exits so we don't slow the hot stdout loop.
-    # Stamps state.win_type_override which routes/lab_api.py can attach
-    # to each game result when building the batch JSON response.
     try:
         src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src')
         src_dir = os.path.normpath(src_dir)
@@ -286,7 +337,7 @@ async def run_batch_subprocess(
     num_games: int,
     threads: int,
     seed: Optional[int] = None,
-    clock: int = 6000,
+    clock: int = 3000,
     output_path: str = "results",
     use_learned_policy: bool = False,
     policy_style: str = "midrange",
@@ -295,7 +346,12 @@ async def run_batch_subprocess(
     ai_think_time_ms: int = -1,
     max_queue_depth: int = -1,
 ):
-    """Async wrapper that runs Forge subprocess in executor."""
+    """Async wrapper that runs Forge subprocess in executor.
+
+    clock default lowered from 6000 → 3000 (30s per-game wall limit for batch
+    mode) to reduce draw-game wall time wasted on timeouts (fix #176).
+    Interactive games pass an explicit req.clock override so they are unaffected.
+    """
     try:
         policy_server = f"http://localhost:{CFG.port}"
         cmd = build_java_command(
@@ -523,17 +579,13 @@ def _run_deepseek_batch_thread(
                     gd['gameNumber'] = g + 1
 
                     # ── Alternate win detection (DeepSeek path) ──────────────
-                    # Inspect the winning player's battlefield for alternate-win
-                    # permanents. result.winner is the seat index (0 = deck_a).
                     try:
                         winner_seat = result.winner_seat
                         if winner_seat >= 0:
-                            from commander_ai_lab.sim.game_state import get_final_battlefield
                             winner_bf = getattr(result, '_winner_battlefield', None)
                             if winner_bf is not None:
                                 win_type = detect_win_type_from_cards(winner_bf)
                             else:
-                                # Fallback: scan game_log lines if battlefield snapshot unavailable
                                 from commander_ai_lab.sim.win_condition_parser import detect_win_type_from_log
                                 win_type = detect_win_type_from_log(
                                     [str(entry) for entry in (result.game_log or [])]
