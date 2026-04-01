@@ -61,9 +61,6 @@ unity-client/Packages/packages-lock.json
 unity-client/ProjectSettings/EditorBuildSettings.asset
 unity-client/ProjectSettings/EditorSettings.asset
 unity-client/ProjectSettings/ShaderGraphSettings.asset
-unity-client/Assets/TcgEngine/Render/URP-HIGH.asset
-unity-client/Assets/TcgEngine/Render/URP-LOW.asset
-unity-client/Assets/TcgEngine/Render/URP-MEDIUM.asset
 unity-commander-ui/Packages/packages-lock.json
 unity-commander-ui/ProjectSettings/EditorBuildSettings.asset
 unity-commander-ui/ProjectSettings/EditorSettings.asset
@@ -71,3 +68,4 @@ unity-commander-ui/ProjectSettings/EditorSettings.asset
 # Third-party Unity assets — installed locally via Unity Package Manager / Asset Store
 # These are large binary asset packs; each dev installs from their own license
 unity-client/Assets/Eric VFX Studio/
+unity-client/Assets/TcgEngine/
