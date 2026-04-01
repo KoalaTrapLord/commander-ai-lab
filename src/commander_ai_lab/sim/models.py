@@ -354,11 +354,16 @@ class GameResult:
 
     - players: list of PlayerResult, one per seat
     - winner_seat: index of the winning player (-1 = draw)
+    - win_type: how the game was won — "Combat", "Combo", "Drain", "Mill",
+      "Poison", or "CmdrDmg". Defaults to "Combat".
+      Set by win_condition_parser.detect_win_type_from_cards() (Python engine)
+      or win_condition_parser.detect_win_type_from_log() (Java/Forge engine).
     - Backward-compat properties player_a_stats / player_b_stats delegate to players[0] / players[1]
     """
 
     winner_seat: int = -1
     turns: int = 0
+    win_type: str = "Combat"  # populated by win_condition_parser
     players: list[PlayerResult] = field(default_factory=list)
     game_log: list = field(default_factory=list)
 
@@ -428,6 +433,7 @@ class GameResult:
             # Legacy keys (UI expects these)
             "winner": self.winner_seat,
             "turns": self.turns,
+            "winType": self.win_type,
             # New N-player keys (Java BatchResult schema)
             "winningSeat": self.winner_seat,
             "playerResults": [p.to_dict() for p in self.players],

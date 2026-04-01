@@ -262,6 +262,23 @@ def _run_process_blocking(state: BatchState, cmd: list):
         state.running = False
         state.completed_games = state.total_games
 
+    # ── Post-process: detect alternate win conditions in the Java log ──
+    # Runs after the process exits so we don't slow the hot stdout loop.
+    # Stamps state.win_type_override which routes/lab_api.py can attach
+    # to each game result when building the batch JSON response.
+    try:
+        src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src')
+        src_dir = os.path.normpath(src_dir)
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        from commander_ai_lab.sim.win_condition_parser import detect_win_type_from_log
+        state.win_type_override = detect_win_type_from_log(state.log_lines)
+        if state.win_type_override != "Combat":
+            log.info(f"[WinType] Alternate win detected in batch {state.batch_id}: {state.win_type_override}")
+    except Exception as _wcp_err:
+        log.debug(f"[WinType] Parser import failed (non-fatal): {_wcp_err}")
+        state.win_type_override = "Combat"
+
 
 async def run_batch_subprocess(
     state: BatchState,
@@ -344,6 +361,7 @@ def _run_deepseek_batch_thread(
         from commander_ai_lab.sim.models import Card
         from commander_ai_lab.sim.deepseek_engine import DeepSeekGameEngine
         from commander_ai_lab.sim.rules import enrich_card
+        from commander_ai_lab.sim.win_condition_parser import detect_win_type_from_cards
 
         state.log_lines.append('[DeepSeek Batch] Initializing DeepSeek brain...')
         brain = _get_deepseek_brain()
@@ -503,6 +521,31 @@ def _run_deepseek_batch_thread(
                     )
                     gd = result.to_dict()
                     gd['gameNumber'] = g + 1
+
+                    # ── Alternate win detection (DeepSeek path) ──────────────
+                    # Inspect the winning player's battlefield for alternate-win
+                    # permanents. result.winner is the seat index (0 = deck_a).
+                    try:
+                        winner_seat = result.winner_seat
+                        if winner_seat >= 0:
+                            from commander_ai_lab.sim.game_state import get_final_battlefield
+                            winner_bf = getattr(result, '_winner_battlefield', None)
+                            if winner_bf is not None:
+                                win_type = detect_win_type_from_cards(winner_bf)
+                            else:
+                                # Fallback: scan game_log lines if battlefield snapshot unavailable
+                                from commander_ai_lab.sim.win_condition_parser import detect_win_type_from_log
+                                win_type = detect_win_type_from_log(
+                                    [str(entry) for entry in (result.game_log or [])]
+                                )
+                            result.win_type = win_type
+                            gd['winType'] = win_type
+                            if win_type != 'Combat':
+                                log.info(f'[WinType] {deck_name} game {g+1}: {win_type} win detected')
+                    except Exception as _wt_err:
+                        log.debug(f'[WinType] Detection failed for game {g+1} (non-fatal): {_wt_err}')
+                        gd.setdefault('winType', 'Combat')
+
                     deck_stats['games'].append(gd)
 
                     if result.winner == 0:

@@ -57,6 +57,32 @@ def _sanitize_floats(obj):
     return obj
 
 
+def _inject_win_type(data: dict, win_type_override: str) -> None:
+    """Stamp winType on every per-game dict that doesn't already have one.
+
+    Called by get_result() after loading the JSON from disk.
+    - Uses setdefault so DeepSeek per-game values (already set in forge_runner.py)
+      are never overwritten.
+    - Also stamps metadata.winType for a quick batch-level summary field.
+    - win_type_override comes from state.win_type_override (Java path) or
+      defaults to "Combat" if the attribute is absent (DeepSeek / old batches).
+    """
+    if not win_type_override or win_type_override == "Combat":
+        # Still stamp Combat as default so the field is always present
+        win_type_override = "Combat"
+
+    # Batch-level metadata field
+    meta = data.get("metadata")
+    if isinstance(meta, dict):
+        meta.setdefault("winType", win_type_override)
+
+    # Per-game dicts nested under data["decks"][N]["games"][M]
+    for deck in data.get("decks", []):
+        for game in deck.get("games", []):
+            if isinstance(game, dict):
+                game.setdefault("winType", win_type_override)
+
+
 @router.post("/api/lab/start", response_model=StartResponse)
 async def start_batch(req: StartRequest, background_tasks: BackgroundTasks):
     """Start a new batch simulation run."""
@@ -196,6 +222,15 @@ async def get_result(batchId: Optional[str] = None):
             data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         raise HTTPException(500, f"Failed to read result file: {e}")
+
+    # ── Inject winType into every game dict (fix #180) ──────────────────────
+    # win_type_override is set by forge_runner._run_process_blocking() for the
+    # Java/Forge path. DeepSeek games already have per-game winType stamped
+    # directly in the result dict; _inject_win_type uses setdefault so those
+    # are never overwritten.
+    win_type_override = getattr(state, "win_type_override", "Combat")
+    _inject_win_type(data, win_type_override)
+
     data = _sanitize_floats(data)
     return JSONResponse(content=data)
 
@@ -469,5 +504,3 @@ async def start_batch_deepseek(request: FastAPIRequest, background_tasks: Backgr
         'message': f'Running {num_games} games across {len(decks)} decks with DeepSeek AI',
         'engine': 'deepseek',
     })
-
-
