@@ -39,6 +39,7 @@ from services.deck_service import parse_dck_file, _load_deck_cards_by_name
 from services.forge_runner import (
     build_java_command, run_batch_subprocess, _run_deepseek_batch_thread,
 )
+from services.draw_game_analyzer import summarize_draw_games
 from services.logging import log, log_batch
 
 router = APIRouter(tags=["lab"])
@@ -223,13 +224,17 @@ async def get_result(batchId: Optional[str] = None):
     except (json.JSONDecodeError, OSError) as e:
         raise HTTPException(500, f"Failed to read result file: {e}")
 
-    # ── Inject winType into every game dict (fix #180) ──────────────────────
-    # win_type_override is set by forge_runner._run_process_blocking() for the
-    # Java/Forge path. DeepSeek games already have per-game winType stamped
-    # directly in the result dict; _inject_win_type uses setdefault so those
-    # are never overwritten.
+    # ── Inject winType into every game dict (fix #175) ──────────────────────
     win_type_override = getattr(state, "win_type_override", "Combat")
     _inject_win_type(data, win_type_override)
+
+    # ── Inject draw-game summary (fix #176) ─────────────────────────────────
+    # draw_game_snapshots is populated live by forge_runner._run_process_blocking
+    # from [DRAW] [PARSE-SUMMARY] lines.  summarize_draw_games() aggregates them
+    # into a single dict with perDeck breakdowns and a likelyCause field so the
+    # dashboard can immediately show which deck is causing timeout loops.
+    draw_snapshots = getattr(state, "draw_game_snapshots", [])
+    data["drawGames"] = summarize_draw_games(draw_snapshots)
 
     data = _sanitize_floats(data)
     return JSONResponse(content=data)
@@ -304,31 +309,31 @@ async def list_history():
 AI_PROFILES = {
     "default": {
         "name": "default",
-        "description": "Balanced \u2014 Forge's default AI behavior",
+        "description": "Balanced — Forge's default AI behavior",
         "aggression": 0.5, "cardAdvantage": 0.5, "removalPriority": 0.5,
         "boardPresence": 0.5, "comboPriority": 0.3, "patience": 0.5,
     },
     "aggro": {
         "name": "aggro",
-        "description": "Aggressive \u2014 attacks early, prioritizes damage",
+        "description": "Aggressive — attacks early, prioritizes damage",
         "aggression": 0.9, "cardAdvantage": 0.3, "removalPriority": 0.3,
         "boardPresence": 0.8, "comboPriority": 0.1, "patience": 0.1,
     },
     "control": {
         "name": "control",
-        "description": "Control \u2014 defensive, removal-heavy, card advantage",
+        "description": "Control — defensive, removal-heavy, card advantage",
         "aggression": 0.2, "cardAdvantage": 0.9, "removalPriority": 0.9,
         "boardPresence": 0.3, "comboPriority": 0.4, "patience": 0.9,
     },
     "combo": {
         "name": "combo",
-        "description": "Combo \u2014 ramps, digs for pieces, assembles combos",
+        "description": "Combo — ramps, digs for pieces, assembles combos",
         "aggression": 0.2, "cardAdvantage": 0.8, "removalPriority": 0.4,
         "boardPresence": 0.3, "comboPriority": 0.95, "patience": 0.7,
     },
     "midrange": {
         "name": "midrange",
-        "description": "Midrange \u2014 flexible, strong board presence, value-oriented",
+        "description": "Midrange — flexible, strong board presence, value-oriented",
         "aggression": 0.5, "cardAdvantage": 0.6, "removalPriority": 0.6,
         "boardPresence": 0.7, "comboPriority": 0.3, "patience": 0.5,
     },
