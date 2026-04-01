@@ -168,7 +168,7 @@ def reset_java17_cache():
     _JAVA17_PATH = None
 
 
-# ── Deck path resolution ─────────────────────────────────────────────────────
+# ── Deck path resolution ──────────────────────────────────────────────────────
 
 def _resolve_deck_path(deck_name: str) -> str:
     """Resolve a deck name to its full .dck path in CFG.precon_dir.
@@ -177,8 +177,9 @@ def _resolve_deck_path(deck_name: str) -> str:
       1. Already an absolute path with .dck extension — return as-is.
       2. Exact filename match in precon_dir (e.g. "Abzan_Armor.dck").
       3. camelCase → snake_case conversion (e.g. "AbzanArmor" → "Abzan_Armor.dck").
-      4. Case-insensitive fuzzy match stripping underscores/spaces.
-      5. Fallback: return raw name and let the JAR fail with a clear error.
+      4. Space → underscore normalization.
+      5. Case-insensitive fuzzy match stripping underscores/spaces.
+      6. Fallback: return raw name and let the JAR fail with a clear error.
     """
     # Already a resolved path
     if deck_name.endswith('.dck') and os.path.isfile(deck_name):
@@ -307,6 +308,10 @@ def _run_process_blocking(state: BatchState, cmd: list):
     """Run Forge subprocess, parse progress, collect draw-game snapshots."""
     log.info(f"Running: {' '.join(cmd)}")
 
+    # Forge must run with forge_dir as cwd so it can find res/ relative to itself
+    forge_cwd = CFG.forge_dir if CFG.forge_dir and os.path.isdir(CFG.forge_dir) else None
+    log.info(f"[ForgeRunner] cwd={forge_cwd}")
+
     # Ensure Forge subprocesses use Java 17
     env = os.environ.copy()
     java17 = get_java17()
@@ -319,7 +324,7 @@ def _run_process_blocking(state: BatchState, cmd: list):
     try:
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, env=env,
+            text=True, bufsize=1, env=env, cwd=forge_cwd,
         )
         state.process = proc
     except Exception as e:
