@@ -9,7 +9,7 @@ class StartRequest(BaseModel):
     numGames: int = 100
     threads: int = 4
     seed: Optional[int] = None
-    clock: int = 300
+    clock: int = 5000
     deckSources: Optional[list[Optional[dict]]] = None
     useLearnedPolicy: bool = False
     policyStyle: str = "midrange"
@@ -170,6 +170,7 @@ class CoachGoalsRequest(BaseModel):
     meta_focus: Optional[str] = None  # aggro, control, combo, midrange, stax
     budget: Optional[str] = None  # budget, medium, no-limit
     focus_areas: list[str] = []  # e.g., ["ramp", "card draw"]
+
 class DeckGenV3SubstituteRequest(BaseModel):
     card_name: str
     substitute_name: str
