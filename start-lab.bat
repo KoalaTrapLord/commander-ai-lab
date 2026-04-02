@@ -14,7 +14,10 @@ REM ═════════════════════════�
 REM ── Your Forge paths (EDIT THESE) ──────────────────────────
 set FORGE_JAR=D:\ForgeCommander\forge-repo\forge-gui-desktop\target\forge-gui-desktop-2.0.12-SNAPSHOT-jar-with-dependencies.jar
 set FORGE_DIR=D:\ForgeCommander\forge-repo
-set FORGE_DECKS_DIR=%APPDATA%\Forge\decks\commander
+REM Precon-decks folder — Forge reads .dck files directly from here.
+REM This is also used as the source for precon install endpoints.
+set FORGE_DECKS_DIR=D:\ForgeCommander\commander-ai-lab\precon-decks
+set PRECON_DECKS_DIR=D:\ForgeCommander\commander-ai-lab\precon-decks
 REM ── Lab JAR (auto-detected from target/) ─────────────────────
 set LAB_PORT=8080
 
@@ -30,6 +33,8 @@ if not defined XIMILAR_API_KEY (
         for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0.env") do (
             if "%%A"=="XIMILAR_API_KEY" set XIMILAR_API_KEY=%%B
             if "%%A"=="ANTHROPIC_API_KEY" set ANTHROPIC_API_KEY=%%B
+            if "%%A"=="PRECON_DECKS_DIR" set PRECON_DECKS_DIR=%%B
+            if "%%A"=="FORGE_DECKS_DIR" set FORGE_DECKS_DIR=%%B
         )
     )
 )
@@ -42,6 +47,7 @@ echo.
 echo Forge JAR:   %FORGE_JAR%
 echo Forge Dir:   %FORGE_DIR%
 echo Decks Dir:   %FORGE_DECKS_DIR%
+echo Precon Dir:  %PRECON_DECKS_DIR%
 echo Port:        %LAB_PORT%
 echo Ximilar:     Configured
 if defined ANTHROPIC_API_KEY (
@@ -102,6 +108,7 @@ if defined ANTHROPIC_API_KEY (
         --forge-jar "%FORGE_JAR%" ^
         --forge-dir "%FORGE_DIR%" ^
         --forge-decks-dir "%FORGE_DECKS_DIR%" ^
+        --precon-dir "%PRECON_DECKS_DIR%" ^
         --port %LAB_PORT% ^
         --ximilar-key "%XIMILAR_API_KEY%" ^
         --anthropic-key "%ANTHROPIC_API_KEY%"
@@ -110,6 +117,7 @@ if defined ANTHROPIC_API_KEY (
         --forge-jar "%FORGE_JAR%" ^
         --forge-dir "%FORGE_DIR%" ^
         --forge-decks-dir "%FORGE_DECKS_DIR%" ^
+        --precon-dir "%PRECON_DECKS_DIR%" ^
         --port %LAB_PORT% ^
         --ximilar-key "%XIMILAR_API_KEY%"
 )
