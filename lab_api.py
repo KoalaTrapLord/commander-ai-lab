@@ -174,10 +174,12 @@ elif _spa_dir.exists():
 def _parse_args():
     p = argparse.ArgumentParser(description="Commander AI Lab API Server")
     p.add_argument("--forge-jar", default=os.environ.get("FORGE_JAR", ""))
-    p.add_argument("--forge-dir", default=os.environ.get("FORGE_DIR", ""))
+    # Support both FORGE_DIR and FORGE_WORKING_DIR (alias for backwards compat)
+    p.add_argument("--forge-dir", default=os.environ.get("FORGE_DIR") or os.environ.get("FORGE_WORKING_DIR", ""))
     p.add_argument("--forge-decks-dir", default=os.environ.get("FORGE_DECKS_DIR", ""))
     p.add_argument("--lab-jar", default=os.environ.get("LAB_JAR", ""))
     p.add_argument("--precon-dir", default=os.environ.get("PRECON_DIR", ""))
+    p.add_argument("--results-dir", default=os.environ.get("RESULTS_DIR", ""))
     p.add_argument("--port", type=int, default=int(os.environ.get("LAB_PORT", "8080")))
     p.add_argument("--ximilar-key", default=os.environ.get("XIMILAR_API_KEY", ""))
     p.add_argument("--anthropic-key", default=os.environ.get("ANTHROPIC_API_KEY", ""))
@@ -252,7 +254,7 @@ def _resolve_forge_jar() -> str:
         project_root.parent / "forge-repo" / "forge-gui-desktop" / "target",
         project_root.parent / "forge" / "forge-gui-desktop" / "target",
     ]
-    forge_dir_env = os.environ.get("FORGE_DIR", "")
+    forge_dir_env = os.environ.get("FORGE_DIR", "") or os.environ.get("FORGE_WORKING_DIR", "")
     if forge_dir_env:
         fd = Path(forge_dir_env)
         candidates.append(fd.parent / "forge-gui-desktop" / "target")
@@ -316,6 +318,15 @@ def main():
     CFG.port = args.port
     CFG.ximilar_api_key = args.ximilar_key
     CFG.anthropic_api_key = args.anthropic_key
+
+    # Wire RESULTS_DIR: use explicit env/arg if set, otherwise keep default "results"
+    # but resolve it to an absolute path relative to this file so it works
+    # regardless of what directory the server is launched from.
+    if args.results_dir:
+        CFG.results_dir = args.results_dir
+    else:
+        # Default: results/ next to lab_api.py (always absolute)
+        CFG.results_dir = str(Path(__file__).parent / "results")
 
     from services.forge_runner import get_java17
     j17 = get_java17()
