@@ -47,7 +47,11 @@ async def install_precon(req: dict):
         raise HTTPException(500, f"Forge decks directory not found: {decks_dir}")
 
     dst = Path(decks_dir) / file_name
-    shutil.copy2(str(src), str(dst))
+    try:
+        shutil.copy2(str(src), str(dst))
+    except OSError as e:
+        log.error(f"Failed to copy deck file {file_name}: {e}")
+        raise HTTPException(500, f"Failed to copy deck file: {e}")
 
     deck_name = file_name.replace(".dck", "")
     return {
@@ -78,9 +82,13 @@ async def install_precons_batch(req: dict):
             results.append({"fileName": file_name, "installed": False, "error": "not found"})
             continue
         dst = Path(decks_dir) / file_name
-        shutil.copy2(str(src), str(dst))
-        deck_name = file_name.replace(".dck", "")
-        results.append({"fileName": file_name, "installed": True, "deckName": deck_name})
+        try:
+            shutil.copy2(str(src), str(dst))
+            deck_name = file_name.replace(".dck", "")
+            results.append({"fileName": file_name, "installed": True, "deckName": deck_name})
+        except OSError as e:
+            log.error(f"Failed to copy deck file {file_name}: {e}")
+            results.append({"fileName": file_name, "installed": False, "error": str(e)})
 
     return {"results": results}
 
