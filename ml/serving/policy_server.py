@@ -55,11 +55,40 @@ from ml.encoder.state_encoder import CardEmbeddingIndex, StateEncoder
 logger = logging.getLogger("ml.serving")
 
 
+def _unwrap_logits(raw):
+    """
+    Normalise whatever self.model() returns to a plain logits tensor.
+
+    PolicyNetwork.forward() returns a raw tensor, but the model may be
+    wrapped (DataParallel, torch.compile) or accidentally swapped for
+    PolicyValueNetwork whose forward_with_value() returns (logits, value).
+    A dict return would cause 'dict / float' TypeError on the temperature
+    division -- guard against all three cases here.
+    """
+    if isinstance(raw, (tuple, list)):
+        # (logits, value) from PolicyValueNetwork or similar
+        return raw[0]
+    if isinstance(raw, dict):
+        # e.g. {"logits": tensor, "value": tensor}
+        for key in ("logits", "policy", "action_logits"):
+            if key in raw:
+                return raw[key]
+        # Fallback: grab the first tensor value in the dict
+        for v in raw.values():
+            if isinstance(v, torch.Tensor):
+                return v
+        raise TypeError(
+            f"model() returned a dict with no recognisable logits key: {list(raw.keys())}"
+        )
+    # Plain tensor -- the normal case
+    return raw
+
+
 class PolicyInferenceService:
     """
     Loads a trained PolicyNetwork and provides action predictions.
 
-    Thread-safe — uses torch.no_grad() for inference.
+    Thread-safe -- uses torch.no_grad() for inference.
     Designed to be embedded in lab_api.py or run standalone.
     """
 
@@ -100,7 +129,7 @@ class PolicyInferenceService:
         """
         if not TORCH_AVAILABLE:
             self._load_error = "PyTorch not installed"
-            logger.error("PyTorch not installed — cannot serve policy")
+            logger.error("PyTorch not installed -- cannot serve policy")
             return False
 
         # 1. Load card embeddings
@@ -224,7 +253,10 @@ class PolicyInferenceService:
 
             # Run inference
             with torch.no_grad():
-                logits = self.model(state_tensor)
+                raw_output = self.model(state_tensor)
+                # Guard: unwrap tuple/dict returns (DataParallel, torch.compile,
+                # or accidental PolicyValueNetwork swap) before any arithmetic.
+                logits = _unwrap_logits(raw_output)
 
                 if greedy:
                     action_idx = logits.argmax(dim=-1).item()
@@ -286,7 +318,9 @@ class PolicyInferenceService:
 
             # Batch inference
             with torch.no_grad():
-                logits = self.model(state_tensor)
+                raw_output = self.model(state_tensor)
+                # Same guard as predict() -- unwrap before softmax/argmax.
+                logits = _unwrap_logits(raw_output)
                 probs = torch.softmax(logits, dim=-1).cpu().numpy()
 
                 if greedy:
@@ -331,9 +365,9 @@ class PolicyInferenceService:
         }
 
 
-# ══════════════════════════════════════════════════════════
+# ==========================================================
 # Standalone FastAPI Server
-# ══════════════════════════════════════════════════════════
+# ==========================================================
 
 def create_standalone_app():
     """Create a standalone FastAPI app for the policy server."""
@@ -341,7 +375,7 @@ def create_standalone_app():
     from pydantic import BaseModel
 
     app = FastAPI(
-        title="Commander AI Lab — Policy Server",
+        title="Commander AI Lab -- Policy Server",
         description="Serves macro-action predictions from a trained policy network",
         version="1.0.0",
     )
@@ -424,7 +458,7 @@ def main():
     import uvicorn
 
     parser = argparse.ArgumentParser(
-        description="Commander AI Lab — Policy Inference Server"
+        description="Commander AI Lab -- Policy Inference Server"
     )
     parser.add_argument("--port", type=int, default=8090)
     parser.add_argument("--host", default="127.0.0.1")
