@@ -8,6 +8,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+# ── .env bootstrap ────────────────────────────────────────────
+# Load .env automatically so plain `python script.py` and bare uvicorn
+# both pick up FORGE_DIR, PRECON_DIR, etc. without a manual load_dotenv
+# call at every entry point. override=False means real env vars always win.
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _here = Path(__file__).resolve().parent
+    for _candidate in [_here, _here.parent, _here.parent.parent]:
+        _env_file = _candidate / ".env"
+        if _env_file.is_file():
+            _load_dotenv(dotenv_path=_env_file, override=False)
+            break
+except ImportError:
+    pass  # python-dotenv not installed; rely on real environment variables
+# ─────────────────────────────────────────────────────────────
 
 log = logging.getLogger("commander_ai_lab.api")
 
@@ -131,9 +146,9 @@ def load_commander_meta() -> None:
 # AI Profiles
 # ══════════════════════════════════════════════════════════════
 AI_PROFILES = {
-    "default": {"name": "default", "description": "Balanced \u2014 Forge's default AI behavior", "aggression": 0.5, "cardAdvantage": 0.5, "removalPriority": 0.5, "boardPresence": 0.5, "comboPriority": 0.3, "patience": 0.5},
-    "aggro": {"name": "aggro", "description": "Aggressive \u2014 attacks early, prioritizes damage", "aggression": 0.9, "cardAdvantage": 0.3, "removalPriority": 0.3, "boardPresence": 0.8, "comboPriority": 0.1, "patience": 0.1},
-    "control": {"name": "control", "description": "Control \u2014 defensive, removal-heavy, card advantage", "aggression": 0.2, "cardAdvantage": 0.9, "removalPriority": 0.9, "boardPresence": 0.3, "comboPriority": 0.4, "patience": 0.9},
-    "combo": {"name": "combo", "description": "Combo \u2014 ramps, digs for pieces, assembles combos", "aggression": 0.2, "cardAdvantage": 0.8, "removalPriority": 0.4, "boardPresence": 0.3, "comboPriority": 0.95, "patience": 0.7},
-    "midrange": {"name": "midrange", "description": "Midrange \u2014 flexible, strong board presence, value-oriented", "aggression": 0.5, "cardAdvantage": 0.6, "removalPriority": 0.6, "boardPresence": 0.7, "comboPriority": 0.3, "patience": 0.5},
+    "default": {"name": "default", "description": "Balanced — Forge's default AI behavior", "aggression": 0.5, "cardAdvantage": 0.5, "removalPriority": 0.5, "boardPresence": 0.5, "comboPriority": 0.3, "patience": 0.5},
+    "aggro": {"name": "aggro", "description": "Aggressive — attacks early, prioritizes damage", "aggression": 0.9, "cardAdvantage": 0.3, "removalPriority": 0.3, "boardPresence": 0.8, "comboPriority": 0.1, "patience": 0.1},
+    "control": {"name": "control", "description": "Control — defensive, removal-heavy, card advantage", "aggression": 0.2, "cardAdvantage": 0.9, "removalPriority": 0.9, "boardPresence": 0.3, "comboPriority": 0.4, "patience": 0.9},
+    "combo": {"name": "combo", "description": "Combo — ramps, digs for pieces, assembles combos", "aggression": 0.2, "cardAdvantage": 0.8, "removalPriority": 0.4, "boardPresence": 0.3, "comboPriority": 0.95, "patience": 0.7},
+    "midrange": {"name": "midrange", "description": "Midrange — flexible, strong board presence, value-oriented", "aggression": 0.5, "cardAdvantage": 0.6, "removalPriority": 0.6, "boardPresence": 0.7, "comboPriority": 0.3, "patience": 0.5},
 }
