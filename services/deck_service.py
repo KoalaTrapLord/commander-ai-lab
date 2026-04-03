@@ -13,6 +13,16 @@ from services.database import _get_db_conn, _row_to_dict
 
 log_collect = logging.getLogger("lab.collection")
 
+# Repo root = two levels up from this file (services/deck_service.py)
+_REPO_ROOT = Path(__file__).parent.parent
+
+# Repo-relative deck dirs always searched as fallbacks (zero-config support)
+_BUILTIN_DECK_DIRS = [
+    _REPO_ROOT / "precon-decks",
+    _REPO_ROOT / "sample-decks",
+    _REPO_ROOT / "imported-decks",
+]
+
 
 _TYPE_PRIORITY = ["Land", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Creature"]
 _TYPE_TARGETS = {
@@ -197,7 +207,7 @@ def _save_profile_to_dck(profile: dict) -> Path:
         safe_name = "imported_deck"
     save_dir = CFG.forge_decks_dir
     if not save_dir or not os.path.isdir(save_dir):
-        save_dir = os.path.join(Path(__file__).parent.parent, "imported-decks")
+        save_dir = str(_REPO_ROOT / "imported-decks")
         os.makedirs(save_dir, exist_ok=True)
     out_path = Path(save_dir) / f"{safe_name}.dck"
     out_path.write_text(content, encoding="utf-8")
@@ -209,15 +219,19 @@ def _find_dck_file(deck_name: str) -> Optional[Path]:
     """Search known deck directories for a .dck file matching deck_name.
 
     Resolution order:
-      1. precon_dir  (precon-decks/)
-      2. forge_decks_dir  (Forge user decks)
+      1. CFG.precon_dir  (explicit CLI/env config)
+      2. CFG.forge_decks_dir  (Forge user decks)
       3. FORGE_DIR/res/decks/commander  (Forge bundled commander decks)
+      4. Repo-relative fallbacks: precon-decks/, sample-decks/, imported-decks/
+         (always searched so precon decks work with zero configuration)
 
     Within each directory tries:
       a. Exact stem match  (Elven_Empire.dck)
       b. Case-insensitive fuzzy match stripping underscores/spaces
     """
-    search_dirs = []
+    search_dirs: list[Path] = []
+
+    # CFG-configured paths (set via CLI args)
     if CFG.precon_dir and os.path.isdir(CFG.precon_dir):
         search_dirs.append(Path(CFG.precon_dir))
     if CFG.forge_decks_dir and os.path.isdir(CFG.forge_decks_dir):
@@ -226,6 +240,11 @@ def _find_dck_file(deck_name: str) -> Optional[Path]:
         forge_cmdr = Path(CFG.forge_dir) / "res" / "decks" / "commander"
         if forge_cmdr.is_dir():
             search_dirs.append(forge_cmdr)
+
+    # Repo-relative fallbacks -- always active so precon decks need no config
+    for builtin_dir in _BUILTIN_DECK_DIRS:
+        if builtin_dir.is_dir() and builtin_dir not in search_dirs:
+            search_dirs.append(builtin_dir)
 
     target_norm = deck_name.lower().replace("_", "").replace(" ", "")
 
@@ -303,9 +322,9 @@ def _load_deck_cards_by_name(deck_name: str) -> list:
 
     Resolution order:
       1. SQLite DB  (decks built/imported via the Deck Builder UI)
-      2. .dck file fallback -- searches precon_dir, forge_decks_dir, and
-         FORGE_DIR/res/decks/commander so that precon decks work without
-         needing to be manually imported into the DB first.
+      2. .dck file fallback -- searches precon_dir, forge_decks_dir,
+         FORGE_DIR/res/decks/commander, and repo-relative precon-decks/
+         sample-decks/ so precon decks work without any configuration.
     """
     # -- 1. DB lookup --
     conn = _get_db_conn()
