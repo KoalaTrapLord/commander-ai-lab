@@ -29,6 +29,31 @@ async def list_precons():
     return {"precons": PRECON_INDEX}        # reads current value every call
 
 
+@router.get("/api/lab/precons/deck")
+async def get_precon_deck(fileName: str):
+    """Return the raw decklist content of a precon .dck file.
+    Query: ?fileName=Elven_Empire.dck
+    """
+    if not fileName:
+        raise HTTPException(400, "fileName query parameter is required")
+    # Sanitize: only allow .dck files, no path traversal
+    if '..' in fileName or '/' in fileName or '\\' in fileName:
+        raise HTTPException(400, "Invalid fileName")
+    if not fileName.endswith('.dck'):
+        raise HTTPException(400, "Only .dck files are supported")
+
+    src = _get_precon_dir() / fileName
+    if not src.exists():
+        raise HTTPException(404, f"Precon not found: {fileName}")
+
+    try:
+        content = src.read_text(encoding='utf-8')
+    except OSError as e:
+        raise HTTPException(500, f"Failed to read deck file: {e}")
+
+    return {"fileName": fileName, "decklist": content}
+
+
 @router.post("/api/lab/precons/install")
 async def install_precon(req: dict):
     """Install a precon deck to the Forge decks directory.
