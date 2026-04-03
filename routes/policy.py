@@ -518,16 +518,24 @@ def _infer_from_vector(state_vec: np.ndarray, policy_service, temperature: float
 
     Mirrors the core of PolicyInferenceService.predict() but accepts an
     ndarray instead of a snapshot dict, avoiding a second encode() call.
+
+    Uses _unwrap_logits (same helper as predict()) to guard against
+    tuple/dict returns from wrapped or swapped model variants before any
+    arithmetic on the logits tensor.
     """
     import torch
     from ml.config.scope import NUM_ACTIONS, IDX_TO_ACTION
+    from ml.serving.policy_server import _unwrap_logits
 
     t_start = time.time()
     try:
         state_tensor = torch.from_numpy(state_vec).unsqueeze(0).to(policy_service.device)
 
         with torch.no_grad():
-            logits = policy_service.model(state_tensor)
+            raw_output = policy_service.model(state_tensor)
+            # Guard: unwrap tuple/dict returns (DataParallel, torch.compile,
+            # PolicyValueNetwork swap) before temperature division / argmax.
+            logits = _unwrap_logits(raw_output)
 
             if greedy:
                 action_idx = logits.argmax(dim=-1).item()
