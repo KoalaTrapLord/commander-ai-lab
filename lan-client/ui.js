@@ -1,1 +1,1 @@
-{ "placeholder": "will be replaced" }
+CONTENT_PLACEHOLDER
