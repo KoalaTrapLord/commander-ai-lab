@@ -6,8 +6,9 @@ Reads ML decision JSONL files, encodes states, labels actions,
 and produces a training-ready dataset saved as NPZ.
 
 Phase 2: Source Awareness (Issue #66)
-  - Scans both Forge sim files (ml-decisions-sim-*.jsonl) and
-    PPO self-play files (ml-decisions-ppo-*.jsonl)
+  - Scans Forge sim files  (ml-decisions-sim-*.jsonl)  → source "forge"
+  - Scans PPO self-play    (ml-decisions-ppo-*.jsonl)  → source "ppo"
+  - Scans DeepSeek files   (ml-decisions-ds-*.jsonl)   → source "ds"
   - Configurable source_weights for sampling ratios
   - min_reward_threshold filter for PPO data quality
   - Each sample tagged with source for downstream analysis
@@ -21,7 +22,7 @@ Output NPZ structure:
     game_ids:   object  (N,)      — game ID for each sample
     outcomes:   object  (N,)      — game outcome per sample
     playstyles: object  (N,)      — deck archetype per sample
-    sources:    object  (N,)      — data source ("forge" or "ppo")
+    sources:    object  (N,)      — data source ("forge", "ppo", or "ds")
 """
 
 import argparse
@@ -62,11 +63,11 @@ class DatasetConfig:
     embeddings_dir: Optional[str] = None
     max_samples: Optional[int] = None
 
-    # Source weights control sampling ratios between Forge and PPO data.
-    # Default: Forge-only (ppo=0.0). Use MIXED_MODE_PRESETS from
-    # ml.config.scope for blended configurations (e.g. 90/10, 80/20).
+    # Source weights control sampling ratios between Forge, PPO, and DS data.
+    # ds=4.0 oversamples the 8 DeepSeek files from ~5.8% → ~20% of effective
+    # training tokens, matching their higher signal quality relative to sim data.
     source_weights: Dict[str, float] = field(
-        default_factory=lambda: {"forge": 1.0, "ppo": 0.0}
+        default_factory=lambda: {"forge": 1.0, "ppo": 0.0, "ds": 4.0}
     )
 
     # Minimum reward threshold for PPO data — only include decisions
@@ -81,12 +82,13 @@ class DatasetConfig:
 
 def _discover_jsonl_files(results_dir: str) -> Dict[str, List[Path]]:
     """
-    Scan results directory for both Forge sim and PPO decision files.
+    Scan results directory for Forge sim, PPO, and DeepSeek decision files.
 
     Returns:
         Dict mapping source name to list of JSONL file paths.
         Keys: "forge" for ml-decisions-sim-*.jsonl
               "ppo"   for ml-decisions-ppo-*.jsonl
+              "ds"    for ml-decisions-ds-*.jsonl
     """
     results_path = Path(results_dir)
     sources = {}
@@ -101,10 +103,16 @@ def _discover_jsonl_files(results_dir: str) -> Dict[str, List[Path]]:
     if ppo_files:
         sources["ppo"] = ppo_files
 
-    # Also pick up legacy files that don't have sim/ppo prefix
+    # DeepSeek high-quality decisions (upweighted by default)
+    ds_files = sorted(results_path.glob("ml-decisions-ds-*.jsonl"))
+    if ds_files:
+        sources["ds"] = ds_files
+
+    # Legacy files that don't match any known prefix — treat as forge
+    known = set(forge_files + ppo_files + ds_files)
     legacy_files = sorted(
         f for f in results_path.glob("ml-decisions-*.jsonl")
-        if f not in set(forge_files + ppo_files)
+        if f not in known
     )
     if legacy_files:
         sources.setdefault("forge", []).extend(legacy_files)
@@ -123,7 +131,7 @@ def _passes_reward_filter(
 ) -> bool:
     """
     Filter PPO decisions by reward threshold.
-    Forge data always passes. PPO data must meet the threshold.
+    Forge and DS data always passes. PPO data must meet the threshold.
     """
     if source != "ppo":
         return True
@@ -155,7 +163,7 @@ def _apply_source_weights(
         if weight <= 0:
             logger.info("  Skipping %d %s samples (weight=0)", len(samples), source)
             continue
-        if weight >= 1.0 and weight == 1.0:
+        if weight == 1.0:
             combined.extend(samples)
         elif weight < 1.0:
             # Subsample
@@ -193,8 +201,9 @@ def build_dataset(
     Build complete training dataset from all ML decision files.
 
     Phase 2 additions:
-      - Scans both Forge and PPO JSONL files
+      - Scans Forge, PPO, and DeepSeek (ds) JSONL files
       - Applies source_weights for configurable mixing
+        (default: ds=4.0 to oversample high-quality DeepSeek decisions)
       - Filters PPO data by min_reward_threshold
       - Tags each sample with its source
 
@@ -202,14 +211,15 @@ def build_dataset(
         results_dir: Path to results/ directory containing JSONL files
         embeddings_dir: Path to embeddings/ directory (default: auto-detect)
         max_samples: Cap total samples (None = unlimited)
-        source_weights: Dict of source → sampling weight (default: forge=1.0, ppo=0.5)
+        source_weights: Dict of source → sampling weight
+                        (default: forge=1.0, ppo=0.0, ds=4.0)
         min_reward_threshold: Min episode_return for PPO data (default: 0.0)
 
     Returns:
         Dict with keys: states, labels, game_ids, outcomes, playstyles, sources
     """
     if source_weights is None:
-        source_weights = {"forge": 1.0, "ppo": 0.0}
+        source_weights = {"forge": 1.0, "ppo": 0.0, "ds": 4.0}
 
     # Load card embeddings
     card_index = CardEmbeddingIndex(embeddings_dir)
@@ -225,7 +235,7 @@ def build_dataset(
 
     encoder = StateEncoder(card_index)
 
-    # --- Phase 2 Task 1: Discover files from both sources ---
+    # --- Phase 2 Task 1: Discover files from all sources ---
     source_files = _discover_jsonl_files(results_dir)
     if not source_files:
         logger.error("No ML decision files found in %s", results_dir)
@@ -503,7 +513,11 @@ def main():
     )
     parser.add_argument(
         "--ppo-weight", type=float, default=0.0,
-        help="Sampling weight for PPO self-play data (default: 0.0, Forge-only)",
+        help="Sampling weight for PPO self-play data (default: 0.0, disabled)",
+    )
+    parser.add_argument(
+        "--ds-weight", type=float, default=4.0,
+        help="Sampling weight for DeepSeek decision data (default: 4.0, ~20%% effective share)",
     )
     parser.add_argument(
         "--min-reward", type=float, default=0.0,
@@ -515,6 +529,7 @@ def main():
     source_weights = {
         "forge": args.forge_weight,
         "ppo": args.ppo_weight,
+        "ds": args.ds_weight,
     }
 
     # Build dataset
