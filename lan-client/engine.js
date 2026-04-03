@@ -248,6 +248,9 @@ function createInitialState(playerCount, playerNames, startingLife) {
       startingLife,
       poison: 0,
       energy: 0,
+      experience: 0,
+      rad: 0,
+      emblems: [],
       eliminated: false,
       commanderDamage: {}, // keyed by opponent player id
       zones: {
@@ -262,9 +265,6 @@ function createInitialState(playerCount, playerNames, startingLife) {
       commanderCardName: '',
       commanderCastCount2: 0,
       commanderCardName2: '',
-      experience: 0,
-      rad: 0,
-      emblems: [],
     };
     // Initialize commander damage counters
     for (let j = 0; j < playerCount; j++) {
@@ -5144,8 +5144,6 @@ function createPlayerPanel(player, isActive) {
       <button class="life-btn" onclick="adjustLife(${player.id}, 1)" oncontextmenu="event.preventDefault();adjustLife(${player.id}, 5)" title="Left: +1 | Right: +5">+</button>
     </div>
 
-    <!-- Mana pool display removed -->
-
     <div class="cmd-damage-section">
       <div class="cmd-damage-label">
         <span>CMD Damage</span>
@@ -5244,8 +5242,6 @@ function adjustLife(playerId, amount) {
   }
 
   setLife(playerId, player.life + amount);
-  // Sync enhanced player panels
-  if (typeof renderEnhancedPanels === 'function') renderEnhancedPanels();
 }
 
 function setLife(playerId, newLife) {
@@ -5294,6 +5290,8 @@ function setLife(playerId, newLife) {
     eliminatePlayer(playerId, 'life total reached 0');
   }
   checkStateBasedActions();
+  // Sync enhanced player panels
+  if (typeof renderEnhancedPanels === 'function') renderEnhancedPanels();
 }
 
 // ============================================================
@@ -12300,6 +12298,36 @@ function toggleManaAutoClear() {
 
 function renderManaPool() {
   // Mana pool display removed — internal tracking only.
+  // No visual update needed.
+}
+
+// Legacy renderManaPool body preserved for reference (removed from UI)
+function _renderManaPoolLegacy() {
+  if (!gameState) return;
+  const pid = getSelectedManaPlayerId();
+  const player = gameState.players[pid];
+  if (!player) return;
+
+  let total = 0;
+  MANA_COLORS.forEach(c => {
+    const val = player.manaPool[c] || 0;
+    total += val;
+    const el = document.getElementById(`mana-${c}`);
+    if (el) {
+      el.textContent = val;
+      el.classList.toggle('has-mana', val > 0);
+    }
+  });
+
+  const totalEl = document.getElementById('mana-total');
+  if (totalEl) totalEl.textContent = total;
+
+  // Refresh hand castability badges when mana changes
+  if (typeof renderHandArea === 'function') {
+    // Debounce to avoid excessive rerenders
+    if (renderManaPool._handTimer) clearTimeout(renderManaPool._handTimer);
+    renderManaPool._handTimer = setTimeout(function() { renderHandArea(); }, 100);
+  }
 }
 
 function populateManaPlayerSelect() {

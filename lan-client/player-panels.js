@@ -5,6 +5,11 @@
 
 /**
  * Create an enhanced player panel widget for a quadrant.
+ * Replaces the basic life counter with a full tracking panel.
+ *
+ * @param {object} player - Player object from gameState
+ * @param {number} quadrant - 1-4 (matches CSS class p1-p4)
+ * @param {boolean} isActive - Whether this is the active player
  */
 function createEnhancedPlayerPanel(player, quadrant, isActive) {
   var panel = document.createElement('div');
@@ -178,9 +183,7 @@ function adjustEnergy(playerId, amount) {
   var player = gameState.players[playerId];
   if (!player) return;
   player.energy = Math.max(0, (player.energy || 0) + amount);
-  if (typeof addLogEntry === 'function') {
-    addLogEntry('<strong>' + player.name + '</strong> energy: ' + player.energy);
-  }
+  addLogEntry('<strong>' + player.name + '</strong> energy: ' + player.energy);
   renderEnhancedPanels();
 }
 
@@ -189,9 +192,7 @@ function adjustExperience(playerId, amount) {
   var player = gameState.players[playerId];
   if (!player) return;
   player.experience = Math.max(0, (player.experience || 0) + amount);
-  if (typeof addLogEntry === 'function') {
-    addLogEntry('<strong>' + player.name + '</strong> experience: ' + player.experience);
-  }
+  addLogEntry('<strong>' + player.name + '</strong> experience: ' + player.experience);
   renderEnhancedPanels();
 }
 
@@ -200,9 +201,7 @@ function adjustRad(playerId, amount) {
   var player = gameState.players[playerId];
   if (!player) return;
   player.rad = Math.max(0, (player.rad || 0) + amount);
-  if (typeof addLogEntry === 'function') {
-    addLogEntry('<strong>' + player.name + '</strong> rad counters: ' + player.rad);
-  }
+  addLogEntry('<strong>' + player.name + '</strong> rad counters: ' + player.rad);
   renderEnhancedPanels();
 }
 
@@ -214,9 +213,7 @@ function showAddEmblemDialog(playerId) {
   if (!player) return;
   if (!player.emblems) player.emblems = [];
   player.emblems.push({ name: name.trim() });
-  if (typeof addLogEntry === 'function') {
-    addLogEntry('<strong>' + player.name + '</strong> gained emblem: ' + name.trim());
-  }
+  addLogEntry('<strong>' + player.name + '</strong> gained emblem: ' + name.trim());
   renderEnhancedPanels();
 }
 
@@ -225,7 +222,7 @@ function removeEmblem(playerId, idx) {
   var player = gameState.players[playerId];
   if (!player || !player.emblems) return;
   var removed = player.emblems.splice(idx, 1);
-  if (removed.length > 0 && typeof addLogEntry === 'function') {
+  if (removed.length > 0) {
     addLogEntry('<strong>' + player.name + '</strong> lost emblem: ' + removed[0].name);
   }
   renderEnhancedPanels();

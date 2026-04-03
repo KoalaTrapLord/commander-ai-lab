@@ -1,6 +1,5 @@
-// ai-bridge.js — Commander-AI-Lab Backend Integration Bridge
-// Mediates between the LAN Battlefield App and the Commander-AI-Lab backend.
-// Contains: BackendConnector, GameStateBridge, MacroActionMapper, DeckSourceClient
+// ai-bridge.js — Commander-AI-Lab Backend Bridge
+// Manages REST + WebSocket connectivity to the Commander-AI-Lab backend.
 
 'use strict';
 
@@ -52,6 +51,10 @@ class BackendConnector {
 
   // ── Connection Management ─────────────────────────────────
 
+  /**
+   * Test connectivity to the backend. Returns true if the backend
+   * is reachable and the health endpoint responds.
+   */
   async checkHealth() {
     try {
       const controller = new AbortController();
@@ -82,6 +85,9 @@ class BackendConnector {
     }
   }
 
+  /**
+   * Check if the ML policy model is loaded and ready for inference.
+   */
   async checkModelStatus() {
     if (!this._connected) return false;
     try {
@@ -100,6 +106,10 @@ class BackendConnector {
     }
   }
 
+  /**
+   * Full initialization: health check + model status.
+   * Returns { connected, modelLoaded }.
+   */
   async initialize() {
     const connected = await this.checkHealth();
     let modelLoaded = false;
@@ -112,6 +122,10 @@ class BackendConnector {
 
   // ── REST API Calls ─────────────────────────────────────────
 
+  /**
+   * POST to any backend endpoint with JSON body.
+   * Includes retry logic and timeout handling.
+   */
   async _post(path, body, timeoutMs) {
     const url = `${this.config.backendUrl}${path}`;
     let lastError = null;
@@ -148,6 +162,9 @@ class BackendConnector {
     throw lastError;
   }
 
+  /**
+   * GET from any backend endpoint.
+   */
   async _get(path, timeoutMs) {
     const url = `${this.config.backendUrl}${path}`;
     const controller = new AbortController();
@@ -168,6 +185,10 @@ class BackendConnector {
 
   // ── WebSocket Management ──────────────────────────────────
 
+  /**
+   * Open a WebSocket connection for a game session.
+   * Receives state deltas, decision events, and game-over signals.
+   */
   connectWebSocket(gameId, clientId) {
     if (!this.config.enableWebSocket) return;
     if (this._ws) this.disconnectWebSocket();
@@ -322,6 +343,10 @@ class GameStateBridge {
 
   // ── Session Lifecycle ──────────────────────────────────────
 
+  /**
+   * Create a game session on the backend when a new game starts.
+   * Maps the LAN app's player setup to SeatConfig objects.
+   */
   async initSession(gameState) {
     if (!this.connector.connected) return null;
 
@@ -353,6 +378,9 @@ class GameStateBridge {
     }
   }
 
+  /**
+   * Map LAN app difficulty to backend AI profile.
+   */
   _mapAiProfile(difficulty) {
     const map = {
       easy: 'AI',
@@ -364,6 +392,10 @@ class GameStateBridge {
 
   // ── Game State Serialization ──────────────────────────────
 
+  /**
+   * Convert the JS gameState to a DecisionSnapshot-compatible
+   * object for the /api/policy/decide endpoint.
+   */
   serializeGameState(gameState, playerIdx) {
     const players = gameState.players.map((p, i) => {
       // Count creatures on battlefield
@@ -434,9 +466,7 @@ class GameStateBridge {
     });
 
     // Map current phase to backend format
-    const phaseId = typeof PHASES !== 'undefined' && PHASES[gameState.currentPhaseIndex]
-      ? PHASES[gameState.currentPhaseIndex].id
-      : 'main1';
+    const phaseId = PHASES[gameState.currentPhaseIndex]?.id || 'main1';
     const phaseMap = {
       beginning: 'main_1',
       main1: 'main_1',
@@ -460,6 +490,9 @@ class GameStateBridge {
     };
   }
 
+  /**
+   * Get all battlefield cards for a player.
+   */
   _getBattlefieldCards(player, gameState) {
     if (!gameState || !gameState.battlefield) return [];
     return (gameState.battlefield || []).filter(
@@ -467,6 +500,9 @@ class GameStateBridge {
     );
   }
 
+  /**
+   * Infer a playstyle hint for the AI based on the deck composition.
+   */
   _inferPlaystyle(gameState, playerIdx) {
     const player = gameState.players[playerIdx];
     if (!player) return 'midrange';
@@ -493,6 +529,10 @@ class GameStateBridge {
 
   // ── AI Decision Request ───────────────────────────────────
 
+  /**
+   * Request an AI decision from the backend policy server.
+   * Returns the macro-action prediction or null if unavailable.
+   */
   async requestAiDecision(gameState, playerIdx) {
     if (!this.connector.connected || !this.connector.modelLoaded) {
       return null;
@@ -520,6 +560,9 @@ class GameStateBridge {
 
   // ── State Sync ────────────────────────────────────────────
 
+  /**
+   * Push current game state to the backend WebSocket layer.
+   */
   async pushState(gameState) {
     if (!this._sessionGameId || !this.connector.connected) return;
     if (!AI_BRIDGE_CONFIG.enableStateSync) return;
@@ -534,12 +577,16 @@ class GameStateBridge {
         snapshot
       );
     } catch (e) {
+      // Non-critical — log but don't fail
       if (AI_BRIDGE_CONFIG.verbose) {
         console.warn('[GameStateBridge] State push failed:', e);
       }
     }
   }
 
+  /**
+   * Push an AI decision event to connected WebSocket clients.
+   */
   async pushDecision(decision) {
     if (!this._sessionGameId || !this.connector.connected) return;
 
@@ -586,6 +633,15 @@ class GameStateBridge {
 // ============================================================
 
 class MacroActionMapper {
+  /**
+   * Execute a macro-action by calling the appropriate engine.js functions.
+   *
+   * @param {string} action - One of the 8 MacroAction values
+   * @param {number} playerIdx - Index of the AI player
+   * @param {object} gameState - Current game state
+   * @param {object} decision - Full decision response from backend
+   * @returns {boolean} Whether the action was successfully executed
+   */
   static execute(action, playerIdx, gameState, decision) {
     const player = gameState.players[playerIdx];
     if (!player) return false;
@@ -595,22 +651,32 @@ class MacroActionMapper {
     switch (action) {
       case 'cast_creature':
         return MacroActionMapper._castCreature(playerIdx, player, gameState, confidence);
+
       case 'cast_removal':
         return MacroActionMapper._castRemoval(playerIdx, player, gameState);
+
       case 'cast_draw':
         return MacroActionMapper._castDraw(playerIdx, player, gameState);
+
       case 'cast_ramp':
         return MacroActionMapper._castRamp(playerIdx, player, gameState);
+
       case 'cast_commander':
         return MacroActionMapper._castCommander(playerIdx, player, gameState);
+
       case 'attack_opponent':
         return MacroActionMapper._attackOpponent(playerIdx, player, gameState);
+
       case 'hold_mana':
-        MacroActionMapper._log(playerIdx, player, 'holding mana open', confidence);
+        MacroActionMapper._log(playerIdx, player,
+          'holding mana open', confidence);
         return true;
+
       case 'pass':
-        MacroActionMapper._log(playerIdx, player, 'passing', confidence);
+        MacroActionMapper._log(playerIdx, player,
+          'passing', confidence);
         return true;
+
       default:
         console.warn('[MacroActionMapper] Unknown action:', action);
         return false;
@@ -633,7 +699,7 @@ class MacroActionMapper {
         if (MacroActionMapper._canAfford(playerIdx, card)) {
           const idx = hand.indexOf(card);
           if (idx !== -1) {
-            if (!card.imageUrl && typeof generateAiCardSVG === 'function') card.imageUrl = generateAiCardSVG(card);
+            if (!card.imageUrl) card.imageUrl = generateAiCardSVG(card);
             playCardFromHand(playerIdx, idx);
             MacroActionMapper._log(playerIdx, player,
               `cast <strong>${card.name}</strong> (creature slot)`, confidence);
@@ -654,7 +720,7 @@ class MacroActionMapper {
       if (MacroActionMapper._canAfford(playerIdx, card)) {
         const idx = hand.indexOf(card);
         if (idx !== -1) {
-          if (!card.imageUrl && typeof generateAiCardSVG === 'function') card.imageUrl = generateAiCardSVG(card);
+          if (!card.imageUrl) card.imageUrl = generateAiCardSVG(card);
           playCardFromHand(playerIdx, idx);
           MacroActionMapper._log(playerIdx, player,
             `cast <strong>${card.name}</strong>`, confidence);
@@ -678,7 +744,7 @@ class MacroActionMapper {
       if (MacroActionMapper._canAfford(playerIdx, card)) {
         const idx = hand.indexOf(card);
         if (idx !== -1) {
-          if (!card.imageUrl && typeof generateAiCardSVG === 'function') card.imageUrl = generateAiCardSVG(card);
+          if (!card.imageUrl) card.imageUrl = generateAiCardSVG(card);
           playCardFromHand(playerIdx, idx);
           MacroActionMapper._log(playerIdx, player,
             `cast removal <strong>${card.name}</strong>`);
@@ -707,7 +773,7 @@ class MacroActionMapper {
       if (MacroActionMapper._canAfford(playerIdx, card)) {
         const idx = hand.indexOf(card);
         if (idx !== -1) {
-          if (!card.imageUrl && typeof generateAiCardSVG === 'function') card.imageUrl = generateAiCardSVG(card);
+          if (!card.imageUrl) card.imageUrl = generateAiCardSVG(card);
           playCardFromHand(playerIdx, idx);
           MacroActionMapper._log(playerIdx, player,
             `cast draw spell <strong>${card.name}</strong>`);
@@ -728,7 +794,7 @@ class MacroActionMapper {
       const landIdx = hand.findIndex(c => MacroActionMapper._isLand(c));
       if (landIdx !== -1) {
         const land = hand[landIdx];
-        if (!land.imageUrl && typeof generateAiCardSVG === 'function') land.imageUrl = generateAiCardSVG(land);
+        if (!land.imageUrl) land.imageUrl = generateAiCardSVG(land);
         playCardFromHand(playerIdx, landIdx);
         player.aiLandPlayedThisTurn = true;
         MacroActionMapper._log(playerIdx, player,
@@ -737,7 +803,7 @@ class MacroActionMapper {
       }
     }
 
-    // Then try ramp spells
+    // Then try ramp spells (mana rocks, rampant growth effects)
     const rampSpells = hand.filter(c =>
       MacroActionMapper._looksLikeRamp(c)
     );
@@ -752,7 +818,7 @@ class MacroActionMapper {
       if (MacroActionMapper._canAfford(playerIdx, card)) {
         const idx = hand.indexOf(card);
         if (idx !== -1) {
-          if (!card.imageUrl && typeof generateAiCardSVG === 'function') card.imageUrl = generateAiCardSVG(card);
+          if (!card.imageUrl) card.imageUrl = generateAiCardSVG(card);
           playCardFromHand(playerIdx, idx);
           MacroActionMapper._log(playerIdx, player,
             `cast ramp <strong>${card.name}</strong>`);
@@ -808,7 +874,7 @@ class MacroActionMapper {
   }
 
   static _canAfford(playerIdx, card) {
-    if (typeof gameState === 'undefined' || !gameState) return false;
+    if (!gameState) return false;
     const available = typeof aiCountUntappedLands === 'function'
       ? aiCountUntappedLands(playerIdx)
       : 0;
@@ -850,11 +916,9 @@ class MacroActionMapper {
     const confStr = confidence
       ? ` <span style="color:var(--color-text-faint)">(${Math.round(confidence * 100)}% conf.)</span>`
       : '';
-    if (typeof addLogEntry === 'function') {
-      addLogEntry(
-        `\u{1F9E0} <strong>${player.name}</strong> ${message}${confStr} [ML]`
-      );
-    }
+    addLogEntry(
+      `\u{1F9E0} <strong>${player.name}</strong> ${message}${confStr} [ML]`
+    );
   }
 }
 
@@ -870,9 +934,14 @@ class DeckSourceClient {
     this._cacheTtlMs = 5 * 60 * 1000; // 5 minutes
   }
 
+  /**
+   * Fetch precon decks from the backend.
+   * Returns array: [{ fileName, deckName, commander, colors, set, ... }]
+   */
   async fetchPrecons(forceRefresh = false) {
     if (!this.connector.connected) return [];
 
+    // Check cache
     if (!forceRefresh && this._preconCache &&
         (Date.now() - this._preconCacheTime) < this._cacheTtlMs) {
       return this._preconCache;
@@ -889,6 +958,9 @@ class DeckSourceClient {
     }
   }
 
+  /**
+   * Fetch EDHREC recommendations for a commander.
+   */
   async fetchEdhrecDecks(commanderName) {
     if (!this.connector.connected) return [];
     try {
@@ -901,6 +973,9 @@ class DeckSourceClient {
     }
   }
 
+  /**
+   * Get deck content (card list) for a specific precon.
+   */
   async fetchPreconDeck(fileName) {
     if (!this.connector.connected) return null;
     try {
@@ -931,6 +1006,9 @@ window.AIBridge = {
   deckSource: aiBridgeDeckSource,
   MacroActionMapper: MacroActionMapper,
 
+  /**
+   * Convenience: initialize the bridge and report status.
+   */
   async init() {
     const status = await aiBridgeConnector.initialize();
     if (status.connected) {

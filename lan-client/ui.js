@@ -1188,6 +1188,7 @@ function updateDeckAssignmentGrid(playerCount) {
 }
 
 function _buildPreconTabContent(playerIdx) {
+  // Local precons from precons.js (PRECON_DATA)
   var preconList = (typeof PRECON_DATA !== 'undefined') ? PRECON_DATA : [];
 
   if (preconList.length === 0) {
@@ -1297,11 +1298,9 @@ function filterPrecons(playerIdx, query) {
   var q = query.toLowerCase().trim();
 
   list.querySelectorAll('.deck-precon-item').forEach(function(item) {
-    var name = item.querySelector('.deck-precon-name');
-    var cmdr = item.querySelector('.deck-precon-cmdr');
-    var nameText = name ? name.textContent.toLowerCase() : '';
-    var cmdrText = cmdr ? cmdr.textContent.toLowerCase() : '';
-    var match = !q || nameText.includes(q) || cmdrText.includes(q);
+    var name = item.querySelector('.deck-precon-name')?.textContent?.toLowerCase() || '';
+    var cmdr = item.querySelector('.deck-precon-cmdr')?.textContent?.toLowerCase() || '';
+    var match = !q || name.includes(q) || cmdr.includes(q);
     item.style.display = match ? '' : 'none';
   });
 
