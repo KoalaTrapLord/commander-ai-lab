@@ -1123,7 +1123,23 @@ function initSetupScreen() {
     // Sync AI config to engine globals
     setupAiPlayers = _localAiSet;
     setupAiDifficulty = _localAiDiff;
-    initGame(selectedPlayerCount, playerNames, startingLife);
+    setupPlayerCount = selectedPlayerCount;
+    setupStartingLife = startingLife;
+
+    // Sync player names to engine globals
+    for (let i = 0; i < playerNames.length; i++) {
+      var nameInput = document.getElementById('player-name-' + i);
+      if (nameInput) nameInput.value = playerNames[i];
+    }
+
+    // If any deck choices were made, use startGameWithDecks (async deck loading)
+    var hasDecks = typeof setupDeckChoices !== 'undefined' &&
+      Object.keys(setupDeckChoices).length > 0;
+    if (hasDecks && typeof startGameWithDecks === 'function') {
+      startGameWithDecks();
+    } else {
+      initGame(selectedPlayerCount, playerNames, startingLife);
+    }
   };
 
   // Trigger display update for player count
@@ -1461,15 +1477,9 @@ function initGame(playerCount, playerNames, startingLife) {
     }
   }
 
-  // Assign precon decks if selected
-  for (let i = 0; i < playerCount; i++) {
-    const sel = document.getElementById('deck-sel-' + i);
-    if (sel && sel.value) {
-      const preconList2 = (typeof PRECON_DATA !== 'undefined') ? PRECON_DATA : (typeof PRECONS !== 'undefined') ? PRECONS : [];
-      const precon = preconList2.find(p => p.id === sel.value);
-      if (precon) loadPreconDeck(i, precon);
-    }
-  }
+  // NOTE: Precon deck loading is handled by the "Begin Battle" button
+  // which calls startGameWithDecks() when setupDeckChoices has entries.
+  // The old deck-sel-{i} dropdown path is removed.
 
   // Mark AI players
   setupAiPlayers.forEach(function(idx) {

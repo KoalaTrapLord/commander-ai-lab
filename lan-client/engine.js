@@ -10877,15 +10877,19 @@ function parseDeckList(text) {
     let line = raw.trim();
     if (!line) continue;
 
-    // Section headers
-    if (/^\/\/\s*/i.test(line) || /^(COMMANDER|COMPANION|SIDEBOARD|MAYBEBOARD|MAINBOARD|DECK|LAND)[:\s]*$/i.test(line)) {
-      const cleaned = line.replace(/^\/\/\s*/, '').replace(/:$/, '').trim().toLowerCase();
+    // Section headers — supports "// Commander", "Commander:", "[Commander]", "[Main]", "[metadata]"
+    if (/^\/\/\s*/i.test(line) || /^\[?(COMMANDER|COMPANION|SIDEBOARD|MAYBEBOARD|MAINBOARD|MAIN|DECK|LAND|METADATA)\]?[:\s]*$/i.test(line)) {
+      const cleaned = line.replace(/^\/\/\s*/, '').replace(/[\[\]:]/g, '').trim().toLowerCase();
       if (/commander/i.test(cleaned))    currentSection = 'commander';
       else if (/companion/i.test(cleaned)) currentSection = 'companion';
       else if (/sideboard/i.test(cleaned)) currentSection = 'sideboard';
+      else if (/metadata/i.test(cleaned)) currentSection = 'metadata';
       else currentSection = 'mainboard';
       continue;
     }
+
+    // Skip metadata lines like "Name=Elven Empire"
+    if (currentSection === 'metadata') continue;
 
     // Skip comment lines
     if (/^#/.test(line) || /^\*/.test(line)) continue;
@@ -12719,7 +12723,44 @@ async function loadPreconForPlayer(playerIdx, preconId) {
   var player = gameState.players[playerIdx];
   if (!player) return;
 
-  var parsedCards = parseDeckList(precon.decklist);
+  // Try to get decklist text: embedded first, then fetch from backend .dck file
+  var decklistText = precon.decklist || '';
+  if (!decklistText && precon.fileName) {
+    // Fetch .dck file from backend if available
+    if (typeof AIBridge !== 'undefined' && AIBridge.connector.connected) {
+      try {
+        var deckData = await AIBridge.deckSource.fetchPreconDeck(precon.fileName);
+        if (deckData && deckData.decklist) {
+          decklistText = deckData.decklist;
+        } else if (deckData && typeof deckData === 'string') {
+          decklistText = deckData;
+        }
+      } catch (e) {
+        console.warn('[loadPreconForPlayer] Backend deck fetch failed:', e);
+      }
+    }
+    // Fallback: try to fetch .dck file directly from precon-decks/ (same origin)
+    if (!decklistText) {
+      try {
+        var resp = await fetch('precon-decks/' + precon.fileName);
+        if (resp.ok) {
+          decklistText = await resp.text();
+        }
+      } catch (e) {
+        // Fallback: try relative to backend
+        try {
+          var resp2 = await fetch('/precon-decks/' + precon.fileName);
+          if (resp2.ok) {
+            decklistText = await resp2.text();
+          }
+        } catch (e2) {
+          console.warn('[loadPreconForPlayer] Could not fetch .dck file:', precon.fileName);
+        }
+      }
+    }
+  }
+
+  var parsedCards = parseDeckList(decklistText);
   if (!parsedCards.length) return;
 
   var allCardNames = [];
