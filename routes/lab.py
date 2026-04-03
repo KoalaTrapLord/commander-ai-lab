@@ -14,6 +14,8 @@ Batch simulation & lab management endpoints:
   GET  /api/lab/trends/{deck_name}
   GET  /api/lab/log
   GET  /api/lab/debug-log
+  GET  /api/lab/precons
+  GET  /api/lab/precons/deck
 """
 from __future__ import annotations
 
@@ -467,6 +469,73 @@ async def get_debug_log():
 
     return {"path": None, "content": "No debug log found. Run a simulation first."}
 
+
+# ════════════════════════════════════════════════════════════
+# Precon deck endpoints (used by lan-client ai-bridge.js)
+# ════════════════════════════════════════════════════════════
+
+@router.get("/api/lab/precons")
+async def list_precons():
+    """Return precon deck metadata for the LAN client deck selector."""
+    precon_dir = Path(CFG.precon_dir) if CFG.precon_dir else None
+    if not precon_dir or not precon_dir.is_dir():
+        log.warning(f"Precon dir not found or not configured: {CFG.precon_dir!r}")
+        return {"precons": []}
+
+    precons = []
+    for f in sorted(precon_dir.glob("*.dck")):
+        deck_info = {
+            "fileName": f.name,
+            "deckName": f.stem,
+            "commander": "",
+            "colors": [],
+            "set": "",
+        }
+        # Extract commander name from the [Commander] section
+        try:
+            with open(f, "r", encoding="utf-8") as fh:
+                in_commander = False
+                for line in fh:
+                    line = line.strip()
+                    if line == "[Commander]":
+                        in_commander = True
+                        continue
+                    if line.startswith("[") and line.endswith("]"):
+                        in_commander = False
+                        continue
+                    if in_commander:
+                        m = re.match(r"^\d+\s+(.+?)(?:\|.+)?$", line)
+                        if m:
+                            deck_info["commander"] = m.group(1).strip()
+                            break
+        except Exception as exc:
+            log.debug(f"Could not parse commander from {f.name}: {exc}")
+        precons.append(deck_info)
+
+    return {"precons": precons}
+
+
+@router.get("/api/lab/precons/deck")
+async def get_precon_deck(fileName: str):
+    """Return the full card list for a specific precon .dck file."""
+    precon_dir = Path(CFG.precon_dir) if CFG.precon_dir else None
+    if not precon_dir or not precon_dir.is_dir():
+        raise HTTPException(404, f"Precon directory not configured or missing: {CFG.precon_dir!r}")
+
+    # Sanitize — prevent path traversal
+    safe_name = Path(fileName).name
+    if not safe_name.endswith(".dck"):
+        raise HTTPException(400, "fileName must end with .dck")
+    deck_path = precon_dir / safe_name
+
+    if not deck_path.exists():
+        raise HTTPException(404, f"Precon deck not found: {safe_name}")
+
+    try:
+        deck_data = parse_dck_file(str(deck_path))
+        return deck_data
+    except Exception as e:
+        raise HTTPException(500, f"Failed to parse deck: {e}")
 
 
 @router.post('/api/lab/start-deepseek')
