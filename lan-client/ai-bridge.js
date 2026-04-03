@@ -10,9 +10,10 @@ const AI_BRIDGE_VERSION = '1.0.0';
 // ============================================================
 
 const AI_BRIDGE_CONFIG = {
-  // Backend URL — defaults to localhost:8080, configurable via settings
-  backendUrl: 'http://localhost:8080',
-  wsUrl: 'ws://localhost:8080',
+  // Backend URL — empty string = same origin (recommended when served from backend)
+  // Falls back to localhost:8080 if served from a different origin
+  backendUrl: '',
+  wsUrl: '',
 
   // Timeouts (ms)
   healthCheckTimeout: 3000,
@@ -39,6 +40,16 @@ const AI_BRIDGE_CONFIG = {
 class BackendConnector {
   constructor(config = {}) {
     this.config = { ...AI_BRIDGE_CONFIG, ...config };
+
+    // Derive URLs from current page origin when empty (same-origin mode)
+    if (!this.config.backendUrl) {
+      this.config.backendUrl = window.location.origin; // e.g. http://localhost:8080
+    }
+    if (!this.config.wsUrl) {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      this.config.wsUrl = `${proto}//${window.location.host}`;
+    }
+
     this._connected = false;
     this._modelLoaded = false;
     this._ws = null;

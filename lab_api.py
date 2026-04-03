@@ -152,7 +152,17 @@ async def health_check():
 # ── Static UI (MUST come after all @app.get routes) ──────────────────────────────────────────
 from pathlib import Path as _Path
 _legacy_ui_dir = _Path(__file__).parent / "ui"
+_lan_client_dir = _Path(__file__).parent / "lan-client"
+_precon_decks_dir = _Path(__file__).parent / "precon-decks"
 _spa_dir = _Path(__file__).parent / "frontend" / "commander-ai-lab-ui" / "dist"
+
+# Mount LAN client at /lan (served before the root catch-all)
+if _lan_client_dir.exists():
+    app.mount("/lan", StaticFiles(directory=str(_lan_client_dir), html=True), name="lan-client")
+
+# Mount precon-decks/ so .dck files are fetchable at /precon-decks/{file}.dck
+if _precon_decks_dir.exists():
+    app.mount("/precon-decks", StaticFiles(directory=str(_precon_decks_dir)), name="precon-decks")
 
 if _legacy_ui_dir.exists():
     app.mount("/", StaticFiles(directory=str(_legacy_ui_dir), html=True), name="ui")
