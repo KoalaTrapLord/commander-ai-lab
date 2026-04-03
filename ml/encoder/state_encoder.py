@@ -167,6 +167,24 @@ class CardEmbeddingIndex:
         return self._loaded
 
 
+def _resolve_cmdr_dmg(raw) -> int:
+    """Collapse cmdr_dmg to a scalar integer regardless of source format.
+
+    Forge sends cmdr_dmg as a dict keyed by opponent seat string, e.g.
+    {"0": 14, "2": 7}.  _build_encoder_snapshot already sums this before
+    passing to predict(), but the live Forge IPC path (and legacy JSONL)
+    may send the raw dict.  Summing all values is correct for Commander:
+    the total commander damage received from all opponents is what matters
+    for the life-loss threshold (21).
+    """
+    if isinstance(raw, dict):
+        return sum(int(v) for v in raw.values())
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
+
+
 class StateEncoder:
     """
     Encodes a decision snapshot JSON dict into a fixed-size numpy vector.
@@ -241,6 +259,10 @@ class StateEncoder:
         Index 7 priority for total_power:
           1. p['total_power']  — real Forge value from Step 4 / _build_encoder_snapshot()
           2. p['creatures'] * 3  — legacy heuristic for old JSONL snapshots
+
+        cmdr_dmg is resolved via _resolve_cmdr_dmg() which handles both the
+        live Forge format (dict keyed by opponent seat) and the pre-collapsed
+        int from _build_encoder_snapshot / JSONL training snapshots.
         """
         features = []
 
@@ -250,7 +272,8 @@ class StateEncoder:
             features.append(life / 40.0)
 
             # idx 1: commander damage taken
-            cmdr_dmg = p.get("cmdr_dmg", 0)
+            # _resolve_cmdr_dmg handles dict (live Forge IPC) and int (JSONL/pre-collapsed)
+            cmdr_dmg = _resolve_cmdr_dmg(p.get("cmdr_dmg", 0))
             features.append(cmdr_dmg / 21.0)
 
             # idx 2: mana available
