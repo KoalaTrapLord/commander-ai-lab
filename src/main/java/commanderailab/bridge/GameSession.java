@@ -30,9 +30,13 @@ import java.util.regex.*;
  *      waits on {@code humanActionQueue}, converts the action to the
  *      macro-action string expected by /api/policy/decide, and injects it
  *      via POST /api/policy/override so the policy server returns it.
- *   4. Publishes a full state snapshot to the WebSocket frontend after every
+ *   4. AI seats (1+) are intercepted at every Priority event: the session
+ *      calls policyClient.decide() with the current state snapshot and
+ *      immediately POSTs the result to /api/policy/override so Forge uses
+ *      the learned policy instead of its built-in AI.
+ *   5. Publishes a full state snapshot to the WebSocket frontend after every
  *      meaningful Forge output event.
- *   5. Falls back to the synthetic stub loop if Forge cannot be started
+ *   6. Falls back to the synthetic stub loop if Forge cannot be started
  *      (e.g., missing JAR, wrong Java version).
  *
  * Zone sync model:
@@ -119,6 +123,12 @@ public class GameSession {
     private volatile Integer winningSeat = null;
     private volatile boolean gameOver = false;
     private volatile long elapsedMs = 0;
+
+    // Tracks whether policy was injected for the current priority window
+    // to avoid double-injecting on duplicate log lines.
+    private volatile int lastPolicyInjectionTurn = -1;
+    private volatile String lastPolicyInjectionPhase = "";
+    private volatile int lastPolicyInjectionSeat = -1;
 
     private final int numSeats;
     private final int[] life;
@@ -309,6 +319,10 @@ public class GameSession {
         watchdog.setDaemon(true);
         watchdog.start();
 
+        // Connect to policy server before the game loop begins
+        boolean policyConnected = policyClient.connect();
+        log("[Session] Policy server connection: " + (policyConnected ? "OK" : "UNAVAILABLE — AI uses Forge built-in"));
+
         // Emit initial state so UI shows a board immediately
         onStateChange.accept(buildStateSnapshot());
 
@@ -326,17 +340,27 @@ public class GameSession {
         reader.setDaemon(true);
         reader.start();
 
-        // Main loop: drain line queue and service human input
+        // Main loop: drain line queue and service human/AI input
         while (!gameOver && running) {
             String line = lineQueue.poll(200, TimeUnit.MILLISECONDS);
             if (line != null) {
                 lastActivityEpoch.incrementAndGet();
                 boolean changed = parseForgeLine(line);
                 if (changed) onStateChange.accept(buildStateSnapshot());
+                // Human seat
                 if (awaitingHumanInput) handleHumanTurn(onStateChange);
             } else if (forgeDone.get() && lineQueue.isEmpty()) {
                 break;
             }
+        }
+
+        // Flush online learning tuples and submit reward if game finished
+        if (gameOver && policyClient.isServerAvailable()) {
+            double reward = winningSeat != null && winningSeat != 0 ? 1.0 : -0.5;
+            policyClient.submitReward("game-" + seed, reward);
+            policyClient.flushCollectedTuples();
+            log(String.format("[Session] Submitted game reward=%.1f and flushed %d tuples",
+                reward, policyClient.getPendingTuples()));
         }
 
         watchdog.interrupt();
@@ -432,8 +456,28 @@ public class GameSession {
         // Priority
         Matcher mPrio = P_PRIORITY.matcher(line);
         if (mPrio.find()) {
-            priorityPlayer = clampSeat(Integer.parseInt(mPrio.group(1)) - 1);
+            int seat = clampSeat(Integer.parseInt(mPrio.group(1)) - 1);
+            priorityPlayer = seat;
             changed = true;
+
+            // ── Policy injection for AI seats ────────────────────────
+            // Forge doesn't honour --policyServer natively, so we intercept
+            // every AI priority window here and push the policy decision to
+            // /api/policy/override before Forge's next read.
+            if (seat != 0 && policyClient.isServerAvailable()) {
+                // Deduplicate: only inject once per (turn, phase, seat) window
+                boolean alreadyInjected =
+                    lastPolicyInjectionTurn == turnNumber
+                    && lastPolicyInjectionPhase.equals(phase)
+                    && lastPolicyInjectionSeat == seat;
+
+                if (!alreadyInjected) {
+                    lastPolicyInjectionTurn = turnNumber;
+                    lastPolicyInjectionPhase = phase;
+                    lastPolicyInjectionSeat = seat;
+                    injectAiPolicyDecision(seat);
+                }
+            }
         }
 
         // Life totals
@@ -533,6 +577,49 @@ public class GameSession {
         }
 
         return changed;
+    }
+
+    // ----------------------------------------------------------------
+    // AI policy injection (real Forge IPC path)
+    // ----------------------------------------------------------------
+
+    /**
+     * Ask the Python policy server what action AI seat {@code seat} should
+     * take given the current game state, then POST it to /api/policy/override
+     * so that the next time Forge calls /api/policy/decide for this seat it
+     * receives the pre-computed answer without an extra round-trip.
+     *
+     * This is the core wiring that was missing: Forge's sim mode does not
+     * natively call --policyServer, so we intercept every Priority log line
+     * and drive the decision from the Java side instead.
+     */
+    private void injectAiPolicyDecision(int seat) {
+        try {
+            PolicyClient.PolicyDecision decision =
+                policyClient.decide(GSON.toJson(buildStateSnapshot()), seat);
+
+            if (decision == null || decision.action() == null) {
+                log(String.format("[Policy] seat=%d turn=%d phase=%s → null decision, skipping override",
+                    seat, turnNumber, phase));
+                return;
+            }
+
+            String action = decision.action();
+            log(String.format("[Policy] seat=%d turn=%d phase=%s → %s (conf=%.2f)",
+                seat, turnNumber, phase, action, decision.confidence()));
+
+            // Push the decision to the override endpoint so Forge's next
+            // /api/policy/decide call for this seat returns it immediately.
+            JsonObject body = new JsonObject();
+            body.addProperty("seat", seat);
+            body.addProperty("action", action);
+            httpPost(policyServerUrl + "/api/policy/override", body.toString());
+
+        } catch (Exception e) {
+            // Non-fatal: Forge falls back to its built-in AI for this window
+            log(String.format("[Policy] seat=%d override failed (%s) — Forge built-in takes over",
+                seat, e.getMessage()));
+        }
     }
 
     // ----------------------------------------------------------------
