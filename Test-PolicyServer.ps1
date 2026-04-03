@@ -15,7 +15,7 @@
     .\Test-PolicyServer.ps1 -Verbose
 #>
 param(
-    [string]$BaseUrl = "http://localhost:8000",
+    [string]$BaseUrl = "http://localhost:8080",
     [switch]$Verbose
 )
 
@@ -96,9 +96,6 @@ Invoke-Step "Step 3 -- POST $BaseUrl/api/policy/decide  (synthetic 4-player snap
         return
     }
 
-    # Schema-valid DecideRequest matching routes/policy.py PlayerZoneState.
-    # Note: apostrophes inside card names must be escaped as backtick-single-quote
-    # when inside a double-quoted PowerShell string, OR just use the ASCII form here.
     $body = [ordered]@{
         game_id       = "ps1-smoke-test"
         turn          = 3
@@ -238,7 +235,7 @@ Invoke-Step "Step 5 -- Forge IPC status (informational)" {
     Write-Warn "  - Manual Invoke-RestMethod / curl calls"
     Write-Warn ""
     Write-Warn "Forge launches its built-in AI and plays lands because it has"
-    Write-Warn "no HTTP client pointed at localhost:8000."
+    Write-Warn "no HTTP client pointed at localhost:8080."
     Write-Warn ""
     Write-Warn "Next step: wire GameSession inside POST /api/game/start,"
     Write-Warn "or add a PolicyClient hook in Forge AiController.java."
