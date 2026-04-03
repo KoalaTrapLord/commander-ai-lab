@@ -50,6 +50,9 @@ _DEFAULT_ORIGINS = "http://localhost:5173,http://localhost:3000,http://localhost
 _allowed = os.environ.get("ALLOWED_ORIGINS", _DEFAULT_ORIGINS)
 allowed_origins = [o.strip() for o in _allowed.split(",") if o.strip()]
 
+# Module-level handle so lifespan can call .load() after routes are registered.
+_POLICY_SVC = None
+
 
 # ── Lifespan (replaces deprecated @app.on_event) ────────────────────────────────────────────────────────
 @asynccontextmanager
@@ -77,7 +80,6 @@ async def _lifespan(application: FastAPI):
     # RAG Phase 3: background staleness monitor (rebuilds if >14 days old)
     async def _rag_staleness_monitor():
         """Periodically check if the RAG index needs rebuilding."""
-        import time as _time
         while True:
             await asyncio.sleep(6 * 3600)  # check every 6 hours
             try:
@@ -92,24 +94,17 @@ async def _lifespan(application: FastAPI):
                 log.warning("RAG staleness monitor failed: %s", exc)
     asyncio.ensure_future(_rag_staleness_monitor())
 
-    # Policy routes: always register at startup so /api/policy/health is reachable
-    # even before the model has loaded. The health endpoint returns {ready: false,
-    # status: degraded} when the model is absent — that is the correct behaviour.
-    # Gating include_router() behind load() caused 404s that broke ai-bridge.js.
+    # Policy model load — routes were already registered at module scope (before
+    # any app.mount() calls) so /api/policy/* is reachable regardless of the
+    # StaticFiles root mount.  Only the heavyweight model load happens here.
     try:
-        from ml.serving.policy_server import PolicyInferenceService
-        from routes.policy import register_policy_routes
-        _policy_svc = PolicyInferenceService()
-        register_policy_routes(application, _policy_svc)  # mount router unconditionally
-        log.info("Policy routes registered (/api/policy/*)")
-        if _policy_svc.load():
-            log.info("Policy model loaded successfully")
-        else:
-            log.warning("Policy model not loaded — /api/policy/health will report degraded")
-    except ImportError:
-        log.info("Policy service not available (ml.serving not installed)")
+        if _POLICY_SVC is not None:
+            if _POLICY_SVC.load():
+                log.info("Policy model loaded successfully")
+            else:
+                log.warning("Policy model not loaded — /api/policy/health will report degraded")
     except Exception as e:
-        log.warning("Policy route registration failed (non-fatal): %s", e)
+        log.warning("Policy model load failed (non-fatal): %s", e)
 
     yield  # ← server is running
 
@@ -142,6 +137,23 @@ app.include_router(ws_game_router)
 app.include_router(ml_router)
 app.include_router(game_router)   # live game session routes
 
+# ── Policy routes — MUST be registered here, before any app.mount() calls ────────────────────
+# StaticFiles mounted at "/" acts as a sub-application and returns its own 404 for
+# paths it doesn't serve, rather than falling through to later-registered routes.
+# Any include_router() called after app.mount("/", ...) will be unreachable.
+# Registering here (module scope) guarantees the /api/policy/* endpoints exist in
+# the route list before the root static mount is added below.
+try:
+    from ml.serving.policy_server import PolicyInferenceService
+    from routes.policy import register_policy_routes
+    _POLICY_SVC = PolicyInferenceService()
+    register_policy_routes(app, _POLICY_SVC)
+    log.info("Policy routes registered (/api/policy/*)")
+except ImportError:
+    log.info("Policy service not available (ml.serving not installed)")
+except Exception as e:
+    log.warning("Policy route registration failed (non-fatal): %s", e)
+
 
 # ── API endpoints ─────────────────────────────────────────────────────────────────────────────
 # NOTE: all @app.get routes MUST be registered before app.mount() calls.
@@ -153,7 +165,7 @@ async def health_check():
     """Health check endpoint for load balancers and Unity client polling."""
     return {"status": "ok"}
 
-# ── Static UI (MUST come after all @app.get routes) ──────────────────────────────────────────
+# ── Static UI (MUST come after all @app.get / include_router calls) ──────────────────────────
 from pathlib import Path as _Path
 _legacy_ui_dir = _Path(__file__).parent / "ui"
 _lan_client_dir = _Path(__file__).parent / "lan-client"
