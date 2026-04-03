@@ -341,18 +341,22 @@ input { font-family: inherit; }
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-xl);
   padding: 2.5rem;
-  width: min(640px, 95vw);
+  width: min(860px, 95vw);
+  max-height: 92vh;
+  overflow-y: auto;
   box-shadow: var(--shadow-lg);
   position: relative;
-  overflow: hidden;
 }
 
 .setup-card::before {
   content: '';
-  position: absolute;
+  position: sticky;
   top: 0; left: 0; right: 0;
+  display: block;
   height: 3px;
+  margin: -2.5rem -2.5rem 0 -2.5rem;
   background: linear-gradient(90deg, var(--p1), var(--p2), var(--p3), var(--p4));
+  z-index: 1;
 }
 
 .setup-title {
@@ -2971,9 +2975,14 @@ kbd {
    DECK SELECTOR — 3-Category Tabs
    ============================================================ */
 .deck-assignment-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+@media (max-width: 640px) {
+  .deck-assignment-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .deck-select-panel {
@@ -3049,7 +3058,7 @@ kbd {
 }
 
 .deck-tab-content {
-  max-height: 200px;
+  max-height: 170px;
   overflow-y: auto;
 }
 
@@ -3074,7 +3083,7 @@ kbd {
 }
 
 .deck-precon-list {
-  max-height: 180px;
+  max-height: 140px;
   overflow-y: auto;
 }
 
