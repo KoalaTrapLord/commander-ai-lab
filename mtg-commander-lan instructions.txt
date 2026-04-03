@@ -1,0 +1,4 @@
+unzip mtg-commander-lan.zip
+cd mtg-commander-lan
+npm install
+node server.js
