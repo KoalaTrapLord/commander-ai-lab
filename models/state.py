@@ -30,8 +30,18 @@ class Config:
 
 
 CFG = Config()
-# Pre-populate from env so ASGI mode (uvicorn lab_api:app) works without main()
+
+# Pre-populate from environment so uvicorn/ASGI mode works without CLI args.
+# CLI args (lab_api.py main()) will override these if provided.
 CFG.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+CFG.ximilar_api_key   = os.environ.get("XIMILAR_API_KEY", "")
+CFG.pplx_api_key      = os.environ.get("PPLX_API_KEY", "")
+CFG.forge_jar         = os.environ.get("FORGE_JAR", "")
+CFG.forge_dir         = os.environ.get("FORGE_DIR", "")
+CFG.lab_jar           = os.environ.get("LAB_JAR", "")
+# PRECON_DIR / PRECON_DECKS_DIR are aliases -- prefer PRECON_DIR
+CFG.precon_dir        = os.environ.get("PRECON_DIR") or os.environ.get("PRECON_DECKS_DIR", "")
+CFG.forge_decks_dir   = os.environ.get("FORGE_DECKS_DIR", "")
 
 
 def validate_forge_config() -> None:
@@ -53,8 +63,6 @@ def validate_forge_config() -> None:
     else:
         resolved = a if a.is_dir() else b
         log.info("Forge cardsfolder confirmed at %s", resolved)
-CFG.ximilar_api_key = os.environ.get("XIMILAR_API_KEY", "")
-CFG.pplx_api_key = os.environ.get("PPLX_API_KEY", "")
 
 
 # ══════════════════════════════════════════════════════════════
