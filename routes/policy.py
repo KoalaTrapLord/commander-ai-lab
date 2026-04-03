@@ -342,6 +342,24 @@ async def decide(req: DecideRequest):
     if "error" in result:
         raise HTTPException(500, detail=result["error"])
 
+    # ----------------------------------------------------------------
+    # Probability diagnostic — logs top-5 actions on every decision.
+    # Remove or downgrade to logger.debug once training looks healthy.
+    # ----------------------------------------------------------------
+    probs = result.get("probabilities", {})
+    if probs:
+        top5 = sorted(probs.items(), key=lambda kv: kv[1], reverse=True)[:5]
+        top5_str = ", ".join(f"{a}:{p:.3f}" for a, p in top5)
+        logger.info(
+            "[decide] turn=%d phase=%s → %s (conf=%.3f) | top5=[%s] | src=%s",
+            req.resolved_turn(),
+            req.phase,
+            result["action"],
+            result["confidence"],
+            top5_str,
+            vector_source,
+        )
+
     log_prob = 0.0
     try:
         conf = result.get("confidence", 0.5)
