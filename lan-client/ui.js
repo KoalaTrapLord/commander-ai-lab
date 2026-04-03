@@ -1237,6 +1237,34 @@ async function _loadBackendPrecons() {
   try {
     var precons = await AIBridge.deckSource.fetchPrecons();
     if (precons && precons.length > 0) {
+      // Merge backend precons into PRECON_DATA so the UI can render them
+      window.PRECON_DATA = precons.map(function(p) {
+        return {
+          id: (p.fileName || p.name || '').replace('.dck', ''),
+          name: p.name || p.fileName || '',
+          commander: p.commander || (p.commanders && p.commanders[0]) || '',
+          set: p.set || '',
+          fileName: p.fileName || '',
+          colors: p.colors || [],
+          year: p.year || 0
+        };
+      });
+
+      // Re-render the precon tab content for all visible player panels
+      var panels = document.querySelectorAll('[id^="deck-content-"]');
+      panels.forEach(function(panel) {
+        var idx = parseInt(panel.id.replace('deck-content-', ''));
+        if (!isNaN(idx)) {
+          var activeTab = panel.closest('.deck-select-panel');
+          var activeBtn = activeTab ? activeTab.querySelector('.deck-tab.active') : null;
+          // Only re-render if Precons tab is active (or no tab selected yet)
+          if (!activeBtn || activeBtn.getAttribute('data-tab') === 'precons') {
+            panel.innerHTML = _buildPreconTabContent(idx);
+          }
+        }
+      });
+
+      // Update status indicator
       var indicator = document.getElementById('backend-status-indicator');
       if (indicator) {
         indicator.textContent = '\u26a1 ' + precons.length + ' precons from backend';
