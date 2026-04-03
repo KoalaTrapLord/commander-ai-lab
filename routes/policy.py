@@ -1,5 +1,5 @@
 """Commander AI Lab — Policy Decision Routes (Phase 2)
-════════════════════════════════════════════════════
+════════════════════════════════════════════════════════
 Live Forge ↔ policy server IPC endpoints for online training.
 These endpoints are purpose-built for the real-time decision loop
 where Forge's Java side calls the Python policy server at each
@@ -24,7 +24,8 @@ import numpy as np
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger("routes.policy")
+# Unique logger name so log lines are attributable to this module specifically
+logger = logging.getLogger("routes.policy.decide")
 
 router = APIRouter(prefix="/api/policy", tags=["policy"])
 
@@ -310,7 +311,10 @@ async def decide(req: DecideRequest):
                 req.snapshot_schema, req.resolved_turn(),
             )
         except Exception as e:
-            logger.warning("Precomputed vector encode failed (%s) — falling back", e)
+            logger.warning(
+                "Precomputed vector encode failed — falling back to full encoder",
+                exc_info=True,
+            )
             state_vec = None
     else:
         state_vec = None
@@ -373,7 +377,7 @@ async def collect_tuples(req: CollectRequest):
         try:
             _online_store.add_tuples(req.tuples)
         except Exception as e:
-            logger.error("Failed to store tuples: %s", e)
+            logger.error("Failed to store tuples: %s", e, exc_info=True)
             raise HTTPException(500, detail=str(e))
 
     return {
@@ -402,7 +406,7 @@ async def submit_reward(req: RewardRequest):
                 winner_seat=req.winner_seat,
             )
         except Exception as e:
-            logger.error("Failed to assign reward: %s", e)
+            logger.error("Failed to assign reward: %s", e, exc_info=True)
             raise HTTPException(500, detail=str(e))
 
     return {
@@ -563,7 +567,7 @@ def _infer_from_vector(state_vec: np.ndarray, policy_service, temperature: float
         }
     except Exception as e:
         elapsed_ms = (time.time() - t_start) * 1000
-        logger.error("Direct inference error: %s", e)
+        logger.error("Direct inference error in _infer_from_vector: %s", e, exc_info=True)
         return {"error": str(e), "inference_ms": round(elapsed_ms, 2)}
 
 

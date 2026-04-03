@@ -52,7 +52,8 @@ from ml.config.scope import (
 )
 from ml.encoder.state_encoder import CardEmbeddingIndex, StateEncoder
 
-logger = logging.getLogger("ml.serving")
+# Unique logger name so log lines are attributable to this module specifically
+logger = logging.getLogger("ml.serving.policy_server")
 
 
 def _unwrap_logits(raw):
@@ -175,7 +176,7 @@ class PolicyInferenceService:
 
         except Exception as e:
             self._load_error = str(e)
-            logger.error("Failed to load checkpoint: %s", e)
+            logger.error("Failed to load checkpoint: %s", e, exc_info=True)
             return False
 
     def reload(self, checkpoint_path: str = None) -> bool:
@@ -207,7 +208,7 @@ class PolicyInferenceService:
 
         except Exception as e:
             self._load_error = str(e)
-            logger.error("Hot-reload failed: %s", e)
+            logger.error("Hot-reload failed: %s", e, exc_info=True)
             return False
 
     def predict(
@@ -286,7 +287,7 @@ class PolicyInferenceService:
 
         except Exception as e:
             elapsed_ms = (time.time() - t_start) * 1000
-            logger.error("Inference error: %s", e)
+            logger.error("Inference error: %s", e, exc_info=True)
             return {
                 "error": str(e),
                 "inference_ms": round(elapsed_ms, 2),
@@ -346,7 +347,7 @@ class PolicyInferenceService:
             )
 
         except Exception as e:
-            logger.error("Batch inference error: %s", e)
+            logger.error("Batch inference error: %s", e, exc_info=True)
             results = [{"error": str(e)}] * len(snapshots)
 
         return results
