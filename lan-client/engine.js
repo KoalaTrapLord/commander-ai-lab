@@ -12723,39 +12723,26 @@ async function loadPreconForPlayer(playerIdx, preconId) {
   var player = gameState.players[playerIdx];
   if (!player) return;
 
-  // Try to get decklist text: embedded first, then fetch from backend .dck file
+  // Try to get decklist text: embedded first, then fetch .dck from server
   var decklistText = precon.decklist || '';
   if (!decklistText && precon.fileName) {
-    // Fetch .dck file from backend if available
-    if (typeof AIBridge !== 'undefined' && AIBridge.connector.connected) {
-      try {
-        var deckData = await AIBridge.deckSource.fetchPreconDeck(precon.fileName);
-        if (deckData && deckData.decklist) {
-          decklistText = deckData.decklist;
-        } else if (deckData && typeof deckData === 'string') {
-          decklistText = deckData;
-        }
-      } catch (e) {
-        console.warn('[loadPreconForPlayer] Backend deck fetch failed:', e);
+    // 1. Try the API endpoint (returns JSON with decklist field)
+    try {
+      var apiResp = await fetch('/api/lab/precons/deck?fileName=' + encodeURIComponent(precon.fileName));
+      if (apiResp.ok) {
+        var deckData = await apiResp.json();
+        if (deckData && deckData.decklist) decklistText = deckData.decklist;
       }
+    } catch (e) {
+      console.warn('[loadPreconForPlayer] API deck fetch failed:', e);
     }
-    // Fallback: try to fetch .dck file directly from precon-decks/ (same origin)
+    // 2. Fallback: fetch .dck file directly from static mount
     if (!decklistText) {
       try {
-        var resp = await fetch('precon-decks/' + precon.fileName);
-        if (resp.ok) {
-          decklistText = await resp.text();
-        }
-      } catch (e) {
-        // Fallback: try relative to backend
-        try {
-          var resp2 = await fetch('/precon-decks/' + precon.fileName);
-          if (resp2.ok) {
-            decklistText = await resp2.text();
-          }
-        } catch (e2) {
-          console.warn('[loadPreconForPlayer] Could not fetch .dck file:', precon.fileName);
-        }
+        var staticResp = await fetch('/precon-decks/' + encodeURIComponent(precon.fileName));
+        if (staticResp.ok) decklistText = await staticResp.text();
+      } catch (e2) {
+        console.warn('[loadPreconForPlayer] Static .dck fetch failed:', precon.fileName);
       }
     }
   }
