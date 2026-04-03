@@ -524,10 +524,18 @@
 
 <!-- ====================================================
      SCRIPTS
+     Load order matters:
+       1. precons.js      — static PRECON_DATA fallback
+       2. engine.js       — game state & core logic
+       3. ai-bridge.js    — backend connector & DeckSourceClient
+       4. precon-loader.js — startGameWithDecks() + loadPreconDeckFromDck()
+       5. player-panels.js — player panel rendering
+       6. ui.js           — setup screen, deck picker, UI wiring
      ==================================================== -->
 <script src="precons.js?v=20260403_0300"></script>
 <script src="engine.js?v=20260403_0300"></script>
 <script src="ai-bridge.js?v=20260403_0300"></script>
+<script src="precon-loader.js?v=20260403_0300"></script>
 <script src="player-panels.js?v=20260403_0300"></script>
 <script src="ui.js?v=20260403_0300"></script>
 
