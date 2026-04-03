@@ -92,16 +92,20 @@ async def _lifespan(application: FastAPI):
                 log.warning("RAG staleness monitor failed: %s", exc)
     asyncio.ensure_future(_rag_staleness_monitor())
 
-    # Policy routes: register if ML policy model is available
+    # Policy routes: always register at startup so /api/policy/health is reachable
+    # even before the model has loaded. The health endpoint returns {ready: false,
+    # status: degraded} when the model is absent — that is the correct behaviour.
+    # Gating include_router() behind load() caused 404s that broke ai-bridge.js.
     try:
         from ml.serving.policy_server import PolicyInferenceService
         from routes.policy import register_policy_routes
         _policy_svc = PolicyInferenceService()
+        register_policy_routes(application, _policy_svc)  # mount router unconditionally
+        log.info("Policy routes registered (/api/policy/*)")
         if _policy_svc.load():
-            register_policy_routes(application, _policy_svc)
-            log.info("Policy routes registered (/api/policy/*)")
+            log.info("Policy model loaded successfully")
         else:
-            log.warning("Policy model not loaded — /api/policy/* routes inactive")
+            log.warning("Policy model not loaded — /api/policy/health will report degraded")
     except ImportError:
         log.info("Policy service not available (ml.serving not installed)")
     except Exception as e:
