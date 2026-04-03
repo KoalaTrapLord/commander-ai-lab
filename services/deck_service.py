@@ -205,35 +205,134 @@ def _save_profile_to_dck(profile: dict) -> Path:
     return out_path
 
 
+def _find_dck_file(deck_name: str) -> Optional[Path]:
+    """Search known deck directories for a .dck file matching deck_name.
+
+    Resolution order:
+      1. precon_dir  (precon-decks/)
+      2. forge_decks_dir  (Forge user decks)
+      3. FORGE_DIR/res/decks/commander  (Forge bundled commander decks)
+
+    Within each directory tries:
+      a. Exact stem match  (Elven_Empire.dck)
+      b. Case-insensitive fuzzy match stripping underscores/spaces
+    """
+    search_dirs = []
+    if CFG.precon_dir and os.path.isdir(CFG.precon_dir):
+        search_dirs.append(Path(CFG.precon_dir))
+    if CFG.forge_decks_dir and os.path.isdir(CFG.forge_decks_dir):
+        search_dirs.append(Path(CFG.forge_decks_dir))
+    if CFG.forge_dir:
+        forge_cmdr = Path(CFG.forge_dir) / "res" / "decks" / "commander"
+        if forge_cmdr.is_dir():
+            search_dirs.append(forge_cmdr)
+
+    target_norm = deck_name.lower().replace("_", "").replace(" ", "")
+
+    for d in search_dirs:
+        exact = d / f"{deck_name}.dck"
+        if exact.exists():
+            return exact
+        try:
+            for f in d.iterdir():
+                if f.suffix.lower() == ".dck":
+                    if f.stem.lower().replace("_", "").replace(" ", "") == target_norm:
+                        log_collect.info(f"[DeckService] Fuzzy .dck match: '{deck_name}' -> '{f}'")
+                        return f
+        except OSError:
+            pass
+
+    return None
+
+
+def _load_deck_cards_from_dck(dck_path: Path) -> list:
+    """Parse a .dck file and return card dicts compatible with the DeepSeek engine.
+
+    Oracle data is left blank -- the engine enriches cards via enrich_card()
+    after loading, so minimal stubs are sufficient.
+    """
+    parsed = parse_dck_file(str(dck_path))
+    cards = []
+    for card_name, qty in parsed.get("commanders", {}).items():
+        cards.append({
+            "card_name": card_name,
+            "name": card_name,
+            "quantity": qty,
+            "is_commander": 1,
+            "type_line": "",
+            "oracle_text": "",
+            "cmc": 0,
+            "color_identity": "[]",
+            "mana_cost": "",
+            "power": "",
+            "toughness": "",
+            "keywords": "[]",
+        })
+    for card_name, qty in parsed.get("mainboard", {}).items():
+        cards.append({
+            "card_name": card_name,
+            "name": card_name,
+            "quantity": qty,
+            "is_commander": 0,
+            "type_line": "",
+            "oracle_text": "",
+            "cmc": 0,
+            "color_identity": "[]",
+            "mana_cost": "",
+            "power": "",
+            "toughness": "",
+            "keywords": "[]",
+        })
+    return cards
+
+
 def _load_deck_cards_by_name(deck_name: str) -> list:
-    """Load cards from a deck by name, returning list of card dicts."""
+    """Load cards from a deck by name, returning list of card dicts.
+
+    Resolution order:
+      1. SQLite DB  (decks built/imported via the Deck Builder UI)
+      2. .dck file fallback -- searches precon_dir, forge_decks_dir, and
+         FORGE_DIR/res/decks/commander so that precon decks work without
+         needing to be manually imported into the DB first.
+    """
+    # -- 1. DB lookup --
     conn = _get_db_conn()
     deck_row = conn.execute("SELECT id FROM decks WHERE name = ?", (deck_name,)).fetchone()
-    if not deck_row:
-        return []
-    deck_id = deck_row[0]
-    rows = conn.execute("""
-        SELECT dc.card_name, dc.quantity, dc.is_commander, dc.role_tag, dc.scryfall_id,
-               COALESCE(ce.type_line, cr.type_line, '') as type_line,
-               COALESCE(ce.oracle_text, cr.oracle_text, '') as oracle_text,
-               COALESCE(ce.cmc, cr.cmc, 0) as cmc,
-               COALESCE(ce.color_identity, cr.color_identity, '[]') as color_identity,
-               COALESCE(ce.mana_cost, '', '') as mana_cost,
-               COALESCE(ce.power, '', '') as power,
-               COALESCE(ce.toughness, '', '') as toughness,
-               COALESCE(ce.keywords, cr.keywords, '[]') as keywords
-        FROM deck_cards dc
-        LEFT JOIN (
-            SELECT scryfall_id, type_line, oracle_text, cmc, color_identity, mana_cost, power, toughness, keywords
-            FROM collection_entries GROUP BY scryfall_id
-        ) ce ON ce.scryfall_id = dc.scryfall_id
-        LEFT JOIN (
-            SELECT name, type_line, oracle_text, cmc, color_identity, keywords
-            FROM card_records GROUP BY name
-        ) cr ON cr.name = dc.card_name
-        WHERE dc.deck_id = ?
-    """, (deck_id,)).fetchall()
-    return [_row_to_dict(r) for r in rows]
+    if deck_row:
+        deck_id = deck_row[0]
+        rows = conn.execute("""
+            SELECT dc.card_name, dc.quantity, dc.is_commander, dc.role_tag, dc.scryfall_id,
+                   COALESCE(ce.type_line, cr.type_line, '') as type_line,
+                   COALESCE(ce.oracle_text, cr.oracle_text, '') as oracle_text,
+                   COALESCE(ce.cmc, cr.cmc, 0) as cmc,
+                   COALESCE(ce.color_identity, cr.color_identity, '[]') as color_identity,
+                   COALESCE(ce.mana_cost, '', '') as mana_cost,
+                   COALESCE(ce.power, '', '') as power,
+                   COALESCE(ce.toughness, '', '') as toughness,
+                   COALESCE(ce.keywords, cr.keywords, '[]') as keywords
+            FROM deck_cards dc
+            LEFT JOIN (
+                SELECT scryfall_id, type_line, oracle_text, cmc, color_identity, mana_cost, power, toughness, keywords
+                FROM collection_entries GROUP BY scryfall_id
+            ) ce ON ce.scryfall_id = dc.scryfall_id
+            LEFT JOIN (
+                SELECT name, type_line, oracle_text, cmc, color_identity, keywords
+                FROM card_records GROUP BY name
+            ) cr ON cr.name = dc.card_name
+            WHERE dc.deck_id = ?
+        """, (deck_id,)).fetchall()
+        return [_row_to_dict(r) for r in rows]
+
+    # -- 2. .dck file fallback --
+    dck_path = _find_dck_file(deck_name)
+    if dck_path:
+        log_collect.info(
+            f"[DeckService] '{deck_name}' not in DB -- loading from .dck file: {dck_path}"
+        )
+        return _load_deck_cards_from_dck(dck_path)
+
+    log_collect.warning(f"[DeckService] Deck '{deck_name}' not found in DB or any .dck search path.")
+    return []
 
 
 log_deckgen = logging.getLogger("commander_ai_lab.deckgen")
