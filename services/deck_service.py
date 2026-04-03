@@ -246,43 +246,55 @@ def _find_dck_file(deck_name: str) -> Optional[Path]:
 
 
 def _load_deck_cards_from_dck(dck_path: Path) -> list:
-    """Parse a .dck file and return card dicts compatible with the DeepSeek engine.
+    """Parse a .dck file and return card dicts enriched with Forge card data.
 
-    Oracle data is left blank -- the engine enriches cards via enrich_card()
-    after loading, so minimal stubs are sufficient.
+    Calls lookup_forge_card() for each card so that type_line, oracle_text,
+    cmc, mana_cost, power, toughness, and keywords are populated from the
+    Forge cardsfolder cache.  This ensures Card.is_land() / is_creature()
+    work correctly when a deck is loaded via the .dck fallback path (i.e.
+    the deck is not yet in the SQLite DB).
+
+    The Forge cache is lazy-loaded and module-level, so there is no
+    per-game overhead after the first deck load.
     """
+    from commander_ai_lab.sim.forge_card_loader import lookup_forge_card  # lazy to avoid circular import
+
     parsed = parse_dck_file(str(dck_path))
     cards = []
+
+    def _make_card(card_name: str, qty: int, is_commander: int) -> dict:
+        forge = lookup_forge_card(card_name)
+        power = ""
+        toughness = ""
+        if forge and "/" in forge.pt:
+            parts = forge.pt.split("/", 1)
+            power = parts[0].strip()
+            toughness = parts[1].strip()
+        return {
+            "card_name":      card_name,
+            "name":           card_name,
+            "quantity":       qty,
+            "is_commander":   is_commander,
+            "type_line":      forge.type_line   if forge else "",
+            "oracle_text":    forge.oracle_text if forge else "",
+            "cmc":            forge.cmc         if forge else 0,
+            "mana_cost":      forge.mana_cost   if forge else "",
+            "power":          power,
+            "toughness":      toughness,
+            "keywords":       json.dumps(forge.keywords) if forge else "[]",
+            "color_identity": "[]",
+        }
+
     for card_name, qty in parsed.get("commanders", {}).items():
-        cards.append({
-            "card_name": card_name,
-            "name": card_name,
-            "quantity": qty,
-            "is_commander": 1,
-            "type_line": "",
-            "oracle_text": "",
-            "cmc": 0,
-            "color_identity": "[]",
-            "mana_cost": "",
-            "power": "",
-            "toughness": "",
-            "keywords": "[]",
-        })
+        cards.append(_make_card(card_name, qty, 1))
     for card_name, qty in parsed.get("mainboard", {}).items():
-        cards.append({
-            "card_name": card_name,
-            "name": card_name,
-            "quantity": qty,
-            "is_commander": 0,
-            "type_line": "",
-            "oracle_text": "",
-            "cmc": 0,
-            "color_identity": "[]",
-            "mana_cost": "",
-            "power": "",
-            "toughness": "",
-            "keywords": "[]",
-        })
+        cards.append(_make_card(card_name, qty, 0))
+
+    enriched = sum(1 for c in cards if c["type_line"])
+    log_collect.info(
+        "[DeckService] .dck load: %d cards, %d enriched from Forge cache (%s)",
+        len(cards), enriched, dck_path.name,
+    )
     return cards
 
 
