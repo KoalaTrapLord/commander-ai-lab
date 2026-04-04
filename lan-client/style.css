@@ -855,9 +855,9 @@ input { font-family: inherit; }
 
 /* Hand card thumbnails inside hand zone */
 .hand-thumb {
-  width: 32px;
-  height: 45px;
-  border-radius: 3px;
+  width: 63px;
+  height: calc(var(--card-h) - 4px);
+  border-radius: 4px;
   overflow: hidden;
   flex-shrink: 0;
   cursor: pointer;
