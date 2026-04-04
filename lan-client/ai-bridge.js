@@ -707,7 +707,7 @@ class MacroActionMapper {
       if (castable.length === 0) return false;
       castable.sort((a, b) => (MacroActionMapper._cmc(b) - MacroActionMapper._cmc(a)));
       for (const card of castable) {
-        if (MacroActionMapper._canAfford(playerIdx, card)) {
+        if (MacroActionMapper._canAfford(playerIdx, card, gameState)) {
           const idx = hand.indexOf(card);
           if (idx !== -1) {
             if (!card.imageUrl) card.imageUrl = generateAiCardSVG(card);
@@ -728,7 +728,7 @@ class MacroActionMapper {
     });
 
     for (const card of creatures) {
-      if (MacroActionMapper._canAfford(playerIdx, card)) {
+      if (MacroActionMapper._canAfford(playerIdx, card, gameState)) {
         const idx = hand.indexOf(card);
         if (idx !== -1) {
           if (!card.imageUrl) card.imageUrl = generateAiCardSVG(card);
@@ -752,7 +752,7 @@ class MacroActionMapper {
     if (removal.length === 0) return false;
 
     for (const card of removal) {
-      if (MacroActionMapper._canAfford(playerIdx, card)) {
+      if (MacroActionMapper._canAfford(playerIdx, card, gameState)) {
         const idx = hand.indexOf(card);
         if (idx !== -1) {
           if (!card.imageUrl) card.imageUrl = generateAiCardSVG(card);
@@ -781,7 +781,7 @@ class MacroActionMapper {
     );
 
     for (const card of drawSpells) {
-      if (MacroActionMapper._canAfford(playerIdx, card)) {
+      if (MacroActionMapper._canAfford(playerIdx, card, gameState)) {
         const idx = hand.indexOf(card);
         if (idx !== -1) {
           if (!card.imageUrl) card.imageUrl = generateAiCardSVG(card);
@@ -826,7 +826,7 @@ class MacroActionMapper {
     );
 
     for (const card of rampSpells) {
-      if (MacroActionMapper._canAfford(playerIdx, card)) {
+      if (MacroActionMapper._canAfford(playerIdx, card, gameState)) {
         const idx = hand.indexOf(card);
         if (idx !== -1) {
           if (!card.imageUrl) card.imageUrl = generateAiCardSVG(card);
@@ -884,7 +884,7 @@ class MacroActionMapper {
     return 0;
   }
 
-  static _canAfford(playerIdx, card) {
+  static _canAfford(playerIdx, card, gameState) {
     if (!gameState) return false;
     const available = typeof aiCountUntappedLands === 'function'
       ? aiCountUntappedLands(playerIdx)
