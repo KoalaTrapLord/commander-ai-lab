@@ -290,7 +290,6 @@ function renderBattlefieldCard(cardData) {
   card.style.top = (cardData.y || 10) + 'px';
 
   const playerColor = (gameState.players[cardData.ownerIndex] || {}).color || 'transparent';
-  card.style.borderColor = playerColor;
 
   if (cardData.tapped) card.classList.add('tapped');
   if (cardData.faceDown) card.classList.add('face-down');
@@ -324,7 +323,6 @@ function renderBattlefieldCard(cardData) {
   card.innerHTML =
     protBadge +
     '<img src="' + imgUrl + '" alt="' + altName + '" draggable="false" loading="lazy"/>' +
-    '<div class="card-owner-bar" style="background:' + playerColor + '"></div>' +
     kwBadgeHtml;
 
   // Counter badges
