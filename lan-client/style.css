@@ -798,11 +798,14 @@ input { font-family: inherit; }
 
 .zone.hand {
   flex: 1;
-  height: var(--hand-card-h);
+  height: 180px;
+  min-height: 180px;
   min-width: 60px;
   flex-direction: row;
+  align-items: stretch;
   gap: 3px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .zone.hand .zone-icon { margin-bottom: 0; margin-right: 3px; }
@@ -857,8 +860,10 @@ input { font-family: inherit; }
 
 /* Hand card thumbnails inside hand zone */
 .hand-thumb {
-  width: var(--hand-card-w);
-  height: var(--hand-card-h);
+  width: 128px;
+  min-width: 128px;
+  height: 180px;
+  min-height: 180px;
   border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;
