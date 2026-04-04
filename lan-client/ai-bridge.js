@@ -505,9 +505,9 @@ class GameStateBridge {
    * Get all battlefield cards for a player.
    */
   _getBattlefieldCards(player, gameState) {
-    if (!gameState || !gameState.battlefield) return [];
-    return (gameState.battlefield || []).filter(
-      c => c.controller === player.id || c.owner === player.id
+    if (!gameState || !gameState.battlefieldCards) return [];
+    return gameState.battlefieldCards.filter(
+      c => c.ownerIndex === player.id
     );
   }
 
