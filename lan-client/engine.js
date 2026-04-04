@@ -3247,19 +3247,15 @@ function addCardToBattlefield(name, imageUrl, typeLine, ownerIndex, x, y, oracle
   } else {
     // Place cards by type in designated battlefield zones
     var zone = getCardTypeZone(typeLine || '');
-    var cardW = 110, cardH = 150;
+    var cardW = 63, cardH = 84;
     // Zone regions (percentage of section area)
-    // Creatures: top center (30%-70% x, 5%-45% y)
-    // Artifacts/Enchantments: top right (70%-95% x, 5%-45% y)
-    // Lands: bottom left (5%-35% x, 55%-90% y)
-    // Instants/Sorceries: bottom center (35%-65% x, 55%-90% y)
-    // Other: center (30%-70% x, 25%-75% y)
+    // Offset from edges to avoid overlapping the overlaid zone-row/commander-row
     var zones = {
-      creature:    { x1: 0.25, x2: 0.65, y1: 0.05, y2: 0.42 },
-      artifact:    { x1: 0.68, x2: 0.95, y1: 0.05, y2: 0.42 },
-      land:        { x1: 0.03, x2: 0.32, y1: 0.55, y2: 0.90 },
-      spell:       { x1: 0.35, x2: 0.65, y1: 0.55, y2: 0.90 },
-      other:       { x1: 0.25, x2: 0.70, y1: 0.25, y2: 0.75 }
+      creature:    { x1: 0.25, x2: 0.70, y1: 0.20, y2: 0.55 },
+      artifact:    { x1: 0.70, x2: 0.95, y1: 0.20, y2: 0.55 },
+      land:        { x1: 0.03, x2: 0.35, y1: 0.55, y2: 0.85 },
+      spell:       { x1: 0.35, x2: 0.65, y1: 0.55, y2: 0.85 },
+      other:       { x1: 0.25, x2: 0.70, y1: 0.30, y2: 0.70 }
     };
     var z = zones[zone] || zones.other;
     var areaW = rect.width;

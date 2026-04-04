@@ -642,25 +642,33 @@ input { font-family: inherit; }
 /* Life Panels Overlay — sits above everything */
 #life-panels-overlay {
   position: absolute;
-  inset: 44px 0 0 0;
+  top: calc(44px + 50%);
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 50;
-  pointer-events: none;
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+  padding: 8px;
+  border: 2px solid var(--felt-line-strong);
+  border-radius: 8px;
+  background: rgba(10,10,20,0.7);
 }
 
 .life-panel {
-  position: absolute;
   display: flex;
   flex-direction: column;
   gap: 2px;
   width: 130px;
-  pointer-events: auto;
 }
 
-/* Position each panel near the center crossing */
-.lp-p1 { bottom: calc(50% + 4px); right: calc(50% + 4px); }
-.lp-p2 { bottom: calc(50% + 4px); left: calc(50% + 4px); }
-.lp-p3 { top: calc(50% + 4px); right: calc(50% + 4px); }
-.lp-p4 { top: calc(50% + 4px); left: calc(50% + 4px); }
+/* Grid positions */
+.lp-p1 { grid-area: 1 / 1; }
+.lp-p2 { grid-area: 1 / 2; }
+.lp-p3 { grid-area: 2 / 1; }
+.lp-p4 { grid-area: 2 / 2; }
 
 .life-panel-box {
   border-radius: 4px;
@@ -881,7 +889,12 @@ input { font-family: inherit; }
 .zone.commander {
   width: calc(var(--card-w) + 12px);
   height: calc(var(--card-h) + 5px);
-  border-width: 2px;
+  border: 2px solid rgba(200,200,210,0.6);
+  box-shadow:
+    0 0 6px rgba(192,192,200,0.4),
+    0 0 14px rgba(192,192,200,0.25),
+    0 0 24px rgba(192,192,200,0.15),
+    inset 0 0 8px rgba(192,192,200,0.1);
 }
 
 /* Commander card image in zone */
@@ -895,22 +908,22 @@ input { font-family: inherit; }
 /* Player-colored zone borders */
 .p1 .zone { border-color: rgba(192,57,43,0.12); }
 .p1 .zone:hover { border-color: rgba(192,57,43,0.3); box-shadow: 0 0 10px var(--p1-soft); }
-.p1 .zone.commander { border-color: rgba(192,57,43,0.3); background: var(--p1-soft); }
+.p1 .zone.commander { border-color: rgba(200,200,210,0.6); background: var(--p1-soft); }
 .p1 .zone-icon { color: var(--p1-text); }
 
 .p2 .zone { border-color: rgba(41,128,185,0.12); }
 .p2 .zone:hover { border-color: rgba(41,128,185,0.3); box-shadow: 0 0 10px var(--p2-soft); }
-.p2 .zone.commander { border-color: rgba(41,128,185,0.3); background: var(--p2-soft); }
+.p2 .zone.commander { border-color: rgba(200,200,210,0.6); background: var(--p2-soft); }
 .p2 .zone-icon { color: var(--p2-text); }
 
 .p3 .zone { border-color: rgba(39,174,96,0.12); }
 .p3 .zone:hover { border-color: rgba(39,174,96,0.3); box-shadow: 0 0 10px var(--p3-soft); }
-.p3 .zone.commander { border-color: rgba(39,174,96,0.3); background: var(--p3-soft); }
+.p3 .zone.commander { border-color: rgba(200,200,210,0.6); background: var(--p3-soft); }
 .p3 .zone-icon { color: var(--p3-text); }
 
 .p4 .zone { border-color: rgba(212,147,13,0.12); }
 .p4 .zone:hover { border-color: rgba(212,147,13,0.3); box-shadow: 0 0 10px var(--p4-soft); }
-.p4 .zone.commander { border-color: rgba(212,147,13,0.3); background: var(--p4-soft); }
+.p4 .zone.commander { border-color: rgba(200,200,210,0.6); background: var(--p4-soft); }
 .p4 .zone-icon { color: var(--p4-text); }
 
 /* Card count in zone */
@@ -948,6 +961,24 @@ input { font-family: inherit; }
   height: 100%;
   object-fit: cover;
   pointer-events: none;
+}
+
+/* Hand drag ghost */
+.hand-drag-ghost {
+  position: fixed;
+  z-index: 9999;
+  width: 80px;
+  height: 112px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  opacity: 0.85;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.6));
+}
+.hand-drag-ghost img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4px;
 }
 
 /* Zone tooltip */

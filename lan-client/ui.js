@@ -17,6 +17,12 @@ let undoHistoryVisible = false;
 let aiTurnActive = false;
 let floatingPreviewTimeout = null;
 
+// Hand-to-battlefield drag state
+let isDraggingFromHand = false;
+let handDragPlayerIdx = null;
+let handDragCardIdx = null;
+let handDragGhost = null;
+
 // ============================================================
 // LOG SYSTEM (override engine stub)
 // ============================================================
@@ -246,7 +252,9 @@ function renderHandZone(playerIdx) {
     if (imgSrc) {
       thumbsHtml +=
         '<div class="hand-thumb" ' +
+        'data-player="' + playerIdx + '" data-hand-index="' + i + '" ' +
         'onclick="openZoneModal(' + playerIdx + ')" ' +
+        'onmousedown="startHandDrag(event,' + playerIdx + ',' + i + ',\'' + imgSrc.replace(/'/g, "\\'") + '\')" ' +
         'onmouseenter="showFloatingCardPreview(\'' + imgSrc.replace(/'/g, "\\'") + '\',event,{name:\'' + escapedName + '\',typeLine:\'' + escapedType + '\'})" ' +
         'onmousemove="positionFloatingPreview(event)" ' +
         'onmouseleave="hideFloatingCardPreview()">' +
@@ -519,6 +527,63 @@ document.addEventListener('mouseup', e => {
       if (closestCard) createStack(closestCard.id, droppedId);
     }
   }
+});
+
+// ============================================================
+// HAND-TO-BATTLEFIELD DRAG & DROP
+// ============================================================
+function startHandDrag(e, playerIdx, handIndex, imgSrc) {
+  // Only left mouse button
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  isDraggingFromHand = true;
+  handDragPlayerIdx = playerIdx;
+  handDragCardIdx = handIndex;
+  hideFloatingCardPreview();
+
+  // Create ghost element
+  handDragGhost = document.createElement('div');
+  handDragGhost.className = 'hand-drag-ghost';
+  handDragGhost.innerHTML = '<img src="' + imgSrc + '" draggable="false"/>';
+  handDragGhost.style.left = e.clientX + 'px';
+  handDragGhost.style.top = e.clientY + 'px';
+  document.body.appendChild(handDragGhost);
+}
+
+document.addEventListener('mousemove', function(e) {
+  if (!isDraggingFromHand || !handDragGhost) return;
+  handDragGhost.style.left = e.clientX + 'px';
+  handDragGhost.style.top = e.clientY + 'px';
+});
+
+document.addEventListener('mouseup', function(e) {
+  if (!isDraggingFromHand) return;
+
+  // Clean up ghost
+  if (handDragGhost) {
+    handDragGhost.remove();
+    handDragGhost = null;
+  }
+
+  // Check if dropped over a battle-zone
+  const pNum = handDragPlayerIdx + 1;
+  const battleZone = document.getElementById('battle-zone-' + pNum);
+  if (battleZone) {
+    const rect = battleZone.getBoundingClientRect();
+    if (e.clientX >= rect.left && e.clientX <= rect.right &&
+        e.clientY >= rect.top && e.clientY <= rect.bottom) {
+      // Play the card
+      if (typeof playCardFromHand === 'function') {
+        playCardFromHand(handDragPlayerIdx, handDragCardIdx);
+      }
+    }
+  }
+
+  isDraggingFromHand = false;
+  handDragPlayerIdx = null;
+  handDragCardIdx = null;
 });
 
 // ============================================================
