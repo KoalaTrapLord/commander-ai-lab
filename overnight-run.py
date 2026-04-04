@@ -50,6 +50,7 @@ DEFAULT_CONFIG = {
     "train_lr": 0.001,          # learning rate
     "train_batch_size": 256,    # training batch size
     "train_patience": 15,       # early stopping patience
+    "train_ds_weight": 4.0,     # DeepSeek source upsampling weight (ds-*.jsonl files)
     # Java-only settings (ignored for DeepSeek):
     "java_threads": 4,
     "java_clock": 300,
@@ -279,14 +280,21 @@ def run_update_weights(cfg):
         return False
 
 
-def start_training(base_url, epochs, lr, batch_size, patience):
-    """Trigger ML training and return immediately."""
+def start_training(base_url, epochs, lr, batch_size, patience, ds_weight=4.0):
+    """Trigger ML training and return immediately.
+
+    ds_weight: upsampling multiplier for DeepSeek decision files
+               (ml-decisions-ds-*.jsonl).  Matches the default in
+               DatasetConfig.source_weights added in the recent
+               dataset_builder.py update.
+    """
     resp = api_post(base_url, "/api/ml/train", {
         "epochs": epochs,
         "lr": lr,
         "batchSize": batch_size,
         "patience": patience,
         "rebuildDataset": True,
+        "dsWeight": ds_weight,
     })
     return resp
 
@@ -416,6 +424,7 @@ def run_overnight(cfg):
     log.info(f"  Engine: {engine}")
     log.info(f"  Auto-update weights: {'Yes' if cfg['auto_update_weights'] else 'No'}")
     log.info(f"  Auto-train after: {'Yes' if cfg['auto_train'] else 'No'}")
+    log.info(f"  DS upsampling weight: {cfg['train_ds_weight']}x")
     log.info("")
 
     while True:
@@ -510,7 +519,8 @@ def run_overnight(cfg):
 
         log.info("Starting ML training pipeline...")
         log.info(f"  Epochs: {cfg['train_epochs']}, LR: {cfg['train_lr']}, "
-                 f"Batch: {cfg['train_batch_size']}, Patience: {cfg['train_patience']}")
+                 f"Batch: {cfg['train_batch_size']}, Patience: {cfg['train_patience']}, "
+                 f"DS Weight: {cfg['train_ds_weight']}x")
 
         try:
             start_training(
@@ -519,6 +529,7 @@ def run_overnight(cfg):
                 lr=cfg["train_lr"],
                 batch_size=cfg["train_batch_size"],
                 patience=cfg["train_patience"],
+                ds_weight=cfg["train_ds_weight"],
             )
             log.info("Training started, monitoring progress...")
             success = wait_for_training(base_url)
@@ -556,8 +567,8 @@ Examples:
   # Just run sims, skip both weight update and training:
   python overnight-run.py --no-train --no-update-weights
 
-  # Custom training settings:
-  python overnight-run.py --epochs 200 --lr 0.0005 --patience 20
+  # Custom training settings with higher DS upsampling:
+  python overnight-run.py --epochs 200 --lr 0.0005 --patience 20 --ds-weight 6.0
         """,
     )
     parser.add_argument("--url", default="http://localhost:8080",
@@ -590,6 +601,8 @@ Examples:
                         help="Training batch size (default: 256)")
     parser.add_argument("--patience", type=int, default=15,
                         help="Early stopping patience (default: 15)")
+    parser.add_argument("--ds-weight", type=float, default=4.0,
+                        help="DeepSeek source upsampling weight for training (default: 4.0)")
     parser.add_argument("--threads", type=int, default=4,
                         help="Java engine threads (default: 4)")
     parser.add_argument("--clock", type=int, default=300,
@@ -611,6 +624,7 @@ Examples:
     cfg["train_lr"] = args.lr
     cfg["train_batch_size"] = args.batch_size
     cfg["train_patience"] = args.patience
+    cfg["train_ds_weight"] = args.ds_weight
     cfg["java_threads"] = args.threads
     cfg["java_clock"] = args.clock
 
