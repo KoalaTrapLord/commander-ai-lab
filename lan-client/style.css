@@ -66,10 +66,8 @@
   --p4: #d4930d; --p4-soft: rgba(212,147,13,0.15); --p4-glow: rgba(212,147,13,0.35); --p4-text: #f1c40f;
 
   /* Card dimensions */
-  --card-w: 32px;
-  --card-h: 44px;
-  --hand-card-w: 128px;
-  --hand-card-h: 180px;
+  --card-w: 63px;
+  --card-h: 88px;
   --bf-card-w: 100px;
   --bf-card-h: 140px;
   --zone-radius: 8px;
@@ -798,14 +796,11 @@ input { font-family: inherit; }
 
 .zone.hand {
   flex: 1;
-  height: 180px;
-  min-height: 180px;
+  height: var(--card-h);
   min-width: 60px;
   flex-direction: row;
-  align-items: stretch;
   gap: 3px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
 }
 
 .zone.hand .zone-icon { margin-bottom: 0; margin-right: 3px; }
@@ -860,11 +855,9 @@ input { font-family: inherit; }
 
 /* Hand card thumbnails inside hand zone */
 .hand-thumb {
-  width: 128px;
-  min-width: 128px;
-  height: 180px;
-  min-height: 180px;
-  border-radius: 6px;
+  width: 32px;
+  height: 45px;
+  border-radius: 3px;
   overflow: hidden;
   flex-shrink: 0;
   cursor: pointer;
@@ -2552,10 +2545,8 @@ kbd {
    ============================================================ */
 @media (max-width: 768px) {
   :root {
-    --card-w: 21px;
-    --card-h: 29px;
-    --hand-card-w: 84px;
-    --hand-card-h: 116px;
+    --card-w: 42px;
+    --card-h: 58px;
     --bf-card-w: 72px;
     --bf-card-h: 100px;
   }
