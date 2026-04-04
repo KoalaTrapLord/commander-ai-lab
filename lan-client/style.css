@@ -66,8 +66,8 @@
   --p4: #d4930d; --p4-soft: rgba(212,147,13,0.15); --p4-glow: rgba(212,147,13,0.35); --p4-text: #f1c40f;
 
   /* Card dimensions */
-  --card-w: 63px;
-  --card-h: 88px;
+  --card-w: 126px;
+  --card-h: 176px;
   --bf-card-w: 100px;
   --bf-card-h: 140px;
   --zone-radius: 8px;
@@ -855,9 +855,9 @@ input { font-family: inherit; }
 
 /* Hand card thumbnails inside hand zone */
 .hand-thumb {
-  width: 32px;
-  height: 45px;
-  border-radius: 3px;
+  width: 64px;
+  height: 90px;
+  border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;
   cursor: pointer;
@@ -2545,8 +2545,8 @@ kbd {
    ============================================================ */
 @media (max-width: 768px) {
   :root {
-    --card-w: 42px;
-    --card-h: 58px;
+    --card-w: 84px;
+    --card-h: 116px;
     --bf-card-w: 72px;
     --bf-card-h: 100px;
   }
