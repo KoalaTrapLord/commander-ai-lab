@@ -1,5 +1,5 @@
-/**
- * MTG Commander Simulator — ui.js
+﻿/**
+ * MTG Commander Simulator â€” ui.js
  * All UI rendering functions adapted for the 4-quadrant battlefield layout.
  * This file overrides/extends DOM-touching functions from engine.js.
  * ============================================================
@@ -83,7 +83,7 @@ function setLife(playerId, newLife) {
   updateLifeCounterDisplay(playerId);
   const diff = newLife - oldLife;
   const sign = diff > 0 ? '+' : '';
-  addLogEntry('<strong>' + player.name + '</strong> life: ' + oldLife + ' → <strong>' + newLife + '</strong> (' + sign + diff + ')');
+  addLogEntry('<strong>' + player.name + '</strong> life: ' + oldLife + ' â†’ <strong>' + newLife + '</strong> (' + sign + diff + ')');
   if (diff > 0) fireBattlefieldTriggers('life_gain');
   else if (diff < 0) fireBattlefieldTriggers('life_loss');
   if (newLife <= 0 && !player.eliminated) eliminatePlayer(playerId, 'life total reached 0');
@@ -117,7 +117,7 @@ function updateActivePlayerHighlight() {
 }
 
 // ============================================================
-// RENDER PLAYER PANELS (adapted for 4-quadrant — updates zones/labels)
+// RENDER PLAYER PANELS (adapted for 4-quadrant â€” updates zones/labels)
 // ============================================================
 function renderPlayerPanels() {
   if (!gameState) return;
@@ -358,7 +358,7 @@ function renderBattlefieldCard(cardData) {
     card.appendChild(dmgBadge);
   }
 
-  // Event listeners — use both for compatibility (Comet: inline onclick already on container)
+  // Event listeners â€” use both for compatibility (Comet: inline onclick already on container)
   card.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (cardData.attachedTo) return;
@@ -570,7 +570,7 @@ function handlePhaseClick(phaseIdx) {
   // Just provide info about the phase, don't jump to it
   if (!gameState) return;
   const phase = PHASES[phaseIdx];
-  if (phase) addLogEntry('Phase info: <strong>' + phase.label + '</strong> — ' + phase.tip);
+  if (phase) addLogEntry('Phase info: <strong>' + phase.label + '</strong> â€” ' + phase.tip);
 }
 
 function updateTurnDisplay() {
@@ -933,7 +933,7 @@ function handleZmCtxAction(playerId, zone, cardIndex, action) {
 }
 
 // ============================================================
-// HAND AREA — full hand display (used in hand-area section, NOT the zone thumbnails)
+// HAND AREA â€” full hand display (used in hand-area section, NOT the zone thumbnails)
 // For the new layout, hand is rendered as thumbnails in the zone.hand element
 // ============================================================
 function renderHandArea() {
@@ -1853,7 +1853,6 @@ function showToast(message) {
 function showManaPool() {
   // mana pool display removed (Phase 1)
 }
-}
 
 // ============================================================
 // SHORTCUT HINT
@@ -1999,7 +1998,7 @@ function toggleSetting(key) {
 
 // ============================================================
 // PLACEHOLDER STUBS for engine-called UI functions
-// (engine.js calls these — we provide no-op or simple implementations)
+// (engine.js calls these â€” we provide no-op or simple implementations)
 // ============================================================
 
 function renderPlayerPanelsNoOp() { renderPlayerPanels(); }
@@ -2231,7 +2230,7 @@ function openPreconBrowser() {
 }
 
 // ============================================================
-// DOM UTILITY — updateCardCounterBadge
+// DOM UTILITY â€” updateCardCounterBadge
 // ============================================================
 function updateCardCounterBadge(cardId) {
   if (!gameState) return;
@@ -2265,7 +2264,7 @@ function updateCardCounterBadge(cardId) {
 }
 
 // ============================================================
-// DOM — toggleTap visual update
+// DOM â€” toggleTap visual update
 // ============================================================
 function _refreshCardEl(cardId) {
   if (!gameState) return;
@@ -2278,7 +2277,7 @@ function _refreshCardEl(cardId) {
 }
 
 // ============================================================
-// DOMContentLoaded — wire up everything
+// DOMContentLoaded â€” wire up everything
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   initSetupScreen();
