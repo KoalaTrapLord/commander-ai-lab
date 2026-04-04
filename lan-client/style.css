@@ -68,8 +68,8 @@
   /* Card dimensions */
   --card-w: 63px;
   --card-h: 88px;
-  --bf-card-w: 100px;
-  --bf-card-h: 140px;
+  --bf-card-w: 63px;
+  --bf-card-h: 84px;
   --zone-radius: 8px;
 
   /* Game UI colors */
@@ -639,9 +639,79 @@ input { font-family: inherit; }
 .p3 .player-label { bottom: 6px; left: 6px; color: var(--p3-text); background: var(--p3-soft); }
 .p4 .player-label { bottom: 6px; right: 6px; color: var(--p4-text); background: var(--p4-soft); }
 
-/* Life counters */
-.life-counter {
+/* Life Panels Overlay — sits above everything */
+#life-panels-overlay {
   position: absolute;
+  inset: 44px 0 0 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.life-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 130px;
+  pointer-events: auto;
+}
+
+/* Position each panel near the center crossing */
+.lp-p1 { bottom: calc(50% + 4px); right: calc(50% + 4px); }
+.lp-p2 { bottom: calc(50% + 4px); left: calc(50% + 4px); }
+.lp-p3 { top: calc(50% + 4px); right: calc(50% + 4px); }
+.lp-p4 { top: calc(50% + 4px); left: calc(50% + 4px); }
+
+.life-panel-box {
+  border-radius: 4px;
+  padding: 3px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.life-panel-label {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+  flex-shrink: 0;
+}
+
+/* Top box: Life */
+.life-box {
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* Middle box: Commander Damage */
+.cmd-dmg-box {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.08);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.cmd-dmg-inline-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  font-size: 9px;
+  color: rgba(255,255,255,0.5);
+}
+
+/* Bottom box: Counters (poison, etc.) */
+.counters-box {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* Life counters (now inside life-panel) */
+.life-counter {
+  position: relative;
   z-index: 20;
   display: flex;
   align-items: center;
@@ -672,10 +742,10 @@ input { font-family: inherit; }
   color: rgba(255,255,255,0.8);
 }
 
-.p1 .life-counter { top: 6px; right: 6px; color: var(--p1-text); }
-.p2 .life-counter { top: 6px; left: 6px; color: var(--p2-text); }
-.p3 .life-counter { bottom: 6px; right: 6px; color: var(--p3-text); }
-.p4 .life-counter { bottom: 6px; left: 6px; color: var(--p4-text); }
+.lp-p1 .life-counter { color: var(--p1-text); }
+.lp-p2 .life-counter { color: var(--p2-text); }
+.lp-p3 .life-counter { color: var(--p3-text); }
+.lp-p4 .life-counter { color: var(--p4-text); }
 
 .life-counter-value {
   cursor: pointer;
@@ -683,39 +753,42 @@ input { font-family: inherit; }
 }
 .life-counter-value:hover { transform: scale(1.1); }
 
-/* Poison counter badge */
+/* Poison counter badge (now inside life-panel) */
 .poison-badge {
-  position: absolute;
-  z-index: 21;
+  position: relative;
   font-size: 10px;
   font-weight: 700;
   padding: 1px 5px;
   border-radius: var(--radius-full);
   cursor: pointer;
+  color: #c45fd6;
+  background: rgba(142,68,173,0.2);
+  border: 1px solid rgba(142,68,173,0.4);
 }
-.p1 .poison-badge { top: 30px; right: 6px; color: #c45fd6; background: rgba(142,68,173,0.2); border: 1px solid rgba(142,68,173,0.4); }
-.p2 .poison-badge { top: 30px; left: 6px; color: #c45fd6; background: rgba(142,68,173,0.2); border: 1px solid rgba(142,68,173,0.4); }
-.p3 .poison-badge { bottom: 30px; right: 6px; color: #c45fd6; background: rgba(142,68,173,0.2); border: 1px solid rgba(142,68,173,0.4); }
-.p4 .poison-badge { bottom: 30px; left: 6px; color: #c45fd6; background: rgba(142,68,173,0.2); border: 1px solid rgba(142,68,173,0.4); }
 
-/* Zone rows */
+/* Zone rows — overlaid on battlefield edge */
 .zone-row {
+  position: absolute;
+  z-index: 10;
   display: flex;
   align-items: center;
   gap: 4px;
-  flex-shrink: 0;
 }
-.p1 .zone-row, .p3 .zone-row { flex-direction: row; }
-.p2 .zone-row, .p4 .zone-row { flex-direction: row-reverse; }
+.p1 .zone-row { top: 6px; left: 6px; flex-direction: row; }
+.p2 .zone-row { top: 6px; right: 6px; flex-direction: row-reverse; }
+.p3 .zone-row { bottom: 6px; left: 6px; flex-direction: row; }
+.p4 .zone-row { bottom: 6px; right: 6px; flex-direction: row-reverse; }
 
-/* Commander row */
+/* Commander row — overlaid on battlefield edge */
 .commander-row {
+  position: absolute;
+  z-index: 10;
   display: flex;
-  flex-shrink: 0;
-  margin: 3px 0;
 }
-.p1 .commander-row, .p3 .commander-row { justify-content: flex-start; }
-.p2 .commander-row, .p4 .commander-row { justify-content: flex-end; }
+.p1 .commander-row { top: 6px; left: 6px; margin-top: calc(var(--card-h) + 10px); }
+.p2 .commander-row { top: 6px; right: 6px; margin-top: calc(var(--card-h) + 10px); }
+.p3 .commander-row { bottom: 6px; left: 6px; margin-bottom: calc(var(--card-h) + 10px); }
+.p4 .commander-row { bottom: 6px; right: 6px; margin-bottom: calc(var(--card-h) + 10px); }
 
 /* Battle zone */
 .battle-zone {
@@ -2547,8 +2620,8 @@ kbd {
   :root {
     --card-w: 42px;
     --card-h: 58px;
-    --bf-card-w: 72px;
-    --bf-card-h: 100px;
+    --bf-card-w: 42px;
+    --bf-card-h: 56px;
   }
   .player-label { font-size: 7px; letter-spacing: 1px; padding: 1px 5px; }
   .life-counter { font-size: 14px; }

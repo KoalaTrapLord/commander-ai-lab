@@ -67,15 +67,6 @@
   <div class="corner-accent bl"></div>
   <div class="corner-accent br"></div>
 
-  <!-- CENTER EMBLEM -->
-  <div class="center-emblem">
-    <svg viewBox="0 0 100 100" fill="none">
-      <circle cx="50" cy="50" r="42" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
-      <circle cx="50" cy="50" r="28" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-      <polygon points="50,15 58.5,37 82,37 63,51 69,74 50,60 31,74 37,51 18,37 41.5,37"
-               fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-    </svg>
-  </div>
 
   <!-- ================================================
        4-QUADRANT BATTLEFIELD
@@ -85,12 +76,6 @@
     <!-- PLAYER 1: Top-Left (Crimson) -->
     <div class="player-area p1" id="player-area-1">
       <span class="player-label" id="player-label-1">Player 1</span>
-      <div class="life-counter" id="life-counter-1">
-        <button onclick="adjustLife(0,-1)" aria-label="Decrease P1 life">&#x2212;</button>
-        <span class="life-counter-value" id="life-0" onclick="showSetLifeDialog(0)">40</span>
-        <button onclick="adjustLife(0,1)" aria-label="Increase P1 life">+</button>
-      </div>
-      <div class="poison-badge" id="poison-0" style="display:none;" onclick="adjustPoison(0,1)" title="Poison counters (click +1, right-click -1)" oncontextmenu="event.preventDefault();adjustPoison(0,-1)">0 poison</div>
 
       <!-- Zone Row: Library, Exile, Graveyard, Hand -->
       <div class="zone-row" id="zone-row-1">
@@ -139,12 +124,6 @@
     <!-- PLAYER 2: Top-Right (Sapphire) -->
     <div class="player-area p2" id="player-area-2">
       <span class="player-label" id="player-label-2">Player 2</span>
-      <div class="life-counter" id="life-counter-2">
-        <button onclick="adjustLife(1,-1)" aria-label="Decrease P2 life">&#x2212;</button>
-        <span class="life-counter-value" id="life-1" onclick="showSetLifeDialog(1)">40</span>
-        <button onclick="adjustLife(1,1)" aria-label="Increase P2 life">+</button>
-      </div>
-      <div class="poison-badge" id="poison-1" style="display:none;" onclick="adjustPoison(1,1)" oncontextmenu="event.preventDefault();adjustPoison(1,-1)">0 poison</div>
 
       <div class="zone-row" id="zone-row-2">
         <div class="zone library" id="lib-zone-2" data-player="2" data-zone="library"
@@ -229,12 +208,6 @@
       </div>
 
       <span class="player-label" id="player-label-3">Player 3</span>
-      <div class="life-counter" id="life-counter-3">
-        <button onclick="adjustLife(2,-1)" aria-label="Decrease P3 life">&#x2212;</button>
-        <span class="life-counter-value" id="life-2" onclick="showSetLifeDialog(2)">40</span>
-        <button onclick="adjustLife(2,1)" aria-label="Increase P3 life">+</button>
-      </div>
-      <div class="poison-badge" id="poison-2" style="display:none;" onclick="adjustPoison(2,1)" oncontextmenu="event.preventDefault();adjustPoison(2,-1)">0 poison</div>
     </div>
 
     <!-- PLAYER 4: Bottom-Right (Gold) -->
@@ -279,15 +252,88 @@
       </div>
 
       <span class="player-label" id="player-label-4">Player 4</span>
-      <div class="life-counter" id="life-counter-4">
-        <button onclick="adjustLife(3,-1)" aria-label="Decrease P4 life">&#x2212;</button>
-        <span class="life-counter-value" id="life-3" onclick="showSetLifeDialog(3)">40</span>
-        <button onclick="adjustLife(3,1)" aria-label="Increase P4 life">+</button>
-      </div>
-      <div class="poison-badge" id="poison-3" style="display:none;" onclick="adjustPoison(3,1)" oncontextmenu="event.preventDefault();adjustPoison(3,-1)">0 poison</div>
     </div>
 
   </div><!-- /.battlefield -->
+
+  <!-- LIFE PANELS OVERLAY (top-most layer) -->
+  <div id="life-panels-overlay">
+    <div class="life-panel lp-p1" id="life-panel-1">
+      <div class="life-panel-box life-box">
+        <span class="life-panel-label">Life</span>
+        <div class="life-counter" id="life-counter-1">
+          <button onclick="adjustLife(0,-1)" aria-label="Decrease P1 life">&#x2212;</button>
+          <span class="life-counter-value" id="life-0" onclick="showSetLifeDialog(0)">40</span>
+          <button onclick="adjustLife(0,1)" aria-label="Increase P1 life">+</button>
+        </div>
+      </div>
+      <div class="life-panel-box cmd-dmg-box" id="cmd-dmg-inline-0">
+        <span class="life-panel-label">Cmd Dmg</span>
+        <div class="cmd-dmg-inline-row">&#8212;</div>
+      </div>
+      <div class="life-panel-box counters-box">
+        <span class="life-panel-label">Counters</span>
+        <div class="poison-badge" id="poison-0" onclick="adjustPoison(0,1)" title="Poison counters (click +1, right-click -1)" oncontextmenu="event.preventDefault();adjustPoison(0,-1)">0 poison</div>
+      </div>
+    </div>
+
+    <div class="life-panel lp-p2" id="life-panel-2">
+      <div class="life-panel-box life-box">
+        <span class="life-panel-label">Life</span>
+        <div class="life-counter" id="life-counter-2">
+          <button onclick="adjustLife(1,-1)" aria-label="Decrease P2 life">&#x2212;</button>
+          <span class="life-counter-value" id="life-1" onclick="showSetLifeDialog(1)">40</span>
+          <button onclick="adjustLife(1,1)" aria-label="Increase P2 life">+</button>
+        </div>
+      </div>
+      <div class="life-panel-box cmd-dmg-box" id="cmd-dmg-inline-1">
+        <span class="life-panel-label">Cmd Dmg</span>
+        <div class="cmd-dmg-inline-row">&#8212;</div>
+      </div>
+      <div class="life-panel-box counters-box">
+        <span class="life-panel-label">Counters</span>
+        <div class="poison-badge" id="poison-1" onclick="adjustPoison(1,1)" oncontextmenu="event.preventDefault();adjustPoison(1,-1)">0 poison</div>
+      </div>
+    </div>
+
+    <div class="life-panel lp-p3" id="life-panel-3">
+      <div class="life-panel-box life-box">
+        <span class="life-panel-label">Life</span>
+        <div class="life-counter" id="life-counter-3">
+          <button onclick="adjustLife(2,-1)" aria-label="Decrease P3 life">&#x2212;</button>
+          <span class="life-counter-value" id="life-2" onclick="showSetLifeDialog(2)">40</span>
+          <button onclick="adjustLife(2,1)" aria-label="Increase P3 life">+</button>
+        </div>
+      </div>
+      <div class="life-panel-box cmd-dmg-box" id="cmd-dmg-inline-2">
+        <span class="life-panel-label">Cmd Dmg</span>
+        <div class="cmd-dmg-inline-row">&#8212;</div>
+      </div>
+      <div class="life-panel-box counters-box">
+        <span class="life-panel-label">Counters</span>
+        <div class="poison-badge" id="poison-2" onclick="adjustPoison(2,1)" oncontextmenu="event.preventDefault();adjustPoison(2,-1)">0 poison</div>
+      </div>
+    </div>
+
+    <div class="life-panel lp-p4" id="life-panel-4">
+      <div class="life-panel-box life-box">
+        <span class="life-panel-label">Life</span>
+        <div class="life-counter" id="life-counter-4">
+          <button onclick="adjustLife(3,-1)" aria-label="Decrease P4 life">&#x2212;</button>
+          <span class="life-counter-value" id="life-3" onclick="showSetLifeDialog(3)">40</span>
+          <button onclick="adjustLife(3,1)" aria-label="Increase P4 life">+</button>
+        </div>
+      </div>
+      <div class="life-panel-box cmd-dmg-box" id="cmd-dmg-inline-3">
+        <span class="life-panel-label">Cmd Dmg</span>
+        <div class="cmd-dmg-inline-row">&#8212;</div>
+      </div>
+      <div class="life-panel-box counters-box">
+        <span class="life-panel-label">Counters</span>
+        <div class="poison-badge" id="poison-3" onclick="adjustPoison(3,1)" oncontextmenu="event.preventDefault();adjustPoison(3,-1)">0 poison</div>
+      </div>
+    </div>
+  </div>
 
   <!-- COMBAT SVG OVERLAY (arrows) -->
   <svg id="combat-overlay" xmlns="http://www.w3.org/2000/svg" style="position:absolute;inset:44px 0 0 0;pointer-events:none;z-index:30;">
