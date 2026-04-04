@@ -68,8 +68,8 @@
   /* Card dimensions */
   --card-w: 32px;
   --card-h: 44px;
-  --hand-card-w: 64px;
-  --hand-card-h: 90px;
+  --hand-card-w: 128px;
+  --hand-card-h: 180px;
   --bf-card-w: 100px;
   --bf-card-h: 140px;
   --zone-radius: 8px;
@@ -2549,8 +2549,8 @@ kbd {
   :root {
     --card-w: 21px;
     --card-h: 29px;
-    --hand-card-w: 42px;
-    --hand-card-h: 58px;
+    --hand-card-w: 84px;
+    --hand-card-h: 116px;
     --bf-card-w: 72px;
     --bf-card-h: 100px;
   }
