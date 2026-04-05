@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Commander AI Lab — Deck Builder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="global.css" />
+    <link rel="stylesheet" href="deckbuilder.css" />
+    <style>
+      /* No nav bar when embedded in LAN client iframe */
+      :root { --nav-height: 0px; }
+    </style>
+</head>
+<body>
+    <!-- nav.js removed — deck builder is embedded via iframe in the LAN client -->
+
+    <div id="deck-builder-page">
+
+        <!-- TOP BAR -->
+        <header class="deck-topbar">
+            <div class="deck-topbar-commander">
+                <div class="deck-commander-portrait" id="deck-commander-portrait">
+                    <span class="deck-commander-portrait-placeholder">⚔</span>
+                    <img class="deck-commander-portrait-img" id="deck-commander-img" src="" alt="" style="display:none" />
+                </div>
+                <div class="deck-name-block">
+                    <input
+                        type="text"
+                        class="deck-name-input"
+                        id="deck-name-input"
+                        placeholder="Untitled Deck"
+                        value=""
+                    />
+                    <div class="deck-commander-label" id="deck-commander-label">No commander selected</div>
+                </div>
+                <div class="deck-color-chips" id="deck-color-chips"></div>
+            </div>
+
+            <div class="deck-topbar-center">
+                <div class="deck-count-display">
+                    <span class="deck-count-num" id="deck-total-count">0</span>
+                    <span class="deck-count-sep">/</span>
+                    <span class="deck-count-target">100</span>
+                    <span class="deck-count-label">cards</span>
+                </div>
+                <button class="deck-btn deck-btn-ghost" id="deck-new-btn">+ New Deck</button>
+                <div class="deck-selector-wrap">
+                    <select class="deck-selector" id="deck-selector">
+                        <option value="">— Select Deck —</option>
+                    </select>
+                </div>
+                <button class="deck-btn deck-btn-danger" id="deck-delete-btn" title="Delete this deck" style="display:none;">✕ Delete</button>
+                <button class="deck-btn deck-btn-danger-outline" id="deck-clear-all-btn" title="Delete all decks">Clear All</button>
+            </div>
+
+            <div class="deck-topbar-actions">
+                <button class="deck-btn deck-btn-import" id="deck-import-btn" title="Import a decklist">
+                    <span>⬆</span> Import
+                </button>
+                <button class="deck-btn deck-btn-ghost" id="deck-export-btn" title="Export as .dck file">
+                    <span>⬇</span> Export .dck
+                </button>
+                <button class="deck-btn deck-btn-ghost" id="deck-export-sim-btn" title="Export deck as .dck to Forge sim folder">
+                    <span>&#x1F4E4;</span> Export to Sim
+                </button>
+                <button class="deck-btn deck-btn-ghost" id="deck-export-game-btn" title="Send deck to LAN game setup" style="border-color:rgba(91,141,217,0.4);color:rgba(91,141,217,0.9);">
+                    <span>&#x1F3AE;</span> Use in Game
+                </button>
+                <button class="deck-btn deck-btn-sim" id="deck-sim-btn" title="Run quick simulation">
+                    <span class="deck-btn-icon">▶</span> Run Simulation
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN 3-COLUMN LAYOUT -->
+        <main class="deck-main">
+
+            <!-- LEFT COLUMN: Collection Search -->
+            <aside class="deck-col-left">
+                <div class="deck-panel deck-panel-search">
+                    <div class="deck-panel-header">
+                        <span class="deck-panel-title">Collection Search</span>
+                        <span class="deck-search-count" id="deck-search-count">0 results</span>
+                    </div>
+
+                    <div class="deck-search-bar-wrap">
+                        <input
+                            type="search"
+                            class="deck-search-bar"
+                            id="deck-search-bar"
+                            placeholder="Search cards..."
+                            autocomplete="off"
+                        />
+                        <span class="deck-search-icon">🔍</span>
+                    </div>
+
+                    <div class="deck-filter-row">
+                        <select class="deck-filter-select" id="deck-type-filter">
+                            <option value="">All Types</option>
+                            <option value="Land">Land</option>
+                            <option value="Creature">Creature</option>
+                            <option value="Instant">Instant</option>
+                            <option value="Sorcery">Sorcery</option>
+                            <option value="Artifact">Artifact</option>
+                            <option value="Enchantment">Enchantment</option>
+                            <option value="Planeswalker">Planeswalker</option>
+                        </select>
+                        <div class="deck-cmc-filter">
+                            <input type="number" class="deck-cmc-input" id="deck-cmc-min" placeholder="0" min="0" max="20" />
+                            <span class="deck-cmc-sep">–</span>
+                            <input type="number" class="deck-cmc-input" id="deck-cmc-max" placeholder="∞" min="0" max="20" />
+                        </div>
+                    </div>
+
+                    <div class="deck-color-filter-row" id="deck-color-filter">
+                        <button class="deck-color-pip deck-color-W" data-color="W" title="White">W</button>
+                        <button class="deck-color-pip deck-color-U" data-color="U" title="Blue">U</button>
+                        <button class="deck-color-pip deck-color-B" data-color="B" title="Black">B</button>
+                        <button class="deck-color-pip deck-color-R" data-color="R" title="Red">R</button>
+                        <button class="deck-color-pip deck-color-G" data-color="G" title="Green">G</button>
+                        <button class="deck-color-pip deck-color-C" data-color="C" title="Colorless">C</button>
+                    </div>
+
+                    <!-- Results list -->
+                    <div class="deck-search-results" id="deck-search-results">
+                        <div class="deck-empty-state">
+                            <div class="deck-empty-icon">🃏</div>
+                            <div class="deck-empty-text">Search your collection to add cards</div>
+                        </div>
+                    </div>
+
+                    <div class="deck-search-footer">
+                        <button class="deck-btn deck-btn-success deck-btn-full" id="deck-add-all-owned-btn" style="display:none">
+                            Add All Matching (Owned)
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- CENTER COLUMN: Deck Card List -->
+            <section class="deck-col-center">
+                <div class="deck-panel deck-panel-cards" id="deck-card-list-panel">
+                    <div class="deck-panel-header deck-card-list-header">
+                        <span class="deck-panel-title">Deck Contents</span>
+                        <div class="deck-card-list-actions">
+                            <span class="deck-card-list-meta" id="deck-card-list-meta">Select or create a deck</span>
+                        </div>
+                    </div>
+
+                    <!-- Card groups by type -->
+                    <div class="deck-card-groups" id="deck-card-groups">
+                        <div class="deck-empty-state deck-empty-state-lg">
+                            <div class="deck-empty-icon">⚔</div>
+                            <div class="deck-empty-text">Create or select a deck to start building</div>
+                            <button class="deck-btn deck-btn-accent" id="deck-empty-new-btn">+ New Deck</button>
+                        </div>
+                    </div>
+
+                    <!-- Quick add by name -->
+                    <div class="deck-quickadd-row" id="deck-quickadd-row" style="display:none">
+                        <div class="deck-quickadd-wrap">
+                            <input
+                                type="text"
+                                class="deck-quickadd-input"
+                                id="deck-quickadd-input"
+                                placeholder="Add card by name..."
+                                autocomplete="off"
+                            />
+                            <div class="deck-quickadd-dropdown" id="deck-quickadd-dropdown" style="display:none"></div>
+                        </div>
+                        <button class="deck-btn deck-btn-accent-sm" id="deck-quickadd-btn">Add</button>
+                    </div>
+
+                    <!-- Deck stats footer -->
+                    <div class="deck-stats-footer" id="deck-stats-footer" style="display:none">
+                        <div class="deck-stat-pill">
+                            <span class="deck-stat-pill-num" id="deck-footer-total">0</span>
+                            <span class="deck-stat-pill-label">total</span>
+                        </div>
+                        <div class="deck-stat-pill">
+                            <span class="deck-stat-pill-num deck-stat-owned" id="deck-footer-owned">0</span>
+                            <span class="deck-stat-pill-label">owned</span>
+                        </div>
+                        <div class="deck-stat-pill">
+                            <span class="deck-stat-pill-num" id="deck-footer-avg-cmc">0.0</span>
+                            <span class="deck-stat-pill-label">avg CMC</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RIGHT COLUMN: EDH Advisor -->
+            <aside class="deck-col-right">
+
+                <!-- Ratio Dashboard -->
+                <div class="deck-panel deck-panel-ratios" id="deck-ratio-panel">
+                    <div class="deck-panel-header deck-panel-header-collapsible" data-target="deck-ratio-body">
+                        <span class="deck-panel-title">📊 Ratio Dashboard</span>
+                        <span class="deck-collapse-arrow">▼</span>
+                    </div>
+                    <div class="deck-panel-body" id="deck-ratio-body">
+                        <div class="deck-ratio-bars" id="deck-ratio-bars">
+                            <div class="deck-ratio-placeholder">Load a deck to see ratios</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fix My Ratios -->
+                <div class="deck-panel deck-panel-fix" id="deck-fix-panel">
+                    <div class="deck-panel-header deck-panel-header-collapsible" data-target="deck-fix-body">
+                        <span class="deck-panel-title">🔧 Fix My Ratios</span>
+                        <span class="deck-collapse-arrow">▼</span>
+                    </div>
+                    <div class="deck-panel-body" id="deck-fix-body">
+                        <div class="deck-shortfalls" id="deck-shortfalls">
+                            <div class="deck-ratio-placeholder">No analysis available</div>
+                        </div>
+                        <div class="deck-fix-actions" id="deck-fix-actions" style="display:none">
+                            <button class="deck-btn deck-btn-ghost deck-btn-full" id="deck-autosuggest-btn">
+                                ⚡ Auto-suggest from Collection
+                            </button>
+                        </div>
+                        <div class="deck-fix-suggestions" id="deck-fix-suggestions" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- EDHREC Recommendations -->
+                <div class="deck-panel deck-panel-edhrec" id="deck-edhrec-panel">
+                    <div class="deck-panel-header deck-panel-header-collapsible" data-target="deck-edhrec-body">
+                        <span class="deck-panel-title">✨ EDHREC Recs</span>
+                        <span class="deck-collapse-arrow">▼</span>
+                    </div>
+                    <div class="deck-panel-body" id="deck-edhrec-body">
+                        <div class="deck-edhrec-controls">
+                            <label class="deck-toggle-label">
+                                <input type="checkbox" class="deck-toggle-check" id="deck-edhrec-owned-only" />
+                                <span class="deck-toggle-track"><span class="deck-toggle-thumb"></span></span>
+                                Owned Only
+                            </label>
+                            <button class="deck-btn deck-btn-ghost deck-btn-sm" id="deck-edhrec-refresh-btn">
+                                ↺ Refresh
+                            </button>
+                        </div>
+                        <div class="deck-edhrec-list" id="deck-edhrec-list">
+                            <div class="deck-ratio-placeholder">Load a deck to see recommendations</div>
+                        </div>
+                        <div class="deck-edhrec-bulk" id="deck-edhrec-bulk" style="display:none">
+                            <button class="deck-btn deck-btn-success deck-btn-full" id="deck-edhrec-bulk-owned-btn">
+                                Add All Owned (respect ratios)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Research (Perplexity) — hidden until pplx status check -->
+                <div class="deck-panel deck-panel-ai" id="deck-ai-research-panel" style="display:none">
+                    <div class="deck-panel-header deck-panel-header-collapsible" data-target="deck-ai-research-body">
+                        <span class="deck-panel-title">🧠 AI Research</span>
+                        <span class="deck-collapse-arrow">▼</span>
+                    </div>
+                    <div class="deck-panel-body" id="deck-ai-research-body">
+                        <div class="deck-ai-controls">
+                            <div class="deck-form-field deck-form-field-sm">
+                                <label class="deck-form-label-sm">Analysis Goal</label>
+                                <input type="text" class="deck-form-input deck-form-input-sm" id="ai-research-goal" 
+                                       placeholder="Identify weaknesses and suggest upgrades" />
+                            </div>
+                            <div class="deck-ai-row">
+                                <div class="deck-form-field deck-form-field-sm deck-form-field-half">
+                                    <label class="deck-form-label-sm">Budget ($)</label>
+                                    <input type="number" class="deck-form-input deck-form-input-sm" id="ai-research-budget" 
+                                           placeholder="No limit" min="0" step="10" />
+                                </div>
+                                <label class="deck-toggle-label deck-toggle-label-sm">
+                                    <input type="checkbox" class="deck-toggle-check" id="ai-research-use-collection" checked />
+                                    <span class="deck-toggle-track"><span class="deck-toggle-thumb"></span></span>
+                                    Use Collection
+                                </label>
+                            </div>
+                            <div class="deck-form-field deck-form-field-sm">
+                                <label class="deck-form-label-sm">Omit Cards (comma-separated)</label>
+                                <input type="text" class="deck-form-input deck-form-input-sm" id="ai-research-omit" 
+                                       placeholder="Dockside Extortionist, Rhystic Study" />
+                            </div>
+                            <button class="deck-btn deck-btn-ai deck-btn-full" id="ai-research-btn" disabled>
+                                🔍 Analyze Deck
+                            </button>
+                        </div>
+                        <div class="deck-ai-loading" id="ai-research-loading" style="display:none">
+                            <div class="deck-ai-spinner"></div>
+                            <span>Analyzing with Claude Opus...</span>
+                        </div>
+                        <div class="deck-ai-results" id="ai-research-results" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- AI Deck Generate (Perplexity) — hidden until pplx status check -->
+                <div class="deck-panel deck-panel-ai" id="deck-ai-generate-panel" style="display:none">
+                    <div class="deck-panel-header deck-panel-header-collapsible" data-target="deck-ai-generate-body">
+                        <span class="deck-panel-title">✨ AI Generate Deck</span>
+                        <span class="deck-collapse-arrow">▼</span>
+                    </div>
+                    <div class="deck-panel-body" id="deck-ai-generate-body">
+                        <div class="deck-ai-controls">
+                            <div class="deck-form-field deck-form-field-sm">
+                                <label class="deck-form-label-sm">Commander</label>
+                                <div class="deck-ai-commander-wrap">
+                                    <input type="text" class="deck-form-input deck-form-input-sm" id="ai-gen-commander" 
+                                           placeholder="Search for a commander..." autocomplete="off" />
+                                    <div class="deck-ai-commander-dropdown" id="ai-gen-commander-dropdown" style="display:none"></div>
+                                </div>
+                            </div>
+                            <div class="deck-ai-row">
+                                <div class="deck-form-field deck-form-field-sm deck-form-field-half">
+                                    <label class="deck-form-label-sm">Budget ($)</label>
+                                    <input type="number" class="deck-form-input deck-form-input-sm" id="ai-gen-budget" 
+                                           placeholder="No limit" min="0" step="10" />
+                                </div>
+                                <label class="deck-toggle-label deck-toggle-label-sm">
+                                    <input type="checkbox" class="deck-toggle-check" id="ai-gen-use-collection" checked />
+                                    <span class="deck-toggle-track"><span class="deck-toggle-thumb"></span></span>
+                                    Use Collection
+                                </label>
+                            </div>
+                            <div class="deck-form-field deck-form-field-sm">
+                                <label class="deck-form-label-sm">Omit Cards (comma-separated)</label>
+                                <input type="text" class="deck-form-input deck-form-input-sm" id="ai-gen-omit" 
+                                       placeholder="Rhystic Study, Cyclonic Rift" />
+                            </div>
+                            <button class="deck-btn deck-btn-ai deck-btn-full" id="ai-gen-btn">
+                                ✨ Generate Full Deck
+                            </button>
+                        </div>
+                        <div class="deck-ai-loading" id="ai-gen-loading" style="display:none">
+                            <div class="deck-ai-spinner"></div>
+                            <span>Generating deck with Claude Opus...</span>
+                        </div>
+                        <div class="deck-ai-results" id="ai-gen-results" style="display:none"></div>
+                    </div>
+                </div>
+
+            </aside>
+        </main>
+
+        <!-- CARD PREVIEW TOOLTIP -->
+        <div class="deck-card-preview" id="deck-card-preview" style="display:none">
+            <img class="deck-card-preview-img" id="deck-card-preview-img" src="" alt="" />
+        </div>
+
+        <!-- TOAST CONTAINER -->
+        <div class="deck-toast-container" id="deck-toast-container"></div>
+
+        <!-- CONFIRM MODAL -->
+        <div class="deck-modal-overlay" id="deck-confirm-modal" style="display:none">
+            <div class="deck-modal">
+                <div class="deck-modal-header">
+                    <h3 class="deck-modal-title" id="deck-confirm-title">Confirm Action</h3>
+                    <button class="deck-modal-close-btn" id="deck-confirm-close">✕</button>
+                </div>
+                <div class="deck-modal-body">
+                    <p class="deck-confirm-message" id="deck-confirm-message"></p>
+                    <div class="deck-confirm-changes" id="deck-confirm-changes"></div>
+                </div>
+                <div class="deck-modal-footer">
+                    <button class="deck-btn deck-btn-ghost" id="deck-confirm-cancel">Cancel</button>
+                    <button class="deck-btn deck-btn-accent" id="deck-confirm-ok">Confirm</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW DECK MODAL -->
+        <div class="deck-modal-overlay" id="deck-new-modal" style="display:none">
+            <div class="deck-modal">
+                <div class="deck-modal-header">
+                    <h3 class="deck-modal-title">Create New Deck</h3>
+                    <button class="deck-modal-close-btn" id="deck-new-modal-close">✕</button>
+                </div>
+                <div class="deck-modal-body">
+                    <div class="deck-form-field">
+                        <label class="deck-form-label">Deck Name</label>
+                        <input type="text" class="deck-form-input" id="deck-new-name" placeholder="My Commander Deck" />
+                    </div>
+                    <div class="deck-form-field">
+                        <label class="deck-form-label">Commander (optional)</label>
+                        <div class="deck-commander-search-wrap">
+                            <input
+                                type="text"
+                                class="deck-form-input"
+                                id="deck-new-commander-search"
+                                placeholder="Search Scryfall for commander..."
+                                autocomplete="off"
+                            />
+                            <div class="deck-commander-dropdown" id="deck-new-commander-dropdown" style="display:none"></div>
+                        </div>
+                        <div class="deck-new-commander-selected" id="deck-new-commander-selected" style="display:none">
+                            <span class="deck-selected-commander-name" id="deck-new-commander-name"></span>
+                            <button class="deck-clear-commander-btn" id="deck-clear-commander-btn">✕</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="deck-modal-footer">
+                    <button class="deck-btn deck-btn-ghost" id="deck-new-cancel">Cancel</button>
+                    <button class="deck-btn deck-btn-accent" id="deck-new-create">Create Deck</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- IMPORT MODAL -->
+        <div class="deck-modal-overlay" id="deck-import-modal" style="display:none">
+            <div class="deck-modal deck-modal-wide">
+                <div class="deck-modal-header">
+                    <h3 class="deck-modal-title">Import Decklist</h3>
+                    <button class="deck-modal-close-btn" id="deck-import-modal-close">✕</button>
+                </div>
+                <div class="deck-modal-body">
+                    <div class="deck-import-tabs">
+                        <button class="deck-import-tab active" data-tab="paste">Paste Text</button>
+                        <button class="deck-import-tab" data-tab="file">Upload File</button>
+                    </div>
+
+                    <div id="deck-import-paste-panel" class="deck-import-panel">
+                        <textarea id="deck-import-textarea" rows="14" placeholder="Paste your decklist here...
+
+Supported formats:
+  [Commander]
+  1 Korvold, Fae-Cursed King
+
+  [Deck]
+  1 Sol Ring
+  1 Cultivate
+  37 Forest
+
+Or plain list:
+  Sol Ring
+  Cultivate
+  Forest"></textarea>
+                    </div>
+
+                    <div id="deck-import-file-panel" class="deck-import-panel" style="display:none">
+                        <div class="deck-import-dropzone" id="deck-import-dropzone">
+                            <div class="deck-import-dropzone-label">Drop a .dck or .txt file here, or click to browse</div>
+                            <input type="file" id="deck-import-file" accept=".dck,.txt,.dec,.mwDeck" style="display:none" />
+                        </div>
+                        <div class="deck-import-file-info" id="deck-import-file-name"></div>
+                    </div>
+
+                    <div class="deck-import-options">
+                        <label class="deck-import-option-label">
+                            <input type="radio" name="import-mode" value="new" checked /> Create new deck
+                        </label>
+                        <label class="deck-import-option-label">
+                            <input type="radio" name="import-mode" value="add" /> Add to current deck
+                        </label>
+                        <label class="deck-import-option-label">
+                            <input type="radio" name="import-mode" value="replace" /> Replace current deck cards
+                        </label>
+                    </div>
+
+                    <div id="deck-import-new-name-row" class="deck-import-name-row">
+                        <label>Deck name (optional):</label>
+                        <input type="text" id="deck-import-name" placeholder="Auto-detected from commander" />
+                    </div>
+
+                    <div class="deck-import-progress-wrap" id="deck-import-progress" style="display:none">
+                        <div class="deck-import-progress-label">Importing cards (Scryfall lookup)...</div>
+                        <div class="deck-import-progress-track">
+                            <div class="deck-import-progress-fill" id="deck-import-progress-bar"></div>
+                        </div>
+                    </div>
+
+                    <div id="deck-import-result" style="display:none"></div>
+                </div>
+                <div class="deck-modal-footer">
+                    <button class="deck-btn deck-btn-ghost" id="deck-import-cancel">Cancel</button>
+                    <button class="deck-btn deck-btn-accent" id="deck-import-go">Import</button>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /#deck-builder-page -->
+
+    <script>
+      // Set API base URL — when served from a different host, override this value
+      window.LAB_API_BASE = window.LAB_API_BASE || '';
+    </script>
+    <script src="deckbuilder.js"></script>
+    <!-- Card Preview Popup (hover tooltip) -->
+    <div id="deck-card-preview" style="display:none; position:fixed; pointer-events:none; z-index:60;">
+        <img id="deck-card-preview-img" src="" alt="Card preview" style="width:220px; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.7);" />
+    </div>
+</body>
+</html>

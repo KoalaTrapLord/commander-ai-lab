@@ -214,6 +214,7 @@ async function _fetchScryfallBatch(names) {
       typeLine:   card.type_line   || '',
       oracleText: card.oracle_text || (card.card_faces && card.card_faces[0] ? card.card_faces[0].oracle_text : '') || '',
       manaCost:   card.mana_cost   || (card.card_faces && card.card_faces[0] ? card.card_faces[0].mana_cost : '') || '',
+      cmc:        card.cmc         || 0,
       power:      card.power       || '',
       toughness:  card.toughness   || '',
     };
@@ -221,7 +222,7 @@ async function _fetchScryfallBatch(names) {
 
   // Mark not-found cards so we don't re-fetch them on next enrichment
   for (const name of names) {
-    if (!_scryfallCache[name]) _scryfallCache[name] = { imageUrl: '', typeLine: '', oracleText: '', manaCost: '', power: '', toughness: '' };
+    if (!_scryfallCache[name]) _scryfallCache[name] = { imageUrl: '', typeLine: '', oracleText: '', manaCost: '', cmc: 0, power: '', toughness: '' };
   }
 }
 
@@ -236,8 +237,15 @@ function _applyScryfallDataToAllCards() {
           card.typeLine   = data.typeLine   || card.typeLine;
           card.oracleText = data.oracleText || card.oracleText;
           card.manaCost   = data.manaCost   || card.manaCost;
+          card.cmc        = data.cmc        || card.cmc || 0;
           if (data.power)     card.power     = data.power;
           if (data.toughness) card.toughness = data.toughness;
+
+          // Tag roles from oracle text so aiCategorizeHand works
+          const ot = (card.oracleText || '').toLowerCase();
+          if (!card.isRamp)      card.isRamp      = /search your library for a.*land|add \{|adds? one mana/i.test(ot);
+          if (!card.isRemoval)   card.isRemoval   = /destroy target|exile target|counter target spell/i.test(ot);
+          if (!card.isBoardWipe) card.isBoardWipe = /destroy all|exile all|all creatures get -/i.test(ot);
         }
       }
     }
@@ -246,11 +254,17 @@ function _applyScryfallDataToAllCards() {
       for (const card of gameState.battlefieldCards) {
         if (card.ownerIndex !== player.id) continue;
         const data = _scryfallCache[card.name];
-        if (data && !card.imageUrl) {
-          card.imageUrl   = data.imageUrl   || '';
+        if (data) {
+          if (!card.imageUrl) card.imageUrl = data.imageUrl || '';
           card.typeLine   = data.typeLine   || card.typeLine;
           card.oracleText = data.oracleText || card.oracleText;
           card.manaCost   = data.manaCost   || card.manaCost;
+          card.cmc        = data.cmc        || card.cmc || 0;
+
+          const ot = (card.oracleText || '').toLowerCase();
+          if (!card.isRamp)      card.isRamp      = /search your library for a.*land|add \{|adds? one mana/i.test(ot);
+          if (!card.isRemoval)   card.isRemoval   = /destroy target|exile target|counter target spell/i.test(ot);
+          if (!card.isBoardWipe) card.isBoardWipe = /destroy all|exile all|all creatures get -/i.test(ot);
         }
       }
     }

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Commander AI Lab — Auto Deck Generator V3</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="global.css" />
+    <link rel="stylesheet" href="deckgenerator.css" />
+    <style>
+      /* No nav bar when embedded in LAN client iframe */
+      :root { --nav-height: 0px; }
+    </style>
+</head>
+<body>
+    <!-- nav.js removed — deck generator is embedded via iframe in the LAN client -->
+
+    <div id="deckgen-page">
+
+        <!-- MAIN LAYOUT -->
+        <main class="dg-main">
+
+            <!-- LEFT: Configuration -->
+            <section class="dg-col-config">
+
+                <!-- Commander Search -->
+                <div class="dg-panel dg-panel-commander">
+                    <div class="dg-panel-header">
+                        <span class="dg-panel-title">Commander</span>
+                    </div>
+                    <div class="dg-panel-body">
+                        <div class="dg-commander-search-wrap">
+                            <input
+                                type="text"
+                                class="dg-input"
+                                id="dg-commander-input"
+                                placeholder="Search for a legendary creature..."
+                                autocomplete="off"
+                            />
+                            <div class="dg-commander-dropdown" id="dg-commander-dropdown"></div>
+                        </div>
+                        <div class="dg-commander-selected" id="dg-commander-selected" style="display:none">
+                            <div class="dg-commander-card">
+                                <button class="dg-commander-clear" id="dg-commander-clear" title="Clear commander">&times;</button>
+                                <img class="dg-commander-img" id="dg-commander-img" src="" alt="" />
+                                <div class="dg-commander-info">
+                                    <div class="dg-commander-name" id="dg-commander-name"></div>
+                                    <div class="dg-commander-type" id="dg-commander-type"></div>
+                                    <div class="dg-commander-colors" id="dg-commander-colors"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategy & Bracket -->
+                <div class="dg-panel">
+                    <div class="dg-panel-header">
+                        <span class="dg-panel-title">Strategy &amp; Power</span>
+                    </div>
+                    <div class="dg-panel-body">
+                        <input
+                            type="text"
+                            class="dg-input"
+                            id="dg-strategy"
+                            placeholder="e.g. zombie tokens, voltron, spellslinger..."
+                            title="Describe your deck strategy — the AI uses this to pick thematically aligned cards"
+                        />
+                        <div class="dg-bracket-row">
+                            <label class="dg-label">
+                                Target Bracket
+                                <span class="tip-icon" data-tip="B1 = precon-level casual. B2 = upgraded with synergies. B3 = high power with strong combos. B4 = cEDH with maximum optimization, fast mana, and instant-speed interaction.">?</span>
+                            </label>
+                            <div class="dg-bracket-btns" id="dg-bracket-btns">
+                                <button class="dg-bracket-btn" data-bracket="1" title="Casual — precon level">B1</button>
+                                <button class="dg-bracket-btn" data-bracket="2" title="Upgraded Casual">B2</button>
+                                <button class="dg-bracket-btn dg-bracket-active" data-bracket="3" title="High Power">B3</button>
+                                <button class="dg-bracket-btn" data-bracket="4" title="cEDH — maximum power">B4</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Deck Name -->
+                <div class="dg-panel">
+                    <div class="dg-panel-header">
+                        <span class="dg-panel-title">Deck Name</span>
+                    </div>
+                    <div class="dg-panel-body">
+                        <input
+                            type="text"
+                            class="dg-input"
+                            id="dg-deck-name"
+                            placeholder="Auto-generated from commander name"
+                        />
+                    </div>
+                </div>
+
+                <!-- Budget -->
+                <div class="dg-panel">
+                    <div class="dg-panel-header">
+                        <span class="dg-panel-title">Budget</span>
+                    </div>
+                    <div class="dg-panel-body">
+                        <div class="dg-budget-row">
+                            <input
+                                type="number"
+                                class="dg-input dg-input-narrow"
+                                id="dg-budget"
+                                placeholder="No limit"
+                                min="0"
+                                step="25"
+                            />
+                            <select class="dg-select" id="dg-budget-mode" title="Total Deck: caps the combined price of all 100 cards. Per Card Max: caps each individual card price.">
+                                <option value="total">Total Deck $</option>
+                                <option value="per_card">Per Card Max $</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Options -->
+                <div class="dg-panel">
+                    <div class="dg-panel-header">
+                        <span class="dg-panel-title">Options</span>
+                    </div>
+                    <div class="dg-panel-body">
+                        <label class="dg-toggle-row">
+                            <span class="dg-toggle-label">
+                                Use my collection
+                                <span class="tip-icon" data-tip="Prioritizes cards you already own before pulling from the full card pool. Saves money and ensures the deck is ready to play. Requires an imported collection.">?</span>
+                            </span>
+                            <input type="checkbox" class="dg-toggle-check" id="dg-use-collection" checked />
+                            <span class="dg-toggle-track"><span class="dg-toggle-thumb"></span></span>
+                        </label>
+                        <label class="dg-toggle-row">
+                            <span class="dg-toggle-label">
+                                Smart Substitution
+                                <span class="tip-icon" data-tip="When a suggested card isn't in your collection, automatically finds the closest functional replacement you do own. Keeps the deck playable without buying extra cards.">?</span>
+                            </span>
+                            <input type="checkbox" class="dg-toggle-check" id="dg-substitution" checked />
+                            <span class="dg-toggle-track"><span class="dg-toggle-thumb"></span></span>
+                        </label>
+                        <div class="dg-model-row">
+                            <label class="dg-label">
+                                AI Model
+                                <span class="tip-icon" data-tip="The local LLM used to generate the deck list. Larger models produce better card selections but are slower. Requires Ollama running locally with the selected model pulled.">?</span>
+                            </label>
+                            <select class="dg-select" id="dg-model">
+                                <option value="gpt-oss:20b" selected>gpt-oss:20b (Local Ollama)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Omit Cards (chips input) -->
+                <div class="dg-panel">
+                    <div class="dg-panel-header">
+                        <span class="dg-panel-title">Omit Cards</span>
+                    </div>
+                    <div class="dg-panel-body">
+                        <div class="dg-omit-wrap" id="dg-omit-wrap">
+                            <div class="dg-omit-chips" id="dg-omit-chips"></div>
+                            <input
+                                type="text"
+                                class="dg-input dg-omit-input"
+                                id="dg-omit-input"
+                                placeholder="Type a card name and press Enter…"
+                            />
+                        </div>
+                        <small class="dg-hint">Cards listed here will be excluded from the generated deck.</small>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="dg-actions">
+                    <button class="dg-btn dg-btn-preview" id="dg-preview-btn" disabled>
+                        <span class="dg-btn-icon">&#9889;</span> Generate Deck
+                    </button>
+                </div>
+
+                <!-- Conversation Log -->
+                <div id="dg-conversation-log" class="dg-conversation-log">
+                    <div class="dg-log-entry dg-log-info"><span class="dg-log-ts">[Ready]</span> Waiting for deck generation...</div>
+                </div>
+
+            </section>
+
+            <!-- RIGHT: Preview Results -->
+            <section class="dg-col-results">
+                <!-- Empty State -->
+                <div class="dg-empty-state" id="dg-empty-state">
+                    <div class="dg-empty-icon">&#9889;</div>
+                    <div class="dg-empty-title">V3 AI Deck Generator</div>
+                    <div class="dg-empty-text">Select a commander, set your bracket and strategy, then click "Generate Deck" to build a complete 100-card deck using Claude Opus with structured output.</div>
+                </div>
+
+                <!-- Loading State -->
+                <div class="dg-loading" id="dg-loading" style="display:none">
+                    <div class="dg-spinner"></div>
+                    <div class="dg-loading-text" id="dg-loading-text">Generating deck via Local AI...</div>
+                </div>
+                <div class="dg-progress-wrap" id="dg-progress-wrap" style="display:none">
+                    <div class="dg-progress-bar">
+                        <div class="dg-progress-fill" id="dg-progress-fill"></div>
+                    </div>
+                    <div class="dg-progress-meta">
+                        <span class="dg-progress-phase" id="dg-progress-phase"></span>
+                        <span class="dg-progress-elapsed" id="dg-progress-elapsed">0s elapsed</span>
+                    </div>
+                </div>
+
+                <!-- Results placeholder — rest generated dynamically by deckgenerator.js -->
+                <div class="dg-results" id="dg-results" style="display:none"></div>
+            </section>
+
+        </main>
+
+        <!-- TOAST CONTAINER -->
+        <div class="dg-toast-container" id="dg-toast-container"></div>
+
+    </div>
+
+    <script>
+      window.LAB_API_BASE = window.LAB_API_BASE || '';
+    </script>
+    <script src="deckgenerator.js"></script>
+</body>
+</html>

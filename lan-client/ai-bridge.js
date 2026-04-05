@@ -366,7 +366,11 @@ class GameStateBridge {
       seat_type: p.isAI
         ? this._mapAiProfile(gameState.aiDifficulty)
         : 'Human',
-      deck_name: p.commanderCardName || '',
+      deck_name: p.deckFileName || (
+        p.commanderCardName
+          ? p.commanderCardName.replace(/[^a-zA-Z0-9]/g, '_') + '.dck'
+          : ''
+      ),
       player_name: p.name,
     }));
 
@@ -394,11 +398,13 @@ class GameStateBridge {
    */
   _mapAiProfile(difficulty) {
     const map = {
-      easy: 'AI',
-      normal: 'AI Aggro',
-      hard: 'AI Control',
+      easy:    'AI',
+      normal:  'AI Midrange',
+      hard:    'AI Control',
+      combo:   'AI Combo',
+      aggro:   'AI Aggro',
     };
-    return map[difficulty] || 'AI';
+    return map[difficulty] || 'AI Midrange';
   }
 
   // ── Game State Serialization ──────────────────────────────
@@ -451,7 +457,10 @@ class GameStateBridge {
         // Zone contents — card names
         hand: p.zones.hand.map(c => c.name || 'Unknown'),
         hand_count: p.zones.hand.length,
-        battlefield: bfCards.map(c => ({
+        // Flat string list for the state encoder
+        battlefield: bfCards.map(c => c.name || 'Unknown'),
+        // Structured data for backend logic that needs detail
+        battlefield_detail: bfCards.map(c => ({
           name: c.name || 'Unknown',
           type: c.typeLine || '',
           power: c.power || '0',
@@ -488,7 +497,7 @@ class GameStateBridge {
 
     return {
       game_id: this._sessionGameId || '',
-      turn: gameState.turnCounter || 1,
+      turn: gameState.turnNumber || gameState.turnCounter || 1,
       phase: phaseMap[phaseId] || 'main_1',
       active_player: playerIdx,
       players: players,

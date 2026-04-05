@@ -141,8 +141,17 @@ class CardEmbeddingIndex:
             logger.error("Auto-download failed: %s", e)
             return None
 
-    def get_embedding(self, card_name: str) -> np.ndarray:
-        """Get embedding vector for a card name. Returns zero vector if not found."""
+    def get_embedding(self, card_name) -> np.ndarray:
+        """Get embedding vector for a card name. Returns zero vector if not found.
+
+        Accepts either a plain string or a dict with a 'name' key (defensive
+        against the LAN client sending structured battlefield objects).
+        """
+        # Handle dict objects from the LAN client's battlefield_detail
+        if isinstance(card_name, dict):
+            card_name = card_name.get('name', '')
+        if not card_name or not isinstance(card_name, str):
+            return self._zero_vec
         if not self._loaded:
             return self._zero_vec
         idx = self._name_to_idx.get(card_name.lower())
@@ -155,8 +164,11 @@ class CardEmbeddingIndex:
             return self._embeddings[idx]
         return self._zero_vec
 
-    def mean_pool_zone(self, card_names: List[str]) -> np.ndarray:
-        """Mean-pool embeddings for a list of card names (a game zone)."""
+    def mean_pool_zone(self, card_names: list) -> np.ndarray:
+        """Mean-pool embeddings for a list of card names (a game zone).
+
+        Each entry may be a plain string or a dict with a 'name' key.
+        """
         if not card_names:
             return self._zero_vec
         vectors = [self.get_embedding(name) for name in card_names]

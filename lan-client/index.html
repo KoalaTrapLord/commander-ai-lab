@@ -51,6 +51,9 @@
       <button class="btn-util" onclick="checkStateBasedActions()" title="Check State-Based Actions">SBA</button>
       <button class="btn-util" onclick="toggleSettingsPanel()" title="Settings">&#x2699;</button>
       <button class="btn-util" id="btn-search-toggle" onclick="document.getElementById('card-search-sidebar').classList.toggle('collapsed')" title="Card Search (S)">&#x1F50D;</button>
+      <button class="btn-util" id="btn-deckbuilder-toggle" onclick="toggleDeckBuilderPanel()" title="Deck Builder">&#x1F0CF;</button>
+      <button class="btn-util" id="btn-deckgen-toggle" onclick="toggleDeckGenPanel()" title="Auto Deck Generator">&#x26A1;</button>
+      <button class="btn-util" id="btn-collection-toggle" onclick="toggleCollectionPanel()" title="Collection">&#x1F4DA;</button>
     </div>
 
     <!-- Storm counter -->
@@ -688,8 +691,120 @@ document.addEventListener('DOMContentLoaded', function() {
         indicator.className = 'backend-status ' +
           (status.connected ? (status.modelLoaded ? 'connected-ml' : 'connected') : 'disconnected');
       }
+
+      // Wire up WebSocket push events from backend
+      AIBridge.connector.on('ai:decision', function(msg) {
+        if (!gameState || !msg.action) return;
+        var playerIdx = gameState.currentPlayerIndex;
+        var player = gameState.players[playerIdx];
+        if (player && player.isAI) {
+          AIBridge.MacroActionMapper.execute(msg.action, playerIdx, gameState, msg);
+        }
+      });
+
+      AIBridge.connector.on('state:snapshot', function(msg) {
+        if (typeof AI_BRIDGE_CONFIG !== 'undefined' && AI_BRIDGE_CONFIG.verbose) {
+          console.log('[WS] State snapshot received from backend');
+        }
+      });
     });
   }
+});
+</script>
+
+<!-- ====================================================
+     DECK BUILDER PANEL (iframe)
+     ==================================================== -->
+<div id="panel-deckbuilder" class="fullscreen-panel hidden">
+  <div class="fullscreen-panel-header">
+    <span>Deck Builder</span>
+    <button class="btn-util" onclick="toggleDeckBuilderPanel()" title="Close">&times;</button>
+  </div>
+  <iframe src="deckbuilder.html"
+          style="width:100%;height:calc(100vh - 36px);border:none;"
+          id="deckbuilder-iframe">
+  </iframe>
+</div>
+
+<div id="panel-collection" class="fullscreen-panel hidden">
+  <div class="fullscreen-panel-header">
+    <span>Collection</span>
+    <button class="btn-util" onclick="toggleCollectionPanel()" title="Close">&times;</button>
+  </div>
+  <iframe src="collection.html"
+          style="width:100%;height:calc(100vh - 36px);border:none;"
+          id="collection-iframe">
+  </iframe>
+</div>
+
+<div id="panel-deckgenerator" class="fullscreen-panel hidden">
+  <div class="fullscreen-panel-header">
+    <span>Auto Deck Generator</span>
+    <button class="btn-util" onclick="toggleDeckGenPanel()" title="Close">&times;</button>
+  </div>
+  <iframe src="deckgenerator.html"
+          style="width:100%;height:calc(100vh - 36px);border:none;"
+          id="deckgenerator-iframe">
+  </iframe>
+</div>
+
+<script>
+function toggleDeckBuilderPanel() {
+  var panel = document.getElementById('panel-deckbuilder');
+  if (panel) panel.classList.toggle('hidden');
+}
+
+function toggleDeckGenPanel() {
+  var panel = document.getElementById('panel-deckgenerator');
+  if (panel) panel.classList.toggle('hidden');
+}
+
+function toggleCollectionPanel() {
+  var panel = document.getElementById('panel-collection');
+  if (panel) panel.classList.toggle('hidden');
+}
+
+// Listen for deck exports from the deck builder iframe
+window.addEventListener('message', function(e) {
+  if (!e.data || e.data.type !== 'DECK_BUILDER_EXPORT') return;
+
+  var deckData = e.data;
+  // Build a decklist text string compatible with importDeckForPlayer()
+  var lines = [];
+  var commanders = deckData.deck.filter(function(c) { return c.is_commander; });
+  var nonCmd = deckData.deck.filter(function(c) { return !c.is_commander; });
+
+  if (commanders.length > 0) {
+    lines.push('[Commander]');
+    commanders.forEach(function(c) { lines.push('1 ' + c.name); });
+    lines.push('');
+  }
+  lines.push('[Deck]');
+  nonCmd.forEach(function(c) { lines.push((c.quantity || 1) + ' ' + c.name); });
+
+  // Store on window for the setup screen to pick up
+  window._pendingDeckImport = {
+    text: lines.join('\n'),
+    deckName: deckData.deckName || 'Imported Deck',
+    commander: deckData.commander || '',
+  };
+
+  // If a game is in progress, import into current player's slot
+  if (typeof gameState !== 'undefined' && gameState && typeof importDeckForPlayer === 'function') {
+    var playerIdx = gameState.currentPlayerIndex || 0;
+    importDeckForPlayer(playerIdx, window._pendingDeckImport.text).then(function() {
+      if (typeof renderHandArea === 'function') renderHandArea();
+      if (typeof renderPlayerPanels === 'function') renderPlayerPanels();
+      if (typeof addLogEntry === 'function') {
+        addLogEntry('Imported deck "' + window._pendingDeckImport.deckName + '" from Deck Builder');
+      }
+    });
+  } else if (typeof addLogEntry === 'function') {
+    addLogEntry('Deck "' + window._pendingDeckImport.deckName + '" ready — start a game to use it.');
+  }
+
+  // Close the deck builder panel
+  toggleDeckBuilderPanel();
 });
 </script>
 

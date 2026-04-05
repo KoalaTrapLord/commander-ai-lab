@@ -150,23 +150,13 @@ function updateZoneCountsForPlayer(playerIdx) {
   const libCount = document.getElementById('lib-count-' + pNum);
   if (libCount) libCount.textContent = player.zones.library.length;
 
-  // Update exile count
-  const exCount = document.getElementById('exile-count-' + pNum);
-  if (exCount) {
-    exCount.textContent = player.zones.exile.length;
-    exCount.style.display = player.zones.exile.length > 0 ? 'block' : 'none';
-  }
-
-  // Update graveyard count
-  const gvCount = document.getElementById('gv-count-' + pNum);
-  if (gvCount) {
-    gvCount.textContent = player.zones.graveyard.length;
-    gvCount.style.display = player.zones.graveyard.length > 0 ? 'block' : 'none';
-  }
-
   // Update hand count
   const handCount = document.getElementById('hand-count-' + pNum);
   if (handCount) handCount.textContent = player.zones.hand.length;
+
+  // Exile + Graveyard: render last card image face-up
+  renderLastCardInZone(playerIdx, 'exile');
+  renderLastCardInZone(playerIdx, 'graveyard');
 }
 
 function updatePlayerZones() {
@@ -214,6 +204,50 @@ function renderCommanderZone(playerIdx) {
     zoneEl.innerHTML =
       '<span class="zone-icon" style="color:var(--p' + pNum + '-text)">&#x1F451;</span>' +
       '<span class="zone-name">Commander</span>';
+  }
+}
+
+// ============================================================
+// EXILE / GRAVEYARD — Show last card image face-up
+// ============================================================
+function renderLastCardInZone(playerIdx, zoneName) {
+  if (!gameState) return;
+  const player = gameState.players[playerIdx];
+  if (!player) return;
+  const pNum = playerIdx + 1;
+
+  const zoneIdPrefix = (zoneName === 'exile') ? 'exile-zone-' : 'gv-zone-';
+  const zoneEl = document.getElementById(zoneIdPrefix + pNum);
+  if (!zoneEl) return;
+
+  const cards = player.zones[zoneName] || [];
+  const lastCard = cards[cards.length - 1]; // most recently added card
+
+  if (lastCard && lastCard.imageUrl) {
+    const safeImg = (lastCard.imageUrl || '').replace(/'/g, "\\'");
+    const safeName = (lastCard.name || '').replace(/'/g, "\\'");
+    const safeType = (lastCard.typeLine || '').replace(/'/g, "\\'");
+    zoneEl.innerHTML =
+      '<img src="' + safeImg + '" alt="' + (lastCard.name || zoneName) + '" ' +
+      'style="width:100%;height:100%;object-fit:cover;border-radius:6px;" ' +
+      'onmouseenter="showFloatingCardPreview(\'' + safeImg + '\', event, {name:\'' + safeName + '\', typeLine:\'' + safeType + '\'})" ' +
+      'onmousemove="positionFloatingPreview(event)" ' +
+      'onmouseleave="hideFloatingCardPreview()" ' +
+      'draggable="false" />';
+    // Always show count badge on top
+    if (cards.length > 0) {
+      zoneEl.innerHTML += '<span class="card-count" id="' + (zoneName === 'exile' ? 'exile' : 'gv') + '-count-' + pNum + '" ' +
+        'style="display:block;">' + cards.length + '</span>';
+    }
+  } else {
+    // Fallback: icon + name + count (original look)
+    const icon = (zoneName === 'exile') ? '&#x2B21;' : '&#x2620;';
+    const label = (zoneName === 'exile') ? 'Exile' : 'Grave';
+    const countId = (zoneName === 'exile') ? 'exile-count-' : 'gv-count-';
+    zoneEl.innerHTML =
+      '<span class="card-count" id="' + countId + pNum + '" style="' + (cards.length > 0 ? 'display:block;' : 'display:none;') + '">' + cards.length + '</span>' +
+      '<span class="zone-icon">' + icon + '</span>' +
+      '<span class="zone-name">' + label + '</span>';
   }
 }
 
@@ -1055,6 +1089,8 @@ function initSetupScreen() {
     '<button class="ai-diff-btn active" onclick="window._setAiDiff(this,\'easy\')" data-diff="easy" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:rgba(91,141,217,0.2);color:rgba(255,255,255,0.7);cursor:pointer;">Easy</button>' +
     '<button class="ai-diff-btn" onclick="window._setAiDiff(this,\'normal\')" data-diff="normal" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:rgba(255,255,255,0.5);cursor:pointer;">Normal</button>' +
     '<button class="ai-diff-btn" onclick="window._setAiDiff(this,\'hard\')" data-diff="hard" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:rgba(255,255,255,0.5);cursor:pointer;">Hard</button>' +
+    '<button class="ai-diff-btn" onclick="window._setAiDiff(this,\'aggro\')" data-diff="aggro" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:rgba(255,255,255,0.5);cursor:pointer;">Aggro</button>' +
+    '<button class="ai-diff-btn" onclick="window._setAiDiff(this,\'combo\')" data-diff="combo" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:rgba(255,255,255,0.5);cursor:pointer;">Combo</button>' +
     '</div>' +
     '</div>' +
 
@@ -1073,6 +1109,12 @@ function initSetupScreen() {
     '<span id="backend-status-indicator" class="backend-status disconnected">Checking backend...</span>' +
     '</div>' +
     '<div id="deck-assignment-grid" class="deck-assignment-grid"></div>' +
+    '</div>' +
+
+    '<div class="setup-section" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">' +
+    '<button class="setup-tool-btn" onclick="toggleDeckBuilderPanel()" style="display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.7);cursor:pointer;font-size:12px;">&#x1F0CF; Deck Builder</button>' +
+    '<button class="setup-tool-btn" onclick="toggleDeckGenPanel()" style="display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.7);cursor:pointer;font-size:12px;">&#x26A1; Auto Gen</button>' +
+    '<button class="setup-tool-btn" onclick="toggleCollectionPanel()" style="display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.7);cursor:pointer;font-size:12px;">&#x1F4DA; Collection</button>' +
     '</div>' +
 
     '<button class="btn-start" onclick="startGame()">Begin Battle</button>' +

@@ -1,0 +1,1402 @@
+/* ═══════════════════════════════════════════════════════════
+   Commander AI Lab — Auto Deck Generator Styles
+   Uses dg- prefix to avoid conflicts with lab- / deck- / coll-
+   Tokens from global.css design system
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── JS Backward-Compat Aliases ─────────────────────────
+   deckgenerator.js uses var(--lab-surface) in a template literal.
+   Map it to the global token so inline styles work.
+   ──────────────────────────────────────────────────────── */
+:root {
+    --lab-surface: var(--surface-1);
+}
+
+/* ── Z-INDEX STACK ────────────────────────────────────────
+   10  card group headers (sticky)
+   50  commander dropdown
+   60  card preview
+   500 toast container
+   ──────────────────────────────────────────────────────── */
+
+/* ── 1. Page Base ───────────────────────────────────────── */
+
+#deckgen-page {
+    min-height: calc(100vh - var(--nav-height));
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    isolation: isolate;
+}
+
+/* ── 2. Main Layout ─────────────────────────────────────── */
+
+.dg-main {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 0;
+    flex: 1;
+    min-height: 0;
+}
+
+.dg-col-config {
+    border-right: 1px solid var(--border);
+    padding: var(--sp-5);
+    overflow-y: auto;
+    overflow-x: visible;
+    height: calc(100vh - var(--nav-height));
+    position: sticky;
+    top: var(--nav-height);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.dg-col-config::-webkit-scrollbar { width: 6px; }
+.dg-col-config::-webkit-scrollbar-track { background: transparent; }
+.dg-col-config::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.dg-col-results {
+    padding: var(--sp-4) var(--sp-5);
+    overflow-y: auto;
+    min-height: calc(100vh - var(--nav-height));
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.dg-col-results::-webkit-scrollbar { width: 6px; }
+.dg-col-results::-webkit-scrollbar-track { background: transparent; }
+.dg-col-results::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── 3. Panels ──────────────────────────────────────────── */
+
+.dg-panel {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: visible;
+}
+
+/* Commander panel needs visible overflow for dropdown */
+.dg-panel.dg-panel-commander {
+    overflow: visible;
+}
+
+.dg-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--accent-dim);
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.dg-panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.dg-panel-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.dg-panel-hint.dg-over {
+    color: var(--error);
+    font-weight: 600;
+}
+
+.dg-panel-body {
+    padding: var(--sp-4);
+}
+
+/* ── 4. Input ───────────────────────────────────────────── */
+
+.dg-input {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-3);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+
+.dg-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.dg-input::placeholder {
+    color: var(--text-secondary);
+}
+
+/* ── 5. Commander Search ────────────────────────────────── */
+
+.dg-commander-search-wrap {
+    position: relative;
+}
+
+.dg-commander-dropdown {
+    display: none;
+    position: fixed;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    max-height: 280px;
+    overflow-y: auto;
+    z-index: 9999;
+    box-shadow: var(--shadow-lg);
+}
+
+.dg-commander-dropdown.open {
+    display: block;
+}
+
+.dg-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    cursor: pointer;
+    transition: background 0.1s;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.dg-dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.dg-dropdown-item:hover {
+    background: var(--accent-dim);
+}
+
+.dg-dropdown-item-img {
+    width: 32px;
+    height: 44px;
+    object-fit: cover;
+    border-radius: 3px;
+    flex-shrink: 0;
+    background: var(--surface-1);
+}
+
+.dg-dropdown-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.dg-dropdown-item-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dg-dropdown-item-type {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dg-dropdown-item-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.dg-badge-owned {
+    background: var(--success-dim);
+    color: var(--success);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.dg-badge-scryfall {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid var(--accent-glow);
+}
+
+.dg-dropdown-empty {
+    text-align: center;
+    padding: var(--sp-4);
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.dg-dropdown-loading {
+    text-align: center;
+    padding: var(--sp-4);
+    color: var(--accent);
+    font-size: 12px;
+}
+
+/* Commander Selected Card */
+
+.dg-commander-selected {
+    margin-top: var(--sp-3);
+}
+
+.dg-commander-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-3);
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    position: relative;
+}
+
+.dg-commander-img {
+    width: 100%;
+    max-width: 260px;
+    height: auto;
+    border-radius: 12px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.dg-commander-info {
+    text-align: center;
+    min-width: 0;
+    width: 100%;
+}
+
+.dg-commander-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.dg-commander-type {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.dg-commander-colors {
+    display: flex;
+    justify-content: center;
+    gap: 3px;
+    margin-top: var(--sp-1);
+}
+
+/* MTG mana color pips — domain-specific colors */
+.dg-color-pip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 10px;
+    font-weight: 700;
+    box-shadow: var(--shadow-sm);
+}
+
+.dg-pip-W { background: #f9faf4; color: #3d3929; }
+.dg-pip-U { background: #0e67ab; color: #fff; }
+.dg-pip-B { background: #2b2424; color: #ccc; }
+.dg-pip-R { background: #d3202a; color: #fff; }
+.dg-pip-G { background: #00733e; color: #fff; }
+.dg-pip-C { background: #706f6f; color: #fff; }
+
+.dg-commander-clear {
+    position: absolute;
+    top: var(--sp-2);
+    right: var(--sp-2);
+    background: rgba(0, 0, 0, 0.6);
+    border: none;
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 2px 8px;
+    line-height: 1;
+    border-radius: 50%;
+    z-index: 2;
+    transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+
+.dg-commander-clear:hover {
+    color: var(--error);
+}
+
+/* ── 6. Source Toggles ──────────────────────────────────── */
+
+.dg-source-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.dg-source-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-2) 0;
+}
+
+.dg-source-label {
+    font-size: 13px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.dg-source-exp {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    background: var(--warning-dim);
+    color: var(--warning);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+/* ── 7. Toggle Switch ───────────────────────────────────── */
+
+.dg-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-2) 0;
+    cursor: pointer;
+    user-select: none;
+}
+
+.dg-toggle-label {
+    font-size: 13px;
+    color: var(--text);
+}
+
+.dg-toggle-check {
+    display: none;
+}
+
+.dg-toggle-track {
+    width: 34px;
+    height: 18px;
+    background: var(--border);
+    border-radius: 9px;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+
+.dg-toggle-check:checked + .dg-toggle-track {
+    background: var(--accent);
+}
+
+.dg-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s;
+}
+
+.dg-toggle-check:checked + .dg-toggle-track .dg-toggle-thumb {
+    transform: translateX(16px);
+}
+
+/* ── 8. Ratio Controls ──────────────────────────────────── */
+
+.dg-ratio-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.dg-ratio-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.dg-ratio-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    width: 80px;
+    flex-shrink: 0;
+    line-height: 1.3;
+}
+
+.dg-ratio-slider {
+    flex: 1;
+    min-width: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+    margin: 0 4px;
+}
+
+.dg-ratio-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 6px var(--accent-glow);
+    margin-top: -5px;
+}
+
+.dg-ratio-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+}
+
+.dg-ratio-value {
+    width: 52px;
+    min-width: 52px;
+    text-align: center;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 4px 6px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    -moz-appearance: textfield;
+}
+
+.dg-ratio-value::-webkit-outer-spin-button,
+.dg-ratio-value::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.dg-ratio-value:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* ── 9. Buttons ─────────────────────────────────────────── */
+
+.dg-actions {
+    padding: var(--sp-1) 0 var(--sp-2);
+}
+
+.dg-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-5);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--duration) var(--ease);
+    border: none;
+    font-family: inherit;
+}
+
+.dg-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.dg-btn-icon {
+    font-size: 14px;
+}
+
+.dg-btn-preview {
+    background: var(--success);
+    color: var(--text-inverse);
+    width: 100%;
+    justify-content: center;
+}
+
+.dg-btn-preview:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px var(--success-dim);
+}
+
+.dg-btn-save {
+    background: var(--accent);
+    color: var(--text-inverse);
+}
+
+.dg-btn-save:hover:not(:disabled) {
+    background: var(--accent-hover);
+    box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.dg-btn-ghost {
+    background: var(--surface-1);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.dg-btn-ghost:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* ── 10. Empty State ────────────────────────────────────── */
+
+.dg-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 400px;
+    text-align: center;
+    gap: var(--sp-3);
+}
+
+.dg-empty-icon {
+    font-size: 48px;
+    opacity: 0.25;
+    user-select: none;
+}
+
+.dg-empty-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.dg-empty-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    max-width: 300px;
+    line-height: 1.5;
+}
+
+/* ── 11. Loading State ──────────────────────────────────── */
+
+.dg-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    gap: var(--sp-4);
+}
+
+.dg-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: dg-spin 0.7s linear infinite;
+}
+
+@keyframes dg-spin {
+    to { transform: rotate(360deg); }
+}
+
+.dg-loading-text {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+/* ── 12. Results — Stats Bar ────────────────────────────── */
+
+.dg-stats-bar {
+    display: flex;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--sp-4);
+}
+
+.dg-stat-chip {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    font-size: 12px;
+}
+
+.dg-stat-num {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+}
+
+.dg-stat-label {
+    color: var(--text-secondary);
+}
+
+.dg-stat-owned .dg-stat-num { color: var(--success); }
+.dg-stat-proxy .dg-stat-num { color: var(--warning); }
+
+/* ── 13. Results — Card Groups ──────────────────────────── */
+
+.dg-card-groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+}
+
+.dg-card-group {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.dg-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--accent-dim);
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    transition: background var(--duration) var(--ease);
+}
+
+.dg-group-header:hover {
+    background: rgba(91, 158, 240, 0.08);
+}
+
+.dg-group-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.dg-group-count {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.dg-group-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.dg-group-body.collapsed {
+    display: none;
+}
+
+.dg-card-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background 0.1s;
+    position: relative;
+}
+
+.dg-card-row:last-child {
+    border-bottom: none;
+}
+
+.dg-card-row:hover {
+    background: var(--accent-dim);
+}
+
+.dg-card-row-mana {
+    font-size: 12px;
+    color: var(--text-secondary);
+    width: 50px;
+    text-align: right;
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+}
+
+.dg-card-row-name {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dg-card-row-roles {
+    display: flex;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.dg-role-chip {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-dim);
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 600;
+}
+
+.dg-card-row-source {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.dg-src-collection {
+    background: var(--success-dim);
+    color: var(--success);
+}
+
+.dg-src-edhrec {
+    background: var(--purple-dim);
+    color: var(--purple);
+}
+
+.dg-src-archidekt {
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+
+.dg-src-moxfield {
+    background: var(--warning-dim);
+    color: var(--warning);
+}
+
+.dg-src-mtggoldfish {
+    background: var(--error-dim);
+    color: var(--error);
+}
+
+.dg-src-template {
+    background: rgba(139, 148, 158, 0.12);
+    color: var(--text-secondary);
+}
+
+.dg-card-row-owned {
+    font-size: 10px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    width: 32px;
+    text-align: center;
+}
+
+.dg-card-row-owned.is-owned {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.dg-card-row-owned.is-proxy {
+    color: var(--warning);
+}
+
+/* Card Image Preview on Hover */
+
+.dg-card-preview {
+    display: none;
+    position: fixed;
+    z-index: 60;
+    pointer-events: none;
+}
+
+.dg-card-preview.visible {
+    display: block;
+}
+
+.dg-card-preview img {
+    width: 240px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* ── 14. Save Bar ───────────────────────────────────────── */
+
+.dg-save-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-4) 0 var(--sp-2);
+    position: sticky;
+    bottom: 0;
+    background: linear-gradient(transparent, var(--bg) 20%);
+    padding-top: var(--sp-6);
+}
+
+/* ── 15. Toast ──────────────────────────────────────────── */
+
+.dg-toast-container {
+    position: fixed;
+    bottom: var(--sp-5);
+    right: var(--sp-5);
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.dg-toast {
+    padding: var(--sp-3) var(--sp-4);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: #fff;
+    animation: dg-toast-in 0.25s ease, dg-toast-out 0.3s ease 2.5s forwards;
+    max-width: 360px;
+    box-shadow: var(--shadow-md);
+}
+
+.dg-toast-success {
+    background: var(--success);
+}
+
+.dg-toast-error {
+    background: var(--error);
+}
+
+.dg-toast-info {
+    background: var(--accent);
+    color: var(--text-inverse);
+}
+
+@keyframes dg-toast-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dg-toast-out {
+    from { opacity: 1; }
+    to { opacity: 0; transform: translateY(-8px); }
+}
+
+/* ── 16. Responsive ─────────────────────────────────────── */
+
+@media (max-width: 900px) {
+    .dg-main {
+        grid-template-columns: 1fr;
+    }
+
+    .dg-col-config {
+        height: auto;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .dg-col-results {
+        max-height: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .dg-col-config {
+        padding: var(--sp-3);
+    }
+
+    .dg-col-results {
+        padding: var(--sp-3);
+    }
+
+    .dg-card-preview {
+        display: none !important;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   V3 Additions — Bracket, Strategy, Substitution UI
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Bracket Buttons ──────────────────────────────────────── */
+.dg-bracket-row {
+    margin-top: var(--sp-3);
+}
+
+.dg-bracket-btns {
+    display: flex;
+    gap: var(--sp-2);
+    margin-top: var(--sp-2);
+}
+
+.dg-bracket-btn {
+    flex: 1;
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.dg-bracket-btn:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.dg-bracket-btn.dg-bracket-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+/* ── Budget Row ───────────────────────────────────────────── */
+.dg-budget-row {
+    display: flex;
+    gap: var(--sp-2);
+}
+
+.dg-input-narrow {
+    width: 120px;
+    flex-shrink: 0;
+}
+
+.dg-select {
+    flex: 1;
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    color: var(--text);
+    font-size: 0.85rem;
+}
+
+/* ── Model Row ────────────────────────────────────────────── */
+.dg-model-row {
+    margin-top: var(--sp-3);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.dg-model-row .dg-select {
+    flex: 1;
+}
+
+.dg-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* ── Strategy Bar ─────────────────────────────────────────── */
+.dg-strategy-bar {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3) var(--sp-4);
+    margin-bottom: var(--sp-3);
+}
+
+.dg-strategy-info {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+}
+
+.dg-bracket-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #fff;
+    padding: 0 var(--sp-2);
+}
+
+.dg-bracket-1 { background: #4ade80; color: #0a0a0a; }
+.dg-bracket-2 { background: #60a5fa; }
+.dg-bracket-3 { background: #f59e0b; color: #0a0a0a; }
+.dg-bracket-4 { background: #ef4444; }
+
+.dg-archetype-badge {
+    background: var(--surface-2, #2a2a2a);
+    color: var(--text-muted);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.dg-strategy-text {
+    font-size: 0.85rem;
+    color: var(--text);
+}
+
+.dg-bracket-reasoning {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: var(--sp-2);
+    line-height: 1.4;
+}
+
+.dg-game-changers {
+    margin-top: var(--sp-2);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.dg-gc-chip {
+    display: inline-block;
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 0.7rem;
+    margin-left: var(--sp-1);
+}
+
+/* ── Substitution Summary ─────────────────────────────────── */
+.dg-sub-summary {
+    margin-bottom: var(--sp-3);
+}
+
+.dg-sub-bar {
+    display: flex;
+    gap: var(--sp-3);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-2) var(--sp-4);
+}
+
+.dg-sub-stat {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.dg-sub-owned { color: #4ade80; }
+.dg-sub-substituted { color: #60a5fa; }
+.dg-sub-missing { color: #f59e0b; }
+
+/* ── Card Status Badges ───────────────────────────────────── */
+.dg-card-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.dg-badge-owned {
+    background: rgba(74, 222, 128, 0.15);
+    color: #4ade80;
+}
+
+.dg-badge-substituted {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+}
+
+.dg-badge-missing {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+/* ── Card Row V3 ──────────────────────────────────────────── */
+.dg-card-row {
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.dg-card-row-main {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.dg-card-row-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.85rem;
+}
+
+.dg-card-count {
+    display: inline-block;
+    background: var(--accent, #6c63ff);
+    color: #fff;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    margin-right: 2px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.dg-card-row-roles {
+    display: flex;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.dg-card-price {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.dg-card-reason {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    padding: 2px 0 0 var(--sp-3);
+    line-height: 1.3;
+}
+
+/* ── Substitution Lines ───────────────────────────────────── */
+.dg-card-sub-line {
+    padding: 2px 0 0 var(--sp-3);
+    font-size: 0.75rem;
+}
+
+.dg-sub-arrow {
+    color: #60a5fa;
+    font-weight: 700;
+}
+
+.dg-sub-name {
+    color: #60a5fa;
+    font-weight: 600;
+}
+
+.dg-sub-label {
+    color: var(--text-muted);
+}
+
+.dg-alt-chip {
+    display: inline-block;
+    background: rgba(255,255,255,0.05);
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    font-size: 0.65rem;
+    margin-left: 3px;
+    color: var(--text-muted);
+    cursor: help;
+}
+
+/* ── Card row status striping ─────────────────────────────── */
+.dg-card-status-owned {}
+.dg-card-status-substituted {
+    background: rgba(96, 165, 250, 0.04);
+    border-left: 2px solid rgba(96, 165, 250, 0.3);
+}
+.dg-card-status-missing {
+    background: rgba(245, 158, 11, 0.04);
+    border-left: 2px solid rgba(245, 158, 11, 0.3);
+}
+
+/* ── Commander row highlight ──────────────────────────────── */
+.dg-card-row-commander {
+    background: rgba(139, 92, 246, 0.08);
+    border-left: 2px solid rgba(139, 92, 246, 0.5);
+}
+
+/* ── Export Buttons ────────────────────────────────────────── */
+.dg-export-group {
+    display: flex;
+    gap: var(--sp-2);
+    margin-left: auto;
+}
+
+.dg-btn-export {
+    padding: var(--sp-2) var(--sp-3) !important;
+    font-size: 0.75rem !important;
+    background: var(--surface-1) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-muted) !important;
+}
+
+.dg-btn-export:hover {
+    border-color: var(--accent) !important;
+    color: var(--text) !important;
+}
+
+/* ── Stats additions ──────────────────────────────────────── */
+.dg-stat-substituted .dg-stat-num { color: #60a5fa; }
+.dg-stat-missing .dg-stat-num { color: #f59e0b; }
+.dg-stat-price .dg-stat-num { color: #a78bfa; }
+
+
+/* -- Conversation Log ---------------------------------------- */
+.dg-conversation-log {
+    margin-top: var(--sp-3);
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-3);
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    scrollbar-width: thin;
+}
+
+.dg-log-entry {
+    padding: 3px 0;
+    line-height: 1.5;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.dg-log-entry:last-child {
+    border-bottom: none;
+}
+
+.dg-log-ts {
+    color: var(--text-muted);
+    margin-right: 6px;
+}
+
+.dg-log-info {
+    color: var(--text);
+}
+
+.dg-log-success {
+    color: #60a5fa;
+}
+
+.dg-log-error {
+    color: #f59e0b;
+}
+
+/* ── Progress Bar (Deck Generation) ──────────────────── */
+.dg-progress-wrap {
+    width: 100%;
+    max-width: 400px;
+    margin-top: 16px;
+}
+
+.dg-progress-bar {
+    height: 6px;
+    background: var(--surface-2, #2a2a3a);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.dg-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent, #7c6ff7), #a78bfa);
+    border-radius: 3px;
+    transition: width 1s ease;
+}
+
+.dg-progress-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    font-size: 0.78rem;
+}
+
+.dg-progress-phase {
+    color: var(--text-muted, #999);
+}
+
+.dg-progress-elapsed {
+    color: var(--text-muted, #999);
+    font-variant-numeric: tabular-nums;
+}
+
+/* — Omit Cards Chips ————————————————————————— */
+.dg-omit-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  background: var(--bg-input, #1a1a2e);
+  min-height: 38px;
+  cursor: text;
+}
+
+.dg-omit-wrap:focus-within {
+  border-color: var(--accent, #6c5ce7);
+  box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.25);
+}
+
+.dg-omit-chips {
+  display: contents;
+}
+
+.dg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--accent, #6c5ce7);
+  color: #fff;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+
+.dg-chip-x {
+  cursor: pointer;
+  font-size: 0.9rem;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+.dg-chip-x:hover {
+  opacity: 1;
+}
+
+.dg-omit-input {
+  flex: 1 1 120px;
+  border: none !important;
+  background: transparent !important;
+  padding: 2px 4px !important;
+  min-width: 120px;
+  outline: none;
+  box-shadow: none !important;
+}
+
+.dg-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted, #999);
+  font-size: 0.75rem;
+}

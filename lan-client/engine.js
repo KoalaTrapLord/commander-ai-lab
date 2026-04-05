@@ -2088,7 +2088,7 @@ function autoResolveTriggerEffect(trigger) {
 
   // Helper: find the card on battlefield for counter placement
   function findCardOnBattlefield(cardName, ownerIdx) {
-    var bf = (gameState.players[ownerIdx] || {}).battlefield || [];
+    var bf = gameState.battlefieldCards.filter(function(c) { return c.ownerIndex === ownerIdx; });
     for (var i = 0; i < bf.length; i++) {
       if (bf[i].name === cardName) return bf[i];
     }
@@ -2233,7 +2233,7 @@ function autoResolveTriggerEffect(trigger) {
       var opps4 = getOpponents(oi);
       var placed = false;
       for (var cmi = 0; cmi < opps4.length && !placed; cmi++) {
-        var cmBf = (gameState.players[opps4[cmi]] || {}).battlefield || [];
+        var cmBf = gameState.battlefieldCards.filter(function(c) { return c.ownerIndex === opps4[cmi]; });
         for (var cmj = 0; cmj < cmBf.length && !placed; cmj++) {
           if (cmBf[cmj].type_line && cmBf[cmj].type_line.toLowerCase().indexOf('creature') !== -1) {
             cmBf[cmj].counters = cmBf[cmj].counters || {};
@@ -2250,7 +2250,7 @@ function autoResolveTriggerEffect(trigger) {
 
     case 'counter_all': {
       // +1/+1 counter on each creature you control
-      var caBf = (gameState.players[oi] || {}).battlefield || [];
+      var caBf = gameState.battlefieldCards.filter(function(c) { return c.ownerIndex === oi; });
       var caCount = 0;
       for (var cai = 0; cai < caBf.length; cai++) {
         if (caBf[cai].type_line && caBf[cai].type_line.toLowerCase().indexOf('creature') !== -1) {
@@ -2362,7 +2362,7 @@ function autoResolveTriggerEffect(trigger) {
     }
 
     case 'untap_all': {
-      var uaBf = (gameState.players[oi] || {}).battlefield || [];
+      var uaBf = gameState.battlefieldCards.filter(function(c) { return c.ownerIndex === oi; });
       var uaCount = 0;
       for (var uai = 0; uai < uaBf.length; uai++) {
         if (uaBf[uai].tapped) {
@@ -12779,6 +12779,9 @@ async function loadPreconForPlayer(playerIdx, preconId) {
   if (commandCards.length > 0) {
     player.commanderCardName = commandCards[0].name || '';
   }
+  if (precon.fileName) {
+    player.deckFileName = precon.fileName;
+  }
 
   // Shuffle library
   for (var si = libraryCards.length - 1; si > 0; si--) {
@@ -16225,6 +16228,72 @@ function aiPickMultiTargetAttacks(playerIdx, creatures, difficulty) {
   return assignments;
 }
 
+// ---- AI Helper: Declare attacks for an AI player (used by ai-bridge) ----
+function aiDeclareAttacks(playerIdx) {
+  if (!gameState) return;
+  var player = gameState.players[playerIdx];
+  if (!player || player.eliminated) return;
+  var difficulty = gameState.aiDifficulty || 'easy';
+
+  var creatures = aiGetUntappedCreatures(playerIdx).filter(function(c) {
+    return !hasSummoningSickness(c);
+  });
+  if (creatures.length === 0) return;
+
+  var attackerCards = [];
+
+  if (difficulty === 'easy') {
+    attackerCards = creatures.filter(function() { return Math.random() > 0.5; });
+    if (attackerCards.length === 0 && creatures.length > 0) attackerCards = [creatures[0]];
+  } else {
+    var primaryTarget = aiPickAttackTarget(playerIdx);
+    if (primaryTarget === -1) return;
+
+    creatures.forEach(function(c) {
+      var eval_ = aiEvaluateAttack(c, primaryTarget);
+      if (difficulty === 'normal') {
+        if (eval_.shouldAttack || eval_.risk === 'trade') attackerCards.push(c);
+      } else {
+        if (eval_.shouldAttack) attackerCards.push(c);
+        else if (creatures.length >= 4 && eval_.risk === 'bad-trade') attackerCards.push(c);
+      }
+    });
+
+    if (difficulty === 'hard' && attackerCards.length > 2) {
+      var sortedByToughness = attackerCards.slice().sort(function(a, b) {
+        return getCreatureToughness(b) - getCreatureToughness(a);
+      });
+      var holdBack = sortedByToughness.find(function(c) {
+        return !hasKeyword(c, 'vigilance') && getCreatureToughness(c) >= 3;
+      });
+      if (holdBack) {
+        attackerCards = attackerCards.filter(function(c) { return c.id !== holdBack.id; });
+      }
+    }
+  }
+
+  if (attackerCards.length === 0) return;
+
+  var assignments = aiPickMultiTargetAttacks(playerIdx, attackerCards, difficulty);
+  if (assignments.length === 0) return;
+
+  gameState.combat.attackers = assignments.map(function(a) {
+    return { cardId: a.card.id, targetPlayerId: a.targetIdx };
+  });
+
+  attackerCards.forEach(function(c) {
+    if (!hasKeyword(c, 'vigilance')) {
+      c.tapped = true;
+      var el = document.getElementById('bc-' + c.id);
+      if (el) el.classList.add('tapped');
+    }
+    var el2 = document.getElementById('bc-' + c.id);
+    if (el2) el2.classList.add('attacking');
+  });
+
+  fireBattlefieldTriggers('attack');
+}
+
 // ---- AI Helper: Check if AI has a counterspell and should use it ----
 function aiCheckForCounterspell(playerIdx) {
   if (!gameState) return null;
@@ -16593,7 +16662,7 @@ function _aiRunPostCombat(playerIdx, player, difficulty, heldCards) {
   var postDelay = 600;
 
   // MAIN PHASE 2 (same logic as inline version)
-  if (difficulty !== 'easy') {
+  {
     postActions.push({ delay: postDelay, fn: function() {
       var bluffReserve = 0;
       var bluffCardName = '';
@@ -17205,12 +17274,12 @@ function _runLocalAiTurn() {
   }
 
   // ========================================
-  // MAIN PHASE 2: Post-combat spell casting (normal & hard)
+  // MAIN PHASE 2: Post-combat spell casting
   // Hard: play held-back removal + instants + any remaining affordable spells
-  // Normal: try to play any remaining affordable spells
+  // Normal/Easy: try to play any remaining affordable spells
   // BLUFFING: On Normal/Hard, hold back mana if we have instant-speed answers
   // ========================================
-  if (difficulty !== 'easy') {
+  {
     actions.push({ delay: delay, fn: function() {
       if (_aiBlockerPauseState) return; // Skip — human blocker flow handles this
       var bluffReserve = 0;
@@ -25634,3 +25703,9 @@ function _safeRender(fn, ...args) {
     try { window[fn](...args); } catch(e) {}
   }
 }
+
+// Expose functions needed by ai-bridge.js
+window.aiTryCastCommander = aiTryCastCommander;
+window.aiDeclareAttacks = aiDeclareAttacks;
+window.playCardFromHand = playCardFromHand;
+window.aiCountUntappedLands = aiCountUntappedLands;

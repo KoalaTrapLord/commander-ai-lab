@@ -245,6 +245,20 @@ async def add_deck_card(deck_id: int, req: AddDeckCardRequest):
     ).fetchone()
     card_name = ce_row["name"] if ce_row else (req.card_name or "")
 
+    # Ensure card_records has type_line for this card (Scryfall lookup if missing)
+    if card_name:
+        existing_cr = conn.execute(
+            "SELECT type_line FROM card_records WHERE name = ? LIMIT 1", (card_name,)
+        ).fetchone()
+        if not existing_cr or not existing_cr["type_line"]:
+            enriched = _enrich_from_scryfall(card_name)
+            if enriched and enriched.get("type_line"):
+                conn.execute(
+                    "INSERT OR IGNORE INTO card_records (name, type_line, oracle_text, cmc) VALUES (?,?,?,?)",
+                    (card_name, enriched["type_line"], enriched.get("oracle_text", ""), enriched.get("cmc", 0))
+                )
+                conn.commit()
+
     existing = conn.execute(
         "SELECT id, quantity FROM deck_cards WHERE deck_id = ? AND scryfall_id = ?",
         (deck_id, req.scryfall_id)
